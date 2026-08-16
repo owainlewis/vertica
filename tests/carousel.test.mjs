@@ -37,6 +37,14 @@ test("splits long paragraphs into slide-sized chunks", () => {
   }
 });
 
+test("rejects source text that would be silently truncated", () => {
+  const source = Array.from({ length: 500 }, (_, index) => `word${index}`).join(" ");
+  assert.throws(
+    () => generateCarouselFromText(source),
+    /needs \d+ slides.*10 slides maximum/,
+  );
+});
+
 test("parses AI-generated JSON and applies safe defaults", () => {
   const config = parseCarouselConfig(JSON.stringify({
     title: "A useful guide",

@@ -47,7 +47,7 @@ function Slide({
 
   return (
     <article
-      className={`carousel-slide template-${config.template} layout-${slide.layout} ${slide.title.length > 60 ? "long-title" : ""} ${slide.body.length > 200 ? "long-body" : ""} ${exportMode ? "export-slide" : ""}`}
+      className={`carousel-slide template-${config.template} layout-${slide.layout} ${slide.title.length > 45 ? "long-title" : ""} ${slide.title.length > 70 ? "dense-title" : ""} ${slide.body.length > 140 ? "long-body" : ""} ${slide.body.length > 230 ? "dense-body" : ""} ${exportMode ? "export-slide" : ""}`}
       style={style}
       data-export-slide={exportMode ? "true" : undefined}
     >

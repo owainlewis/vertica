@@ -183,8 +183,11 @@ export function generateCarouselFromText(
     template: "editorial",
   },
 ): CarouselConfig {
-  const chunks = sentenceChunks(source).slice(0, 10);
+  const chunks = sentenceChunks(source);
   if (!chunks.length) throw new Error("Paste some source text first.");
+  if (chunks.length > 10) {
+    throw new Error(`This text needs ${chunks.length} slides. Shorten it or split it into separate carousels (10 slides maximum).`);
+  }
 
   const parsed = chunks.map(splitHeading);
   const slides: CarouselSlide[] = parsed.map((chunk, index) => ({
