@@ -156,13 +156,18 @@ export default function Home() {
     setSelectedIndex(nextIndex);
   }
 
-  async function uploadBackgrounds(event: ChangeEvent<HTMLInputElement>) {
+  async function uploadBackgrounds(event: ChangeEvent<HTMLInputElement>, replaceCurrent = false) {
     if (!event.target.files?.length) return;
     try {
       const images = await readImages(event.target.files);
-      setBackgrounds((current) => [...current, ...images].slice(0, 12));
-      if (!selectedSlide.background && images[0]) updateSlide({ background: images[0] });
-      showNotice({ kind: "success", message: `${images.length} background${images.length === 1 ? "" : "s"} added.` });
+      const keptCount = Math.min(images.length, 12);
+      const newestImage = images.at(-1);
+      setBackgrounds((current) => [...current, ...images].slice(-12));
+      if ((replaceCurrent || !selectedSlide.background) && newestImage) updateSlide({ background: newestImage });
+      showNotice({
+        kind: "success",
+        message: `${keptCount} background${keptCount === 1 ? "" : "s"} added${images.length > 12 ? "; the 12 most recent were kept" : ""}.`,
+      });
     } catch (error) {
       showNotice({ kind: "error", message: error instanceof Error ? error.message : "Could not add that image." });
     }
@@ -325,7 +330,7 @@ export default function Home() {
               <label className="field-label" htmlFor="author">Footer name</label>
               <input id="author" maxLength={40} value={config.author} onChange={(event) => setConfig({ ...config, author: event.target.value.toUpperCase() })} />
               <span className="field-label">Slide background</span>
-              <label className="wide-upload"><Upload size={15} /> Upload an image<input type="file" accept="image/*" onChange={uploadBackgrounds} /></label>
+              <label className="wide-upload"><Upload size={15} /> {selectedSlide.background ? "Replace image" : "Upload an image"}<input type="file" accept="image/*" onChange={(event) => uploadBackgrounds(event, true)} /></label>
               {selectedSlide.background && <button type="button" className="text-button" onClick={() => updateSlide({ background: undefined })}>Remove image</button>}
               <div className="config-tools">
                 <span className="field-label">Project data</span>
