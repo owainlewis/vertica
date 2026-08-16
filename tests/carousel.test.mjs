@@ -25,6 +25,18 @@ test("rejects empty source text", () => {
   assert.throws(() => generateCarouselFromText("   \n "), /Paste some source text/);
 });
 
+test("splits long paragraphs into slide-sized chunks", () => {
+  const source = Array.from({ length: 180 }, (_, index) => `word${index}`).join(" ");
+  const config = generateCarouselFromText(source);
+
+  assert.ok(config.slides.length >= 4);
+  for (const slide of config.slides) {
+    assert.ok(slide.title.length <= 90);
+    assert.ok(slide.body.length <= 280);
+    assert.ok(slide.body.split(/\s+/).filter(Boolean).length <= 42);
+  }
+});
+
 test("parses AI-generated JSON and applies safe defaults", () => {
   const config = parseCarouselConfig(JSON.stringify({
     title: "A useful guide",
@@ -48,6 +60,10 @@ test("rejects unsafe background URLs and oversized carousels", () => {
   assert.throws(
     () => parseCarouselConfig(JSON.stringify({ slides: Array.from({ length: 21 }, (_, index) => ({ title: `Slide ${index}` })) })),
     /20 slides or fewer/,
+  );
+  assert.throws(
+    () => parseCarouselConfig(JSON.stringify({ slides: [{ title: "Slide", body: "x".repeat(281) }] })),
+    /body must be 280 characters or fewer/,
   );
 });
 

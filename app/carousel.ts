@@ -62,6 +62,12 @@ function cleanText(value: unknown, fallback = "") {
   return typeof value === "string" ? value.trim() : fallback;
 }
 
+function limitedText(value: unknown, label: string, limit: number, fallback = "") {
+  const text = cleanText(value, fallback);
+  if (text.length > limit) throw new Error(`${label} must be ${limit} characters or fewer.`);
+  return text;
+}
+
 function makeId(index: number) {
   return `slide-${Date.now().toString(36)}-${index}`;
 }
@@ -95,7 +101,7 @@ export function parseCarouselConfig(input: string): CarouselConfig {
       throw new Error(`Slide ${index + 1} must be an object.`);
     }
     const slide = item as Record<string, unknown>;
-    const title = cleanText(slide.title);
+    const title = limitedText(slide.title, `Slide ${index + 1} title`, 90);
     if (!title) throw new Error(`Slide ${index + 1} needs a title.`);
 
     const background = cleanText(slide.background);
@@ -110,17 +116,17 @@ export function parseCarouselConfig(input: string): CarouselConfig {
         : index === 0
           ? "cover"
           : "content",
-      kicker: cleanText(slide.kicker),
+      kicker: limitedText(slide.kicker, `Slide ${index + 1} kicker`, 50),
       title,
-      body: cleanText(slide.body),
+      body: limitedText(slide.body, `Slide ${index + 1} body`, 280),
       ...(background ? { background } : {}),
     } satisfies CarouselSlide;
   });
 
   return {
     version: 1,
-    title: cleanText(record.title, "Untitled carousel"),
-    author: cleanText(record.author, "YOUR NAME").toUpperCase(),
+    title: limitedText(record.title, "Carousel title", 100, "Untitled carousel"),
+    author: limitedText(record.author, "Author", 40, "YOUR NAME").toUpperCase(),
     template,
     slides,
   };
@@ -132,13 +138,26 @@ function sentenceChunks(text: string) {
     .map((part) => part.replace(/\s+/g, " ").trim())
     .filter(Boolean);
 
-  if (paragraphs.length > 1) return paragraphs;
+  return paragraphs.flatMap((paragraph) => {
+    const words = paragraph
+      .split(/\s+/)
+      .filter(Boolean)
+      .flatMap((word) => word.match(/.{1,80}/g) ?? []);
+    const chunks: string[] = [];
+    let current: string[] = [];
 
-  return text
-    .replace(/\s+/g, " ")
-    .split(/(?<=[.!?])\s+(?=[A-Z0-9])/)
-    .map((part) => part.trim())
-    .filter(Boolean);
+    for (const word of words) {
+      const candidate = [...current, word].join(" ");
+      if (current.length && (current.length >= 42 || candidate.length > 280)) {
+        chunks.push(current.join(" "));
+        current = [];
+      }
+      current.push(word);
+    }
+
+    if (current.length) chunks.push(current.join(" "));
+    return chunks;
+  });
 }
 
 function splitHeading(chunk: string) {
@@ -149,9 +168,10 @@ function splitHeading(chunk: string) {
   }
 
   const words = chunk.split(/\s+/);
-  if (words.length <= 12) return { title: chunk, body: "" };
+  if (words.length <= 12 && chunk.length <= 90) return { title: chunk, body: "" };
+  const rawTitle = words.slice(0, 8).join(" ");
   return {
-    title: `${words.slice(0, 8).join(" ")}…`,
+    title: `${rawTitle.slice(0, 89).trimEnd()}…`,
     body: words.slice(8).join(" "),
   };
 }

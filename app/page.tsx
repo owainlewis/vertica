@@ -47,7 +47,7 @@ function Slide({
 
   return (
     <article
-      className={`carousel-slide template-${config.template} layout-${slide.layout} ${exportMode ? "export-slide" : ""}`}
+      className={`carousel-slide template-${config.template} layout-${slide.layout} ${slide.title.length > 60 ? "long-title" : ""} ${slide.body.length > 200 ? "long-body" : ""} ${exportMode ? "export-slide" : ""}`}
       style={style}
       data-export-slide={exportMode ? "true" : undefined}
     >
@@ -241,7 +241,7 @@ export default function Home() {
         <Link className="brand" href="/" aria-label="Vertica home"><span className="brand-mark">V</span><span>Vertica</span></Link>
         <label className="project-name">
           <span className="status-dot" />
-          <input aria-label="Carousel title" value={config.title} onChange={(event) => setConfig({ ...config, title: event.target.value })} />
+          <input aria-label="Carousel title" maxLength={100} value={config.title} onChange={(event) => setConfig({ ...config, title: event.target.value })} />
         </label>
         <div className="topbar-actions">
           <button className="secondary-button generate-button" type="button" onClick={() => openComposer("text")}><Sparkles size={15} /> Generate</button>
@@ -303,12 +303,12 @@ export default function Home() {
               <label className="field-label" htmlFor="slide-layout">Slide type</label>
               <div className="select-wrap"><select id="slide-layout" value={selectedSlide.layout} onChange={(event) => updateSlide({ layout: event.target.value as CarouselSlide["layout"] })}><option value="cover">Cover</option><option value="content">Content</option><option value="quote">Quote</option><option value="closing">Closing</option></select><ChevronDown size={14} /></div>
               <label className="field-label" htmlFor="kicker">Kicker</label>
-              <input id="kicker" value={selectedSlide.kicker} onChange={(event) => updateSlide({ kicker: event.target.value })} />
+              <input id="kicker" maxLength={50} value={selectedSlide.kicker} onChange={(event) => updateSlide({ kicker: event.target.value })} />
               <label className="field-label" htmlFor="headline">Headline</label>
-              <textarea id="headline" rows={5} value={selectedSlide.title} onChange={(event) => updateSlide({ title: event.target.value })} />
-              <div className={`character-count ${selectedSlide.title.length > 100 ? "over" : ""}`}>{selectedSlide.title.length} / 100</div>
+              <textarea id="headline" maxLength={90} rows={5} value={selectedSlide.title} onChange={(event) => updateSlide({ title: event.target.value })} />
+              <div className="character-count">{selectedSlide.title.length} / 90</div>
               <label className="field-label" htmlFor="body">Supporting copy</label>
-              <textarea id="body" rows={6} value={selectedSlide.body} onChange={(event) => updateSlide({ body: event.target.value })} />
+              <textarea id="body" maxLength={280} rows={6} value={selectedSlide.body} onChange={(event) => updateSlide({ body: event.target.value })} />
             </div>
           ) : (
             <div className="inspector-panel">
@@ -323,7 +323,7 @@ export default function Home() {
                 ))}
               </div>
               <label className="field-label" htmlFor="author">Footer name</label>
-              <input id="author" value={config.author} onChange={(event) => setConfig({ ...config, author: event.target.value.toUpperCase() })} />
+              <input id="author" maxLength={40} value={config.author} onChange={(event) => setConfig({ ...config, author: event.target.value.toUpperCase() })} />
               <span className="field-label">Slide background</span>
               <label className="wide-upload"><Upload size={15} /> Upload an image<input type="file" accept="image/*" onChange={uploadBackgrounds} /></label>
               {selectedSlide.background && <button type="button" className="text-button" onClick={() => updateSlide({ background: undefined })}>Remove image</button>}
