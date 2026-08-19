@@ -1,5 +1,39 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "Castoro";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("/fonts/castoro-latin.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Castoro";
+  font-style: italic;
+  font-weight: 400;
+  font-display: block;
+  src: url("/fonts/castoro-latin-italic.woff2") format("woff2");
+}
+
+/* Inter carries the text: body and footer on the slides, and the whole
+   interface. Variable across 400–700, so one file covers every weight in use. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: block;
+  src: url("/fonts/inter-latin.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: italic;
+  font-weight: 400 700;
+  font-display: block;
+  src: url("/fonts/inter-latin-italic.woff2") format("woff2");
+}
+
 :root {
   --ink: #20211e;
   --muted: #77766f;
@@ -11,10 +45,54 @@
 
 * { box-sizing: border-box; }
 html, body { min-height: 100%; margin: 0; }
-body { background: var(--paper); color: var(--ink); font-family: Arial, Helvetica, sans-serif; }
+body { background: var(--paper); color: var(--ink); font-family: Inter, system-ui, -apple-system, sans-serif; }
 button, input, textarea, select { color: inherit; font: inherit; }
 button, label { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid #706d63; outline-offset: 2px; }
+
+/* Dashboard */
+.dashboard { min-height: 100vh; background: var(--paper); }
+.dashboard-bar { position: sticky; top: 0; z-index: 4; display: flex; align-items: center; justify-content: space-between; height: 64px; padding: 0 24px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.dashboard-body { max-width: 1180px; margin: 0 auto; padding: 40px 24px 80px; }
+.dashboard-heading { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 26px; }
+.dashboard-heading h1 { margin: 0; font-size: 22px; font-weight: 750; letter-spacing: -.03em; }
+.dashboard-heading p { margin: 0; color: var(--muted); font-size: 12px; }
+.dashboard-error { margin: 0 0 18px; padding: 11px 14px; border: 1px solid #d9b3ad; border-radius: 9px; background: #f9eeec; color: #8d2f24; font-size: 12px; }
+.empty-state { padding: 64px 24px; border: 1px dashed #cbc7bb; border-radius: 14px; text-align: center; }
+.empty-state h2 { margin: 0 0 7px; font-size: 16px; letter-spacing: -.02em; }
+.empty-state p { margin: 0 0 20px; color: var(--muted); font-size: 12px; }
+.empty-state button { display: inline-flex; }
+
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 20px; margin: 0; padding: 0; list-style: none; }
+.gallery-card { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: white; }
+.card-open { display: block; padding: 0; border: 0; background: transparent; text-align: left; cursor: pointer; }
+/* Holds one real slide at card width. The slide sizes itself from its own width, so
+   this is a true miniature rather than a second set of preview styles. */
+.card-preview { position: relative; display: block; aspect-ratio: 4/5; overflow: hidden; }
+.card-preview .carousel-slide { position: absolute; inset: 0; }
+.card-meta { display: block; padding: 12px 13px 13px; }
+.card-meta strong { display: block; overflow: hidden; margin-bottom: 4px; font-size: 13px; letter-spacing: -.01em; text-overflow: ellipsis; white-space: nowrap; }
+.card-meta small { color: var(--muted); font-size: 10px; }
+.card-actions { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 9px 10px; border-top: 1px solid var(--line); background: #fbfaf6; }
+.card-actions button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 7px; background: white; color: #56554e; font-size: 10px; font-weight: 700; cursor: pointer; }
+.card-actions button:hover:not(:disabled) { border-color: #9d998e; }
+.card-actions button:disabled { opacity: .5; cursor: wait; }
+.card-actions .danger-action { color: #9f3529; }
+.confirm-delete { display: flex; gap: 5px; }
+
+.signin-shell { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: var(--paper); }
+.signin-card { display: grid; justify-items: center; gap: 9px; width: min(340px, 100%); padding: 30px 26px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); text-align: center; }
+.signin-card h1 { margin: 4px 0 0; font-size: 19px; letter-spacing: -.03em; }
+.signin-card p { margin: 0 0 6px; color: var(--muted); font-size: 12px; }
+.signin-card input { width: 100%; padding: 10px 11px; border: 1px solid var(--line); border-radius: 8px; background: white; font-size: 13px; }
+.signin-card button { width: 100%; }
+.signin-error { color: #9f3529; font-size: 11px; font-weight: 700; }
+
+.brand-back { gap: 8px; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.save-state { align-self: center; margin-right: 4px; color: var(--muted); font-size: 10px; font-weight: 700; }
+.status-dot.saving { background: #c9a227; }
+.status-dot.dirty { background: #c9a227; }
+.status-dot.error, .status-dot.stale { background: #a8382a; }
 
 .studio-shell { min-height: 100vh; display: grid; grid-template-rows: 64px 1fr; overflow: hidden; }
 .topbar { z-index: 4; display: grid; grid-template-columns: 220px 1fr auto; align-items: center; gap: 20px; padding: 0 20px; background: var(--panel); border-bottom: 1px solid var(--line); }
@@ -29,6 +107,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .export-button, .primary-button { border: 1px solid var(--ink); color: white; background: var(--ink); }
 .secondary-button { border: 1px solid var(--line); background: white; }
 .export-button:disabled { opacity: .65; cursor: wait; }
+.icon-button { padding: 8px 10px; }
+.icon-button:disabled { opacity: .35; cursor: default; }
 
 .workspace { min-height: 0; display: grid; grid-template-columns: 220px minmax(480px, 1fr) 320px; }
 .rail, .inspector { min-height: 0; overflow: auto; background: var(--panel); }
@@ -40,9 +120,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .slide-thumb:hover { background: #f0eee8; }
 .slide-thumb.selected { background: #eae7de; border-color: #d4cfc2; }
 .thumb-number { color: #99978f; font: 10px/1 monospace; text-align: center; }
-.thumb-card { aspect-ratio: 4/5; display: flex; align-items: center; overflow: hidden; padding: 5px; border-radius: 3px; color: white; background: #242520; }
-.thumb-card.template-signal { color: #171612; background: #f0ff3e; }
-.thumb-card span { font-size: 5px; font-weight: 800; line-height: .95; letter-spacing: -.04em; }
+.thumb-card { aspect-ratio: 4/5; display: flex; align-items: center; overflow: hidden; padding: 5px; border-radius: 3px; color: #f6f1e7; background: #14140f; }
+.thumb-card.template-midnight { background: #0e1f17; }
+.thumb-card.template-paper { color: #14140f; background: #fbfaf7; }
+.thumb-card span { font-family: Castoro, Georgia, serif; font-size: 5.5px; line-height: 1.1; }
 .thumb-label { overflow: hidden; font-size: 11px; font-weight: 650; text-overflow: ellipsis; text-transform: capitalize; white-space: nowrap; }
 .rail-import { margin-top: auto; padding: 22px 4px 3px; }
 .rail-import > span { display: block; margin-bottom: 9px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
@@ -57,57 +138,120 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .asset-grid svg { position: absolute; right: 2px; bottom: 2px; padding: 2px; border-radius: 50%; color: white; background: var(--ink); }
 
 .canvas-area { min-width: 0; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 22px 40px 28px; background: #e8e5dd; }
-.canvas-toolbar { width: min(52vh, 520px); display: flex; justify-content: space-between; padding-bottom: 10px; color: #77766f; font: 10px/1 monospace; text-transform: uppercase; letter-spacing: .03em; }
-.preview-frame { position: relative; flex: 0 0 auto; width: min(52vh, 520px); min-height: 0; aspect-ratio: 4/5; overflow: hidden; container-type: inline-size; box-shadow: 0 18px 50px rgb(49 45 35 / .18); }
+.canvas-toolbar { width: min(52vh, 520px); display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 10px; color: #77766f; font: 10px/1 monospace; text-transform: uppercase; letter-spacing: .03em; }
+.preview-frame { position: relative; flex: 0 0 auto; width: min(52vh, 520px); min-height: 0; aspect-ratio: 4/5; overflow: hidden; box-shadow: 0 18px 50px rgb(49 45 35 / .18); }
 .preview-frame > .carousel-slide { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; }
+/* Instagram centre-crops a 4:5 post to a square on the profile grid, so 12.5% off the
+   top and bottom of a cover is cut. Preview only: it is a sibling of the slide, never
+   inside it, so it cannot reach the export stage. */
+.crop-guide { position: absolute; inset: 12.5% 0; z-index: 2; border-top: 1px dashed rgb(246 241 231 / .5); border-bottom: 1px dashed rgb(246 241 231 / .5); pointer-events: none; }
+.crop-guide::after { content: "Instagram grid crop"; position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%); padding: 2px 6px; border-radius: 4px; background: rgb(9 9 7 / .55); color: rgb(246 241 231 / .8); font: 500 9px/1.4 Inter, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+.crop-toggle { display: inline-flex; align-items: center; gap: 5px; border: 0; padding: 0; background: transparent; color: inherit; font: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; }
+.crop-toggle[aria-pressed="true"] { color: var(--ink); }
+
 .slide-actions { display: flex; gap: 5px; margin-top: 12px; padding: 4px; border: 1px solid #d5d1c7; border-radius: 9px; background: rgb(250 249 245 / .8); box-shadow: 0 5px 18px rgb(40 39 34 / .05); }
 .slide-actions button { display: inline-flex; align-items: center; gap: 6px; height: 29px; padding: 0 8px; border: 0; border-radius: 5px; background: transparent; color: #65645d; font-size: 10px; font-weight: 700; cursor: pointer; }
 .slide-actions button:hover:not(:disabled) { color: var(--ink); background: white; }
 .slide-actions button:disabled { opacity: .28; cursor: default; }
 .slide-actions .danger-action:hover { color: #a32d20; }
 
-.carousel-slide { --slide-background: none; position: relative; width: 100%; height: 100%; overflow: hidden; display: flex; flex-direction: column; color: #f8f4e9; background: #242520; }
-.slide-image, .slide-overlay, .slide-texture { position: absolute; inset: 0; }
-.slide-image { background-image: var(--slide-background); background-position: center; background-size: cover; }
-.slide-overlay { background: linear-gradient(115deg, rgb(27 28 24 / .95), rgb(27 28 24 / .68)); }
-.slide-texture { opacity: .21; background: radial-gradient(circle at 18% 17%, #999382 0 1px, transparent 1.6px), radial-gradient(circle at 76% 65%, #aaa38f 0 1px, transparent 1.6px); background-size: 17px 17px, 23px 23px; mix-blend-mode: screen; }
-.carousel-slide::after { content: ""; position: absolute; right: -28%; bottom: 4%; width: 58%; aspect-ratio: 1; border: 2px solid rgb(255 255 255 / .2); border-radius: 50%; box-shadow: 0 0 0 38px rgb(255 255 255 / .025), 0 0 0 76px rgb(255 255 255 / .018); }
-.slide-content { position: relative; z-index: 1; min-height: 0; display: flex; flex: 1; flex-direction: column; align-items: flex-start; padding: 11% 10% 6%; }
-.slide-kicker { max-width: 80%; color: #ff7455; font: 700 2.04cqw/1.2 monospace; text-transform: uppercase; letter-spacing: .11em; overflow-wrap: anywhere; }
-.slide-content h2 { max-width: 92%; margin: 18% 0 5%; font-size: 12.22cqw; line-height: .96; letter-spacing: -.065em; overflow-wrap: anywhere; }
-.slide-content p { width: 79%; margin: 0; color: #c6c3b7; font-size: 3.33cqw; line-height: 1.42; overflow-wrap: anywhere; }
-.long-title .slide-content h2 { font-size: 8.52cqw; }
-.long-body .slide-content p { font-size: 2.78cqw; }
-.slide-meta { position: relative; z-index: 1; display: flex; justify-content: space-between; gap: 8%; padding: 0 10% 9%; color: #aaa79b; font: 700 1.67cqw/1 monospace; letter-spacing: .08em; }
-.slide-meta span { min-width: 0; overflow-wrap: anywhere; }
-.layout-content .slide-content { justify-content: center; }
-.layout-content .slide-content h2 { margin: 7% 0 5%; }
-.layout-quote .slide-content { justify-content: center; }
-.layout-quote .slide-content h2 { margin: 2% 0 6%; font-size: 10.93cqw; font-weight: 500; }
-.quote-mark { height: 13.89cqw; color: #ff7455; font-family: Georgia, serif; font-size: 20.37cqw; line-height: .9; }
-.layout-closing .slide-content { justify-content: center; text-align: center; align-items: center; }
-.layout-closing .slide-content h2 { max-width: 86%; margin: 9% 0 7%; }
-.layout-closing .slide-content p { width: auto; }
+/* Slides. One typeface, one scrim, no ornament. Every size is in cqw against the
+   slide itself, so the 520px preview and the 1080px export render identically. */
+.carousel-slide {
+  --slide-background: none;
+  --cream: #f6f1e7;
+  --gold: #e2ce96;
+  --title-size: 8.1cqw;
+  --title-tracking: -.017em;
+  --title-leading: 1;
+  --body-size: 3.1cqw;
+  container-type: inline-size;
+  position: relative; width: 100%; height: 100%; overflow: hidden;
+  display: flex; flex-direction: column;
+  color: var(--cream); background: #14140f;
+  font-family: Castoro, Georgia, "Times New Roman", serif;
+}
+.slide-image, .slide-overlay { position: absolute; inset: 0; }
+/* One grade across every photograph. Shots taken in different light read as a folder
+   of images without it; pulled to a common saturation and contrast they read as one
+   deck. Kept gentle: this is a correction, not a look. */
+.slide-image { background-image: var(--slide-background); background-position: center; background-size: cover; filter: saturate(.88) contrast(1.04); }
+/* Built per slide from the measured brightness under the text. See scrim.ts. The
+   value here is only the fallback for a slide that renders before its variable. */
+.slide-overlay { background: var(--slide-scrim, linear-gradient(180deg, rgb(9 9 7 / .46) 0%, rgb(9 9 7 / .16) 22%, rgb(9 9 7 / .42) 52%, rgb(7 7 5 / .8) 80%, rgb(6 6 4 / .9) 100%)); }
 
-.template-signal { color: #191814; background: #f0ff3e; }
-.template-signal .slide-overlay { background: linear-gradient(135deg, rgb(240 255 62 / .94), rgb(240 255 62 / .72)); }
-.template-signal .slide-texture { opacity: .1; mix-blend-mode: multiply; }
-.template-signal::before { content: ""; position: absolute; z-index: 1; right: -14%; top: -8%; width: 48%; aspect-ratio: 1; border: 2.59cqw solid #191814; border-radius: 50%; }
-.template-signal::after { right: auto; left: 10%; bottom: 10%; width: 42%; border-color: rgb(25 24 20 / .22); box-shadow: none; }
-.template-signal .slide-content { padding: 10% 9% 6%; }
-.template-signal .slide-kicker { padding: 5px 7px; color: #f0ff3e; background: #191814; }
-.template-signal .slide-content h2 { position: relative; max-width: 89%; margin-top: 20%; font-size: 12.96cqw; line-height: .91; text-transform: uppercase; }
-.template-signal .slide-content p { color: #37352d; font-weight: 600; }
-.template-signal .slide-meta { color: #4e4d3e; }
-.template-signal.layout-content .slide-content h2 { margin-top: 8%; }
-.template-signal .quote-mark { color: #191814; }
-.dense-title .slide-content h2, .template-signal.dense-title .slide-content h2 { font-size: 6.48cqw; }
-.template-signal.long-title:not(.dense-title) .slide-content h2 { font-size: 8.52cqw; }
-.dense-body .slide-content p, .template-signal.dense-body .slide-content p { font-size: 2.41cqw; }
-.template-signal.long-body:not(.dense-body) .slide-content p { font-size: 2.78cqw; }
+/* Vertical rhythm is set in em against each element's own size, so the gaps stay
+   proportional whichever step of the scale the title and body land on. */
+.slide-content { position: relative; z-index: 1; min-height: 0; display: flex; flex: 1; flex-direction: column; align-items: flex-start; justify-content: flex-end; padding: 14% 9.5% 13%; }
+/* Serif display, sans text. The footer is a label, so it goes with the text face. */
+/* Tracking is paired with the size step in titleTracking(). Kerning and ligatures
+   are switched on explicitly: browsers drop kerning at display sizes, and the export
+   rasteriser only honours what the computed style states outright. */
+/* text-wrap: balance evens the line lengths instead of filling each line to the
+   edge, which is the ragging the reference covers have. */
+.slide-content h2 { max-width: 100%; margin: 0; font-size: var(--title-size); font-weight: 400; line-height: var(--title-leading); letter-spacing: var(--title-tracking); word-spacing: -.03em; font-kerning: normal; font-variant-ligatures: common-ligatures contextual; overflow-wrap: anywhere; }
+/* Each `|` segment is its own block, so the author's break is the break. Balancing
+   still runs inside a segment that is long enough to wrap on its own. */
+.title-line { display: block; text-wrap: balance; }
+/* A deliberately broken title has already had its line lengths decided, so the only
+   job left is avoiding an orphan inside a segment that still has to wrap. */
+.title-broken .title-line { text-wrap: pretty; }
+/* Hangs an opening quote into the margin so the first line optically aligns with the
+   copy below it. Roughly the sidebearing of a double quote in a serif at display size. */
+.title-hang .title-line:first-child { text-indent: -.36em; }
+/* Cream on a dark ground blooms, so body copy gets a hair of positive tracking back.
+   The paper template prints dark on light and needs none. */
+/* Paragraph gap is set so baselines land ~2.1em apart: clearly more than the 1.38em
+   inside a paragraph, but short of the double-spacing that reads as a bullet list. */
+/* Inter carries far more x-height than Castoro at the same size, so the body is set
+   a step smaller and led a little looser than the serif wanted. */
+.slide-content p { max-width: 96%; margin: .85em 0 0; color: rgb(246 241 231 / .88); font-family: Inter, system-ui, sans-serif; font-size: var(--body-size); font-weight: 400; line-height: 1.5; letter-spacing: -.004em; font-kerning: normal; text-wrap: pretty; overflow-wrap: anywhere; }
+.slide-content h2 + p { margin-top: 1.45em; }
+/* A wide, soft shadow only where there is a photograph under the type. It buys back
+   the legibility that a bright patch takes away without darkening the whole frame the
+   way a heavier scrim would, so the image stays an image. Sized in cqw so it scales
+   with the slide rather than breaking between the preview and the export. */
+.template-cinematic .slide-content h2 { text-shadow: 0 .12cqw 2.4cqw rgb(6 6 4 / .45); }
+.template-cinematic .slide-content p { text-shadow: 0 .1cqw 1.7cqw rgb(6 6 4 / .5); }
+.template-cinematic .slide-meta { text-shadow: 0 .1cqw 1.2cqw rgb(6 6 4 / .5); }
+.mark-italic { font-style: italic; }
+.mark-accent { color: var(--gold); }
+.slide-meta { position: relative; z-index: 1; display: flex; justify-content: space-between; gap: 8%; padding: 0 9.5% 7%; color: rgb(246 241 231 / .42); font-family: Inter, system-ui, sans-serif; font-size: 1.4cqw; font-weight: 500; line-height: 1; letter-spacing: .14em; text-transform: uppercase; }
+.slide-meta span { min-width: 0; overflow-wrap: anywhere; }
+
+/* Centred layouts sit on the lower golden section rather than the middle, which is
+   where the reference covers put their type. */
+.pos-top .slide-content { justify-content: flex-start; padding-top: 13%; padding-bottom: 8%; }
+.pos-middle .slide-content { justify-content: center; padding-top: 22%; padding-bottom: 14%; }
+.pos-bottom .slide-content { justify-content: flex-end; }
+.align-center .slide-content { align-items: center; text-align: center; }
+/* Centred type is set to a measure rather than the full column. The narrower box is
+   what gives the reference covers their three even lines instead of two full ones. */
+.align-center .slide-content h2 { max-width: 87%; }
+.align-center .slide-content p { max-width: 82%; }
+
+/* The cover carries the headline alone. With nothing else competing for the frame it
+   can be set half again as large, which is what gives a display cover its authority. */
+.layout-cover .slide-content p, .layout-cover .slide-meta { display: none; }
+/* The cover's radial scrim, and the way every scrim follows the text position, are
+   both built in scrim.ts now and arrive as --slide-scrim. */
+.layout-cover .slide-content { padding-left: 6%; padding-right: 6%; }
+/* A near-full measure. Narrower than this and a display-size headline shatters into
+   four or five stacked fragments instead of two or three full lines. */
+.layout-cover .slide-content h2 { max-width: 100%; }
+.layout-quote .slide-content h2 { font-style: italic; }
+
+.template-midnight { background: #0e1f17; }
+.template-paper { color: #14140f; background: #fbfaf7; }
+.template-midnight .slide-image, .template-midnight .slide-overlay,
+.template-paper .slide-image, .template-paper .slide-overlay { display: none; }
+.template-paper .slide-content p { color: rgb(20 20 15 / .82); letter-spacing: 0; }
+.template-paper .slide-content h2 { letter-spacing: calc(var(--title-tracking) - .002em); }
+.template-paper .slide-meta { color: rgb(20 20 15 / .38); }
+.template-paper .mark-accent { color: #8a7434; }
 
 .inspector { border-left: 1px solid var(--line); padding: 18px; }
-.inspector-tabs { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 22px; border-bottom: 1px solid var(--line); }
+.inspector-tabs { display: grid; grid-template-columns: repeat(3, 1fr); margin-bottom: 22px; border-bottom: 1px solid var(--line); }
 .inspector-tabs button { padding: 7px 0 11px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: #85837c; font-size: 11px; font-weight: 700; cursor: pointer; }
 .inspector-tabs button.active { color: var(--ink); border-color: var(--ink); }
 .field-label { display: block; margin: 16px 0 7px; color: #77756e; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
@@ -117,56 +261,35 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .select-wrap select { appearance: none; padding-right: 30px; }
 .select-wrap svg { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #77756e; pointer-events: none; }
 .character-count { margin-top: 5px; color: #aaa79e; font: 9px/1 monospace; text-align: right; }
+.field-hint { margin: 9px 0 0; color: #85837b; font-size: 10px; line-height: 1.55; }
+.field-hint em { font-style: normal; font-family: monospace; color: #56554e; }
+.field-hint.warning { margin-top: 10px; padding: 9px 10px; border: 1px solid #ddc9a2; border-radius: 7px; background: #fbf5e8; color: #6d5a2c; }
 .character-count.over { color: #b53c2f; }
+.segmented { display: grid; grid-auto-flow: column; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: white; }
+.segmented button { padding: 7px 6px; border: 0; border-radius: 6px; background: transparent; color: #6f6d65; font-size: 11px; font-weight: 700; cursor: pointer; }
+.segmented button:hover { color: var(--ink); }
+.segmented button.active { color: var(--ink); background: #eae7de; }
 .template-options { display: grid; gap: 7px; }
 .template-options > button { display: grid; grid-template-columns: 54px 1fr 16px; align-items: center; gap: 10px; width: 100%; padding: 7px; border: 1px solid var(--line); border-radius: 8px; background: white; text-align: left; cursor: pointer; }
 .template-options > button.active { border-color: #99958a; box-shadow: 0 0 0 2px rgb(80 78 71 / .06); }
 .template-options strong, .template-options small { display: block; }
 .template-options strong { margin-bottom: 3px; font-size: 11px; }
 .template-options small { color: var(--muted); font-size: 9px; }
-.template-swatch { aspect-ratio: 4/3; display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 7px; overflow: hidden; border-radius: 4px; background: #242520; }
-.template-swatch i { display: block; width: 75%; height: 2px; background: #f6f2e7; }
-.template-swatch i:first-child { width: 35%; background: #ff7455; }
-.template-swatch.signal { background: #f0ff3e; }
-.template-swatch.signal i { width: 88%; height: 4px; background: #191814; }
+.template-swatch { aspect-ratio: 4/3; display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 7px; overflow: hidden; border-radius: 4px; background: #14140f; }
+.template-swatch i { display: block; width: 75%; height: 2px; background: #f6f1e7; }
+.template-swatch i:first-child { width: 35%; background: #e2ce96; }
+.template-swatch.midnight { background: #0e1f17; }
+.template-swatch.paper { background: #fbfaf7; }
+.template-swatch.paper i { background: #14140f; }
+.template-swatch.paper i:first-child { background: #8a7434; }
 .wide-upload { padding: 12px; background: white; }
 .text-button { margin-top: 8px; padding: 0; border: 0; background: transparent; color: #9f3529; font-size: 10px; font-weight: 700; cursor: pointer; }
+.text-button.subtle { color: #6f6d65; text-decoration: underline; text-underline-offset: 3px; }
 .config-tools { margin-top: 24px; padding-top: 5px; border-top: 1px solid var(--line); }
 .config-tools button { display: flex; align-items: center; gap: 8px; width: 100%; margin-bottom: 6px; padding: 9px; border: 1px solid var(--line); border-radius: 7px; background: white; font-size: 10px; font-weight: 700; cursor: pointer; }
 
 .export-stage { position: fixed; left: -10000px; top: 0; width: 1080px; pointer-events: none; }
 .export-slide { width: 1080px; height: 1350px; }
-.export-slide .slide-content { padding: 150px 108px 80px; }
-.export-slide .slide-kicker { font-size: 22px; }
-.export-slide .slide-content h2 { margin: 185px 0 55px; max-width: 92%; font-size: 132px; }
-.export-slide .slide-content p { font-size: 36px; }
-.export-slide .slide-meta { padding: 0 108px 115px; font-size: 18px; }
-.export-slide.layout-content .slide-content h2 { margin: 65px 0 55px; }
-.export-slide.layout-quote .slide-content h2 { margin: 20px 0 60px; font-size: 118px; }
-.export-slide .quote-mark { height: 150px; font-size: 220px; }
-.export-slide.layout-closing .slide-content h2 { margin: 80px 0 65px; }
-.export-slide.template-signal .slide-content { padding: 135px 98px 80px; }
-.export-slide.template-signal::before { border-width: 28px; }
-.export-slide.template-signal .slide-kicker { padding: 10px 14px; }
-.export-slide.template-signal .slide-content h2 { margin-top: 220px; font-size: 140px; }
-.export-slide.template-signal.layout-content .slide-content h2 { margin-top: 75px; }
-.export-slide.long-title .slide-content h2,
-.export-slide.template-signal.long-title .slide-content h2 { margin-top: 100px; font-size: 92px; }
-.export-slide.dense-title .slide-content h2,
-.export-slide.template-signal.dense-title .slide-content h2 { margin-top: 70px; font-size: 70px; }
-.export-slide.long-body .slide-content p,
-.export-slide.template-signal.long-body .slide-content p { font-size: 30px; }
-.export-slide.dense-body .slide-content p,
-.export-slide.template-signal.dense-body .slide-content p { font-size: 26px; }
-.export-slide.layout-content.long-title .slide-content h2 { margin-top: 45px; }
-.export-slide.layout-quote.long-title .slide-content h2 { margin: 15px 0 35px; font-size: 82px; }
-.export-slide.layout-quote.dense-title .slide-content h2 { font-size: 66px; }
-.export-slide.layout-quote.long-body .quote-mark { height: 110px; font-size: 165px; }
-.export-slide.layout-closing.long-title .slide-content h2 { margin: 55px 0 45px; }
-.export-slide.long-title.long-body .slide-content h2,
-.export-slide.template-signal.long-title.long-body .slide-content h2 { margin-top: 65px; font-size: 82px; }
-.export-slide.dense-title.dense-body .slide-content h2,
-.export-slide.template-signal.dense-title.dense-body .slide-content h2 { margin-top: 45px; font-size: 66px; }
 
 .dialog-backdrop { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; padding: 22px; background: rgb(29 29 26 / .48); backdrop-filter: blur(5px); }
 .composer-dialog { width: min(640px, 100%); overflow: hidden; border: 1px solid #d6d2c8; border-radius: 14px; background: var(--panel); box-shadow: 0 28px 80px rgb(25 24 20 / .24); }

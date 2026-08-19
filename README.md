@@ -1,15 +1,43 @@
 # Vertica
 
-A minimal, local-first studio for creating LinkedIn document carousels.
+A minimal studio for creating LinkedIn document carousels.
 
 ## What it does
 
+- saves every carousel to a database and lists them on a home gallery
 - turns pasted text into an editable slide sequence
 - imports and exports a small JSON format that Claude or Codex can generate
-- includes Editorial and Signal templates
-- accepts local background images per slide
-- exports every slide as a 1080 × 1350 page in one PDF
-- runs entirely in the browser with no account, backend, or API key
+- sets titles in Castoro and text in Inter, with Cinematic, Midnight and Paper colours per slide
+- keeps colour, placement and slide type separate, so any text position works with any colour
+- accepts local background images per slide, and darkens each one to suit its own brightness
+- exports one PDF for LinkedIn, or numbered JPEGs zipped for Instagram, both at 2×
+- undo and redo across the whole deck, with ⌘Z and ⇧⌘Z
+
+## Storage
+
+Carousels live in Cloudflare D1. The binding name is set by `"d1"` in
+`.openai/hosting.json`; with it unset the app still runs and the API returns a clear
+503 instead of failing quietly.
+
+Background images do **not** go in the database. D1 caps a single value at 1MB, which
+a photograph exceeds, so images are held in the browser's IndexedDB keyed by content
+hash and the carousel row stores only those keys. `app/image-store.ts` is the seam to
+replace when the images move to cloud storage: reimplement `putImage` and
+`loadImages` and nothing else changes, because the rest of the app deals in keys.
+
+The practical limit today is that images are per-browser. Open a carousel on another
+machine and the text and layout arrive but the backgrounds do not. A key that cannot
+be resolved is kept rather than dropped, so editing a deck in a second browser hides
+the images there without erasing them from the saved carousel.
+
+Every write carries the version the client last read, and the server refuses one built
+on a stale version with a 409 rather than overwriting. Two tabs open on the same deck
+will not silently clobber each other; the second one is told to reload.
+
+## Access
+
+Set an `APP_SECRET` binding to put the dashboard and API behind one shared password.
+With no secret set the app is open, which is what local development wants.
 
 ## Run locally
 
@@ -21,6 +49,14 @@ npm run dev
 ```
 
 Open the local URL shown in the terminal.
+
+## Typography
+
+Sizes are set in container-width units against the slide itself, so the preview and the
+export are the same drawing at different scales. The deck is set at one title size,
+chosen so the longest headline fits, on a continuous curve rather than fixed steps: one
+extra character never resizes the deck. Put a `|` in a headline to break the line where
+the sense breaks instead of leaving it to automatic balancing.
 
 ## Use AI-generated configs
 

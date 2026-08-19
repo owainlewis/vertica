@@ -2,22 +2,34 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   aiPrompt,
+  bodyParagraphs,
+  bodySize,
+  deckTypeScale,
   generateCarouselFromText,
   parseCarouselConfig,
+  parseInlineMarks,
+  slideAlign,
+  slidePosition,
+  slideTemplate,
   starterConfig,
+  titleLeading,
+  titleLines,
+  titleSize,
+  titleTracking,
 } from "../app/carousel.ts";
+import { bandFor, scrimGradient, scrimPeak } from "../app/scrim.ts";
 
 test("generates a readable slide sequence from paragraphs", () => {
   const config = generateCarouselFromText(
     "A clear opening idea.\n\nThe first supporting point explains why it matters.\n\nEnd with one action the reader can take.",
-    { author: "Owain Lewis", template: "signal" },
+    { author: "Owain Lewis", template: "midnight" },
   );
 
   assert.equal(config.slides.length, 3);
   assert.equal(config.slides[0].layout, "cover");
   assert.equal(config.slides[2].layout, "closing");
   assert.equal(config.author, "OWAIN LEWIS");
-  assert.equal(config.template, "signal");
+  assert.equal(config.template, "midnight");
   assert.match(config.slides[1].title, /first supporting point/i);
 });
 
@@ -54,10 +66,57 @@ test("parses AI-generated JSON and applies safe defaults", () => {
   }));
 
   assert.equal(config.version, 1);
-  assert.equal(config.template, "editorial");
+  assert.equal(config.template, "cinematic");
   assert.equal(config.author, "JANE DOE");
   assert.equal(config.slides[0].layout, "cover");
   assert.equal(config.slides[1].layout, "quote");
+});
+
+test("lets a slide override the carousel template and ignores unknown ones", () => {
+  const config = parseCarouselConfig(JSON.stringify({
+    template: "cinematic",
+    slides: [
+      { title: "Photo slide" },
+      { title: "Type slide", template: "paper" },
+      { title: "Nonsense", template: "neon" },
+    ],
+  }));
+
+  assert.equal(config.slides[0].template, undefined);
+  assert.equal(config.slides[1].template, "paper");
+  assert.equal(config.slides[2].template, undefined);
+  assert.equal(slideTemplate(config.slides[0], config), "cinematic");
+  assert.equal(slideTemplate(config.slides[1], config), "paper");
+});
+
+test("placement is independent of colour, and defaults from the slide type", () => {
+  const config = parseCarouselConfig(JSON.stringify({
+    slides: [
+      { title: "Cover" },
+      { title: "Content", layout: "content" },
+      { title: "Midnight content", layout: "content", template: "midnight" },
+      { title: "Explicit", layout: "content", position: "top", align: "center" },
+      { title: "Nonsense", layout: "content", position: "sideways", align: "justified" },
+    ],
+  }));
+
+  // A cover reads centred, a content slide reads as a lower third.
+  assert.equal(slidePosition(config.slides[0]), "middle");
+  assert.equal(slideAlign(config.slides[0]), "center");
+  assert.equal(slidePosition(config.slides[1]), "bottom");
+  assert.equal(slideAlign(config.slides[1]), "left");
+
+  // Choosing a colour must not move the text: Midnight sits where any content slide does.
+  assert.equal(slidePosition(config.slides[2]), slidePosition(config.slides[1]));
+  assert.equal(slideAlign(config.slides[2]), slideAlign(config.slides[1]));
+
+  assert.equal(slidePosition(config.slides[3]), "top");
+  assert.equal(slideAlign(config.slides[3]), "center");
+
+  // Unknown values fall back rather than reaching the class name.
+  assert.equal(config.slides[4].position, undefined);
+  assert.equal(slidePosition(config.slides[4]), "bottom");
+  assert.equal(slideAlign(config.slides[4]), "left");
 });
 
 test("rejects unsafe background URLs and oversized carousels", () => {
@@ -80,4 +139,180 @@ test("produces a copyable prompt with the supported config contract", () => {
   assert.match(prompt, /Return JSON only/);
   assert.match(prompt, /cover \| content \| quote \| closing/);
   assert.match(prompt, /SOURCE TEXT:/);
+});
+
+test("reads italic and accent marks, leaving the rest as plain text", () => {
+  assert.deepEqual(parseInlineMarks("AI won’t *replace* you"), [
+    { text: "AI won’t ", mark: "plain" },
+    { text: "replace", mark: "italic" },
+    { text: " you", mark: "plain" },
+  ]);
+  assert.deepEqual(parseInlineMarks("**100k** views"), [
+    { text: "100k", mark: "accent" },
+    { text: " views", mark: "plain" },
+  ]);
+  assert.deepEqual(parseInlineMarks("nothing to mark"), [{ text: "nothing to mark", mark: "plain" }]);
+  assert.deepEqual(parseInlineMarks("an unclosed * marker"), [{ text: "an unclosed * marker", mark: "plain" }]);
+});
+
+test("splits body copy on blank lines only", () => {
+  assert.deepEqual(bodyParagraphs("One thought.\n\nA second thought."), ["One thought.", "A second thought."]);
+  assert.deepEqual(bodyParagraphs("A single\nwrapped line"), ["A single\nwrapped line"]);
+  assert.deepEqual(bodyParagraphs("   "), []);
+});
+
+test("shrinks type as copy grows, ignoring the mark characters", () => {
+  assert.ok(titleSize("Short headline") > titleSize("A considerably longer headline that keeps going and going"));
+  assert.equal(titleSize("*Short headline*"), titleSize("Short headline"));
+  assert.ok(bodySize("Brief.") > bodySize("x".repeat(250)));
+});
+
+test("tightens tracking and leading as the title gets bigger", () => {
+  const titles = ["Short headline", "A headline of middling length here", "x".repeat(50), "x".repeat(80)];
+  const sizes = titles.map(titleSize);
+  const tracking = sizes.map(titleTracking);
+  const leading = sizes.map(titleLeading);
+
+  for (const value of tracking) assert.ok(value < 0 && value > -0.05, `${value} is not display tracking`);
+  for (const value of leading) assert.ok(value >= 0.85 && value <= 1.2, `${value} is not display leading`);
+
+  for (let i = 1; i < titles.length; i += 1) {
+    assert.ok(sizes[i] < sizes[i - 1], "sizes should step down");
+    assert.ok(tracking[i] > tracking[i - 1], "smaller type should be tracked looser");
+    assert.ok(leading[i] > leading[i - 1], "smaller type should be led looser");
+  }
+});
+
+test("sets the whole deck at one size, chosen so the longest copy fits", () => {
+  const slides = [
+    { layout: "content", title: "Short", body: "Brief." },
+    { layout: "content", title: "A headline that runs a good deal longer than the first one", body: "x".repeat(250) },
+    { layout: "content", title: "Middling headline", body: "Also brief." },
+  ];
+  const scale = deckTypeScale(slides);
+
+  assert.equal(scale.title, titleSize(slides[1].title), "title size should suit the longest title");
+  assert.equal(scale.body, bodySize(slides[1].body), "body size should suit the longest body");
+  assert.equal(scale.tracking, titleTracking(scale.title));
+  assert.equal(scale.leading, titleLeading(scale.title));
+
+  const uniform = deckTypeScale([{ layout: "content", title: "Short", body: "Brief." }]);
+  assert.ok(uniform.title > scale.title, "a deck of short titles should still be set large");
+});
+
+test("a long cover title does not shrink the content slides behind it", () => {
+  const content = [
+    { layout: "content", title: "CodeRabbit", body: "Short." },
+    { layout: "content", title: "Greptile", body: "Short." },
+  ];
+  const withCover = deckTypeScale([
+    { layout: "cover", title: "Four AI reviewers worth your time", body: "" },
+    ...content,
+  ]);
+
+  assert.equal(withCover.title, deckTypeScale(content).title, "content slides keep their own size");
+  assert.ok(withCover.cover > withCover.title, "the cover is still set larger than the content slides");
+  assert.equal(withCover.coverLeading, titleLeading(withCover.cover));
+  assert.ok(withCover.coverTracking < withCover.tracking, "the bigger cover is tracked tighter");
+
+  const coversOnly = deckTypeScale([{ layout: "cover", title: "Only a cover", body: "" }]);
+  assert.ok(coversOnly.title > 0 && coversOnly.cover > coversOnly.title, "a deck of covers still resolves");
+});
+
+test("sizing is continuous, so one extra character cannot resize the deck", () => {
+  // The old banded scale stepped at 24, 44 and 66 characters. Because deckTypeScale
+  // sizes the whole deck off its longest title, crossing an edge dropped every title
+  // by a full 21% for one character. Nothing may move by more than a few percent now.
+  for (let length = 6; length < 90; length += 1) {
+    const before = titleSize("x".repeat(length));
+    const after = titleSize("x".repeat(length + 1));
+    assert.ok(after <= before, `size must not grow as copy does (at ${length})`);
+    assert.ok(before - after < before * 0.05, `a single character moved the size ${before} to ${after}`);
+  }
+
+  // It still has to actually shrink across the range, not just move smoothly.
+  assert.ok(titleSize("x".repeat(80)) < titleSize("x".repeat(20)) * 0.7);
+});
+
+test("a hard break in a headline is honoured and does not count toward its length", () => {
+  assert.deepEqual(titleLines("AI won\u2019t replace developers"), ["AI won\u2019t replace developers"]);
+  assert.deepEqual(titleLines("AI won\u2019t replace | developers"), ["AI won\u2019t replace", "developers"]);
+  // Stray separators must not produce empty lines that would render as blank rows.
+  assert.deepEqual(titleLines("Leading | | doubled |"), ["Leading", "doubled"]);
+  assert.deepEqual(titleLines("|"), ["|"]);
+
+  // The marker is punctuation for the renderer, not copy, so it cannot push a title
+  // into a smaller size the way a real extra character would.
+  assert.equal(titleSize("A headline that breaks | in the middle"), titleSize("A headline that breaks in the middle"));
+});
+
+test("the scrim darkens a bright photograph and leaves a dark one alone", () => {
+  const bright = scrimPeak(0.9);
+  const middling = scrimPeak(0.5);
+  const dark = scrimPeak(0.08);
+
+  assert.ok(bright > middling && middling > dark, "more light under the text means more scrim");
+  // Cream on the result has to stay readable: black at alpha a over brightness L
+  // leaves L*(1-a), which must land at or under the 0.2 target.
+  for (const luma of [0.25, 0.45, 0.7, 0.95, 1]) {
+    assert.ok(luma * (1 - scrimPeak(luma)) <= 0.205, `luma ${luma} is left too bright`);
+  }
+  // An already-dark shot keeps some separation, but must not be muddied: darkening a
+  // near-black photograph as hard as a bright one is half of what the old fixed
+  // gradient got wrong.
+  assert.ok(dark >= 0.2 && dark <= 0.35);
+  assert.ok(bright > dark * 2, "a bright photograph needs far more scrim than a dark one");
+  // A deck saved before any of this was measured still gets the old fixed weight.
+  assert.equal(scrimPeak(undefined), 0.9);
+});
+
+test("the scrim follows the text rather than always weighting the bottom", () => {
+  const luma = [0.9, 0.9, 0.1];
+  assert.equal(bandFor("top"), 0);
+  assert.equal(bandFor("middle"), 1);
+  assert.equal(bandFor("bottom"), 2);
+
+  // Text over the bright top must be darkened; the same slide with text over the
+  // dark bottom must not be, which one fixed gradient could never express.
+  const top = scrimGradient("content", "top", luma);
+  const bottom = scrimGradient("content", "bottom", luma);
+  const alpha = (gradient) => Math.max(...[...gradient.matchAll(/\/ ([\d.]+)\)/g)].map((match) => Number(match[1])));
+  assert.ok(alpha(top) > alpha(bottom), "the bright band should carry the heavier scrim");
+
+  // A cover holds one centred block, so it darkens radially rather than in a band.
+  assert.match(scrimGradient("cover", "middle", luma), /^radial-gradient/);
+  assert.match(bottom, /^linear-gradient/);
+
+  // Every stop has to be a real colour, not NaN leaking into the CSS.
+  for (const gradient of [top, bottom, scrimGradient("cover", "middle", undefined)]) {
+    assert.doesNotMatch(gradient, /NaN|undefined/);
+  }
+});
+
+test("keeps a background this browser cannot resolve rather than dropping it", () => {
+  // The editor round-trips through the parser, so a key with no bytes behind it has
+  // to survive that trip. Losing it here is what used to erase images from a deck
+  // opened in a second browser.
+  const config = parseCarouselConfig(JSON.stringify({
+    slides: [{ title: "Slide", background: "img:abc123" }],
+  }));
+  assert.equal(config.slides[0].background, "img:abc123");
+});
+
+test("keeps a measured background brightness, and discards a malformed one", () => {
+  const config = parseCarouselConfig(JSON.stringify({
+    slides: [
+      { title: "Measured", background: "img:a", luma: [0.2, 0.5, 0.81] },
+      { title: "Wrong length", background: "img:b", luma: [0.2, 0.5] },
+      { title: "Not numbers", background: "img:c", luma: ["a", "b", "c"] },
+      { title: "Out of range", background: "img:d", luma: [-3, 0.5, 42] },
+      { title: "Never measured", background: "img:e" },
+    ],
+  }));
+
+  assert.deepEqual(config.slides[0].luma, [0.2, 0.5, 0.81]);
+  assert.equal(config.slides[1].luma, undefined);
+  assert.equal(config.slides[2].luma, undefined);
+  assert.deepEqual(config.slides[3].luma, [0, 0.5, 1], "out of range values are clamped, not dropped");
+  assert.equal(config.slides[4].luma, undefined);
 });
