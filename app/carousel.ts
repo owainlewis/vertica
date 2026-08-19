@@ -18,6 +18,12 @@ export type CarouselSlide = {
    * Absent on decks saved before this existed, which fall back to the fixed scrim.
    */
   luma?: LumaBands;
+  /**
+   * Sets the copy in a filled panel rather than straight on the photograph. A
+   * gradient scrim fails on a busy image: a panel gives the text its own ground and
+   * keeps the picture legible around it.
+   */
+  plate?: boolean;
   /** Overrides the carousel template, so one deck can mix photo and type-only slides. */
   template?: TemplateId;
   /** Both default from the slide type, so decks written before these existed are unchanged. */
@@ -48,6 +54,12 @@ export type CarouselConfig = {
   author: string;
   /** The template a slide falls back to when it does not set its own. */
   template: TemplateId;
+  /**
+   * A short wordmark set at the top of every slide. This is what makes a deck
+   * recognisable mid-scroll: same words, same place, every slide. Deck-level on
+   * purpose, so it is set once rather than retyped per slide.
+   */
+  mark?: string;
   slides: CarouselSlide[];
 };
 
@@ -178,6 +190,7 @@ export function parseCarouselConfig(input: string): CarouselConfig {
       body: limitedText(slide.body, `Slide ${index + 1} body`, 280),
       ...(background ? { background } : {}),
       ...(luma ? { luma } : {}),
+      ...(slide.plate === true ? { plate: true } : {}),
       ...(templates.includes(slide.template as TemplateId)
         ? { template: slide.template as TemplateId }
         : {}),
@@ -188,11 +201,14 @@ export function parseCarouselConfig(input: string): CarouselConfig {
     } satisfies CarouselSlide;
   });
 
+  const mark = limitedText(record.mark, "Wordmark", 30).toUpperCase();
+
   return {
     version: 1,
     title: limitedText(record.title, "Carousel title", 100, "Untitled carousel"),
     author: limitedText(record.author, "Author", 40, "YOUR NAME").toUpperCase(),
     template,
+    ...(mark ? { mark } : {}),
     slides,
   };
 }

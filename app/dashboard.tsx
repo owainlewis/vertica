@@ -20,6 +20,7 @@ function readCover(cover: string) {
     return JSON.parse(cover || "{}") as {
       slide?: Partial<CarouselSlide>;
       scale?: ReturnType<typeof deckTypeScale>;
+      mark?: string;
     };
   } catch {
     return {};
@@ -41,7 +42,7 @@ function relativeDate(iso: string) {
  * miniature — no separate preview styling to drift out of step with the editor.
  */
 function CardPreview({ carousel, background }: { carousel: CarouselSummary; background?: string }) {
-  const { slide, scale } = useMemo(() => {
+  const { slide, scale, mark } = useMemo(() => {
     const stored = readCover(carousel.cover);
     const parsed = stored.slide ?? {};
     const cover: CarouselSlide = {
@@ -55,9 +56,10 @@ function CardPreview({ carousel, background }: { carousel: CarouselSummary; back
       // Carried through so the card's scrim matches the editor's rather than
       // falling back to the fixed one, which would darken the tile differently.
       ...(parsed.luma ? { luma: parsed.luma } : {}),
+      ...(parsed.plate ? { plate: true } : {}),
       ...(background ? { background } : {}),
     };
-    return { slide: cover, scale: stored.scale ?? deckTypeScale([cover]) };
+    return { slide: cover, scale: stored.scale ?? deckTypeScale([cover]), mark: stored.mark ?? "" };
   }, [carousel, background]);
 
   // The footer counter reads off the deck length, so the card needs the real count.
@@ -67,9 +69,10 @@ function CardPreview({ carousel, background }: { carousel: CarouselSummary; back
       title: carousel.title,
       author: carousel.author,
       template: (carousel.template as CarouselConfig["template"]) ?? "cinematic",
+      ...(mark ? { mark } : {}),
       slides: Array.from({ length: Math.max(carousel.slideCount, 1) }, () => slide),
     }),
-    [carousel, slide],
+    [carousel, slide, mark],
   );
 
   return (
@@ -188,14 +191,15 @@ export default function Dashboard({
         <ul className="gallery">
           {(carousels ?? []).map((carousel) => (
             <li className="gallery-card" key={carousel.id}>
-              <button className="card-open" type="button" onClick={() => onOpen(carousel.id)}>
+              <button className="card-open" type="button" onClick={() => onOpen(carousel.id)} aria-label={`Open ${carousel.title}`}>
                 <CardPreview carousel={carousel} background={covers[carousel.id]} />
+              </button>
+              <div className="card-overlay">
                 <span className="card-meta">
                   <strong>{carousel.title}</strong>
                   <small>{carousel.slideCount} slide{carousel.slideCount === 1 ? "" : "s"} · edited {relativeDate(carousel.updatedAt)}</small>
                 </span>
-              </button>
-              <div className="card-actions">
+                <div className="card-actions">
                 <button type="button" onClick={() => download(carousel, "pdf")} disabled={busyId === carousel.id}>
                   {busyId === carousel.id && pending?.kind === "pdf" ? <LoaderCircle className="spin" size={14} /> : <Download size={14} />}
                   PDF
@@ -214,6 +218,7 @@ export default function Dashboard({
                     <Trash2 size={14} />
                   </button>
                 )}
+                </div>
               </div>
             </li>
           ))}

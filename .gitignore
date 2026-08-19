@@ -39,3 +39,6 @@ yarn-error.log*
 /.wrangler/
 /outputs/
 /work/
+
+# Local sample photographs, not part of the app
+/public/samples/

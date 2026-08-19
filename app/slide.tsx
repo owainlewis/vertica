@@ -64,23 +64,39 @@ export function Slide({
   // only, so the indent is set by hand, and only where there is a margin to hang into.
   const hangs = /^["“”'‘’]/.test(lines[0]) && slideAlign(slide) === "left";
 
+  const copy = (
+    <>
+      <h2 className={`${lines.length > 1 ? "title-broken" : ""} ${hangs ? "title-hang" : ""}`}>
+        {lines.map((line, lineIndex) => (
+          <span className="title-line" key={lineIndex}><Marked text={line} /></span>
+        ))}
+      </h2>
+      {bodyParagraphs(slide.body).map((paragraph, paragraphIndex) => (
+        <p key={paragraphIndex}><Marked text={paragraph} /></p>
+      ))}
+    </>
+  );
+
+  const classes = [
+    "carousel-slide",
+    `template-${slideTemplate(slide, config)}`,
+    `layout-${slide.layout}`,
+    `pos-${position}`,
+    `align-${slideAlign(slide)}`,
+    slide.plate ? "has-plate" : "",
+    config.mark ? "has-mark" : "",
+    exportMode ? "export-slide" : "",
+  ].filter(Boolean).join(" ");
+
   return (
-    <article
-      className={`carousel-slide template-${slideTemplate(slide, config)} layout-${slide.layout} pos-${position} align-${slideAlign(slide)} ${exportMode ? "export-slide" : ""}`}
-      style={style}
-      data-export-slide={exportMode ? "true" : undefined}
-    >
+    <article className={classes} style={style} data-export-slide={exportMode ? "true" : undefined}>
       <div className="slide-image" />
       <div className="slide-overlay" />
+      {config.mark && <div className="slide-mark">{config.mark}</div>}
       <div className="slide-content">
-        <h2 className={`${lines.length > 1 ? "title-broken" : ""} ${hangs ? "title-hang" : ""}`}>
-          {lines.map((line, lineIndex) => (
-            <span className="title-line" key={lineIndex}><Marked text={line} /></span>
-          ))}
-        </h2>
-        {bodyParagraphs(slide.body).map((paragraph, paragraphIndex) => (
-          <p key={paragraphIndex}><Marked text={paragraph} /></p>
-        ))}
+        {/* Only wrapped when there is a plate to draw, so every other slide keeps
+            the exact box it had before and its line breaking cannot shift. */}
+        {slide.plate ? <div className="slide-plate">{copy}</div> : copy}
       </div>
       <footer className="slide-meta">
         <span>{config.author}</span>

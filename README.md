@@ -12,6 +12,15 @@ A minimal studio for creating LinkedIn document carousels.
 - accepts local background images per slide, and darkens each one to suit its own brightness
 - exports one PDF for LinkedIn, or numbered JPEGs zipped for Instagram, both at 2×
 - undo and redo across the whole deck, with ⌘Z and ⇧⌘Z
+- a deck wordmark, and a text plate for copy that has to sit on a busy photograph
+
+## The gallery
+
+The home page is the Instagram profile grid: three square tiles, no rounded corners,
+no card chrome. Instagram centre-crops a 4:5 post to a square there, cutting 12.5% off
+the top and bottom, so the gallery shows exactly that crop rather than the whole slide.
+What you see on the home page is what the grid will show. The editor has a **Grid crop**
+toggle that draws the same two lines over the full slide.
 
 ## Storage
 

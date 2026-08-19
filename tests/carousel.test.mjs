@@ -316,3 +316,37 @@ test("keeps a measured background brightness, and discards a malformed one", () 
   assert.deepEqual(config.slides[3].luma, [0, 0.5, 1], "out of range values are clamped, not dropped");
   assert.equal(config.slides[4].luma, undefined);
 });
+
+test("carries a deck wordmark, and normalises it the way the footer name is", () => {
+  const config = parseCarouselConfig(JSON.stringify({
+    mark: "  ai engineering  ",
+    slides: [{ title: "Slide" }],
+  }));
+  assert.equal(config.mark, "AI ENGINEERING");
+
+  // Absent rather than empty, so `config.mark &&` in the renderer draws nothing.
+  assert.equal(parseCarouselConfig(JSON.stringify({ slides: [{ title: "Slide" }] })).mark, undefined);
+  assert.equal(parseCarouselConfig(JSON.stringify({ mark: "   ", slides: [{ title: "Slide" }] })).mark, undefined);
+  assert.throws(
+    () => parseCarouselConfig(JSON.stringify({ mark: "x".repeat(31), slides: [{ title: "Slide" }] })),
+    /Wordmark must be 30 characters or fewer/,
+  );
+});
+
+test("a text plate is opt-in and only ever true", () => {
+  const config = parseCarouselConfig(JSON.stringify({
+    slides: [
+      { title: "Panelled", plate: true },
+      { title: "Plain" },
+      { title: "Truthy but not true", plate: "yes" },
+      { title: "Off", plate: false },
+    ],
+  }));
+
+  assert.equal(config.slides[0].plate, true);
+  assert.equal(config.slides[1].plate, undefined);
+  // A string would reach the class name and silently switch the layout, so only the
+  // real boolean counts.
+  assert.equal(config.slides[2].plate, undefined);
+  assert.equal(config.slides[3].plate, undefined);
+});

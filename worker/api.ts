@@ -31,7 +31,7 @@ function readInput(body: unknown) {
     throw new InvalidInput("This carousel is too large to save. Background images belong in the image store, not the config.");
   }
 
-  let parsed: { title?: unknown; author?: unknown; template?: unknown; slides?: unknown };
+  let parsed: { title?: unknown; author?: unknown; template?: unknown; mark?: unknown; slides?: unknown };
   try {
     parsed = JSON.parse(config);
   } catch {
@@ -62,7 +62,11 @@ function readInput(body: unknown) {
     // it needs that slide verbatim plus the deck-wide type scale. Without the scale it
     // would size the title from one slide, and a deck whose first slide is not its
     // longest would render larger on the card than in the editor.
-    cover: JSON.stringify({ slide: cover ?? {}, scale: deckTypeScale(slides as CarouselSlide[]) }),
+    cover: JSON.stringify({
+      slide: cover ?? {},
+      scale: deckTypeScale(slides as CarouselSlide[]),
+      mark: typeof parsed.mark === "string" ? parsed.mark.slice(0, 30) : "",
+    }),
     config,
   };
 
