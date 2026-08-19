@@ -97,10 +97,6 @@ export async function inlineBackgrounds(config: CarouselConfig): Promise<Carouse
   };
 }
 
-/** True when a slide points at an image this browser cannot show. */
-export function hasMissingImage(config: CarouselConfig) {
-  return config.slides.some((slide) => isImageKey(slide.background));
-}
 
 export async function saveCarousel(id: string | null, config: CarouselConfig, version: number | null) {
   const stored = await externaliseBackgrounds(config);

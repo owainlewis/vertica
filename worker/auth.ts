@@ -19,7 +19,11 @@ async function sign(value: string, secret: string) {
   return toHex(await crypto.subtle.sign("HMAC", key, bytes(value)));
 }
 
-/** Length-independent comparison, so a wrong password leaks nothing through timing. */
+/**
+  * Constant time over equal-length inputs. It still returns early on a length
+  * mismatch, so only feed it values whose length is fixed and public: the hex
+  * digests below qualify, a submitted password does not.
+  */
 function equals(a: string, b: string) {
   if (a.length !== b.length) return false;
   let diff = 0;
@@ -50,16 +54,32 @@ export async function isAuthorised(request: Request, secret: string | undefined)
   return equals(signature, await sign(issuedAt, secret));
 }
 
-export async function createSessionCookie(secret: string) {
+/** Omitted over plain HTTP, or the cookie would never be set in local development. */
+function attributes(secure: boolean) {
+  return `Path=/; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`;
+}
+
+export function isSecureRequest(request: Request) {
+  return new URL(request.url).protocol === "https:";
+}
+
+export async function createSessionCookie(secret: string, secure: boolean) {
   const issuedAt = String(Date.now());
   const signature = await sign(issuedAt, secret);
-  return `${COOKIE}=${issuedAt}.${signature}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${MAX_AGE_SECONDS}`;
+  return `${COOKIE}=${issuedAt}.${signature}; ${attributes(secure)}; Max-Age=${MAX_AGE_SECONDS}`;
 }
 
-export function clearSessionCookie() {
-  return `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+export function clearSessionCookie(secure: boolean) {
+  return `${COOKIE}=; ${attributes(secure)}; Max-Age=0`;
 }
 
-export function passwordMatches(submitted: unknown, secret: string) {
-  return typeof submitted === "string" && equals(submitted, secret);
+/**
+ * Both sides are reduced to a fixed-length digest before they are compared, so the
+ * comparison cannot return early and the length of the real password is not
+ * observable through timing.
+ */
+export async function passwordMatches(submitted: unknown, secret: string) {
+  if (typeof submitted !== "string") return false;
+  const [a, b] = await Promise.all([sign(submitted, secret), sign(secret, secret)]);
+  return equals(a, b);
 }

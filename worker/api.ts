@@ -1,7 +1,10 @@
 /** JSON API for saved carousels. Mounted under /api by the worker entry point. */
 import { deckTypeScale, type CarouselSlide } from "../app/carousel.ts";
-import { clearSessionCookie, createSessionCookie, isAuthorised, passwordMatches } from "./auth.ts";
-import { ConflictError, deleteCarousel, getCarousel, listCarousels, saveCarousel, type D1Database } from "./db.ts";
+import { clearSessionCookie, createSessionCookie, isAuthorised, isSecureRequest, passwordMatches } from "./auth.ts";
+import { ConflictError, deleteCarousel, getCarousel, listCarousels, MissingError, saveCarousel, type D1Database } from "./db.ts";
+
+/** Thrown for input the caller can fix. Anything else is ours and stays generic. */
+class InvalidInput extends Error {}
 
 export interface ApiEnv {
   DB?: D1Database;
@@ -19,24 +22,24 @@ const MAX_CONFIG_BYTES = 400_000;
 
 /** Mirrors the client's parser closely enough to keep junk out of the table. */
 function readInput(body: unknown) {
-  if (!body || typeof body !== "object") throw new Error("Expected a carousel object.");
+  if (!body || typeof body !== "object") throw new InvalidInput("Expected a carousel object.");
   const record = body as Record<string, unknown>;
 
   const config = record.config;
-  if (typeof config !== "string" || !config) throw new Error("The carousel config is missing.");
+  if (typeof config !== "string" || !config) throw new InvalidInput("The carousel config is missing.");
   if (config.length > MAX_CONFIG_BYTES) {
-    throw new Error("This carousel is too large to save. Background images belong in the image store, not the config.");
+    throw new InvalidInput("This carousel is too large to save. Background images belong in the image store, not the config.");
   }
 
   let parsed: { title?: unknown; author?: unknown; template?: unknown; slides?: unknown };
   try {
     parsed = JSON.parse(config);
   } catch {
-    throw new Error("The carousel config is not valid JSON.");
+    throw new InvalidInput("The carousel config is not valid JSON.");
   }
 
   const slides = Array.isArray(parsed.slides) ? parsed.slides : [];
-  if (!slides.length) throw new Error("A carousel needs at least one slide.");
+  if (!slides.length) throw new InvalidInput("A carousel needs at least one slide.");
 
   const cover = slides[0] as Record<string, unknown> | undefined;
   const text = (value: unknown, fallback: string) =>
@@ -79,13 +82,14 @@ export async function handleApi(request: Request, env: ApiEnv): Promise<Response
     if (request.method === "POST") {
       if (!secret) return json({ ok: true, gated: false });
       const body = await request.json().catch(() => null);
-      if (!passwordMatches((body as Record<string, unknown> | null)?.password, secret)) {
+      if (!(await passwordMatches((body as Record<string, unknown> | null)?.password, secret))) {
         return json({ error: "That password is not right." }, { status: 401 });
       }
-      return json({ ok: true }, { headers: { "set-cookie": await createSessionCookie(secret) } });
+      const cookie = await createSessionCookie(secret, isSecureRequest(request));
+      return json({ ok: true }, { headers: { "set-cookie": cookie } });
     }
     if (request.method === "DELETE") {
-      return json({ ok: true }, { headers: { "set-cookie": clearSessionCookie() } });
+      return json({ ok: true }, { headers: { "set-cookie": clearSessionCookie(isSecureRequest(request)) } });
     }
     if (request.method === "GET") {
       return json({ gated: Boolean(secret), authorised: await isAuthorised(request, secret) });
@@ -135,9 +139,14 @@ export async function handleApi(request: Request, env: ApiEnv): Promise<Response
 
     return json({ error: "No such endpoint." }, { status: 404 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Something went wrong.";
     // A stale write is not a bad request: the client is well formed but out of date,
     // and the only fix is to reload rather than to correct the payload.
-    return json({ error: message }, { status: error instanceof ConflictError ? 409 : 400 });
+    if (error instanceof ConflictError) return json({ error: error.message }, { status: 409 });
+    if (error instanceof MissingError) return json({ error: error.message }, { status: 404 });
+    if (error instanceof InvalidInput) return json({ error: error.message }, { status: 400 });
+    // Anything else is a fault on our side. Its message can carry database internals,
+    // so it is logged rather than returned.
+    console.error("carousel request failed", error);
+    return json({ error: "Something went wrong saving that carousel." }, { status: 500 });
   }
 }

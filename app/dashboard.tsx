@@ -14,6 +14,18 @@ import { exportStageToPdf, exportStageToZip, fileNameFor } from "./export";
 import { loadImages } from "./image-store";
 import { ExportStage, Slide } from "./slide";
 
+/** A row written before the cover format settled must not break the whole list. */
+function readCover(cover: string) {
+  try {
+    return JSON.parse(cover || "{}") as {
+      slide?: Partial<CarouselSlide>;
+      scale?: ReturnType<typeof deckTypeScale>;
+    };
+  } catch {
+    return {};
+  }
+}
+
 function relativeDate(iso: string) {
   const then = new Date(iso).getTime();
   const days = Math.floor((Date.now() - then) / 86_400_000);
@@ -30,10 +42,7 @@ function relativeDate(iso: string) {
  */
 function CardPreview({ carousel, background }: { carousel: CarouselSummary; background?: string }) {
   const { slide, scale } = useMemo(() => {
-    const stored = JSON.parse(carousel.cover || "{}") as {
-      slide?: Partial<CarouselSlide>;
-      scale?: ReturnType<typeof deckTypeScale>;
-    };
+    const stored = readCover(carousel.cover);
     const parsed = stored.slide ?? {};
     const cover: CarouselSlide = {
       id: parsed.id ?? "cover",
@@ -102,8 +111,7 @@ export default function Dashboard({
     if (!carousels?.length) return;
     let live = true;
     const keys = carousels.map((row) => {
-      const stored = JSON.parse(row.cover || "{}") as { slide?: { background?: string } };
-      return [row.id, stored.slide?.background ?? ""] as const;
+      return [row.id, readCover(row.cover).slide?.background ?? ""] as const;
     });
     loadImages(keys.map(([, key]) => key)).then((images) => {
       if (!live) return;

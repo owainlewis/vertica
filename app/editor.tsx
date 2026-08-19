@@ -39,7 +39,7 @@ import {
   slideTemplate,
   TemplateId,
 } from "./carousel";
-import { exportStageToPdf, exportStageToZip, fileNameFor } from "./export";
+import { downloadBlob, exportStageToPdf, exportStageToZip, fileNameFor } from "./export";
 import { ExportStage, Slide } from "./slide";
 
 type Notice = { kind: "success" | "error"; message: string } | null;
@@ -169,7 +169,13 @@ export default function Editor({
   }, [step]);
 
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
+  // Set on the way in as well as cleared on the way out. With only the cleanup, a
+  // StrictMode mount/cleanup/mount cycle would leave this false for good and every
+  // save result would be discarded.
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   /**
    * Autosave on a pause in typing. Each edit marks the deck dirty and restarts the
@@ -316,7 +322,8 @@ export default function Editor({
       const next = composeMode === "json"
         ? parseCarouselConfig(jsonText)
         : generateCarouselFromText(sourceText, { author: config.author, template: config.template });
-      setConfig(next);
+      // Through commit, so replacing a whole deck by mistake is undoable.
+      commit(next);
       setSelectedIndex(0);
       setComposeOpen(false);
       showNotice({ kind: "success", message: `Created ${next.slides.length} slides. They are ready to edit.` });
@@ -332,12 +339,7 @@ export default function Editor({
 
   function downloadJson() {
     const blob = new Blob([JSON.stringify(config, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = exportFileName.replace(/\.pdf$/, ".json");
-    anchor.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, exportFileName.replace(/\.pdf$/, ".json"));
   }
 
   async function runExport(kind: "pdf" | "zip") {

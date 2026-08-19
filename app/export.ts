@@ -105,10 +105,22 @@ export async function exportStageToZip(fileName: string, expectedPages: number) 
     })),
   );
 
-  const url = URL.createObjectURL(zip);
+  downloadBlob(zip, fileName);
+}
+
+/**
+ * Firefox and Safari drop a download whose anchor was never in the document, or
+ * whose object URL is revoked in the same tick as the click. Both were true here, so
+ * the ZIP could silently produce nothing outside Chrome.
+ */
+export function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = fileName;
+  anchor.style.display = "none";
+  document.body.append(anchor);
   anchor.click();
-  URL.revokeObjectURL(url);
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }

@@ -9,7 +9,15 @@ import Editor from "./editor";
 
 type View =
   | { kind: "gallery" }
-  | { kind: "editor"; id: string | null; config: CarouselConfig; version: number | null };
+  /**
+   * `key` identifies which document is open and never changes while it is open.
+   * The Editor used to be keyed on `id`, which is null until the first save lands
+   * and then becomes real: React saw a new key, remounted the Editor, and re-seeded
+   * its state from this stale `config`. Every brand new carousel silently threw away
+   * whatever had been typed into it, and came back with a null version that the
+   * server then refused, leaving the deck unsavable.
+   */
+  | { kind: "editor"; key: string; id: string | null; config: CarouselConfig; version: number | null };
 
 /** A blank deck, so a new carousel does not open on last time's words. */
 function emptyConfig(): CarouselConfig {
@@ -79,13 +87,15 @@ export default function Home() {
 
   // Nothing here touches state before the first await, so calling it straight from
   // an effect does not schedule a render inside that effect's body.
-  const openCarousel = useCallback(async (id: string) => {
+  const openCarousel = useCallback(async (id: string, push = true) => {
     try {
       const { summary, config } = await loadCarousel(id);
       const painted = await inlineBackgrounds(config);
       setError(null);
-      setView({ kind: "editor", id, config: painted, version: summary.version });
-      window.history.pushState({ id }, "", `/?id=${id}`);
+      setView({ kind: "editor", key: id, id, config: painted, version: summary.version });
+      // Arriving here from popstate means the entry is already the current one.
+      // Pushing again appended a duplicate, so Back could never reach the gallery.
+      if (push) window.history.pushState({ id }, "", `/?id=${id}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not open that carousel.");
     }
@@ -101,7 +111,7 @@ export default function Home() {
     let live = true;
     loadCarousel(id)
       .then(async ({ summary, config }) => ({ config: await inlineBackgrounds(config), version: summary.version }))
-      .then(({ config, version }) => { if (live) setView({ kind: "editor", id, config, version }); })
+      .then(({ config, version }) => { if (live) setView({ kind: "editor", key: id, id, config, version }); })
       .catch((cause) => { if (live) setError(cause instanceof Error ? cause.message : "Could not open that carousel."); });
     return () => { live = false; };
   }, [authorised]);
@@ -110,7 +120,7 @@ export default function Home() {
   useEffect(() => {
     const onPop = () => {
       const next = new URLSearchParams(window.location.search).get("id");
-      if (next) void openCarousel(next);
+      if (next) void openCarousel(next, false);
       else setView({ kind: "gallery" });
     };
     window.addEventListener("popstate", onPop);
@@ -118,7 +128,7 @@ export default function Home() {
   }, [openCarousel]);
 
   function createCarousel() {
-    setView({ kind: "editor", id: null, config: emptyConfig(), version: null });
+    setView({ kind: "editor", key: `new-${Date.now().toString(36)}`, id: null, config: emptyConfig(), version: null });
     window.history.pushState({}, "", "/");
   }
 
@@ -146,7 +156,7 @@ export default function Home() {
   if (view.kind === "editor") {
     return (
       <Editor
-        key={view.id ?? "new"}
+        key={view.key}
         carouselId={view.id}
         initialConfig={view.config}
         initialVersion={view.version}

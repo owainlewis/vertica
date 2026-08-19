@@ -37,6 +37,14 @@ export type CarouselSummary = {
   updatedAt: string;
 };
 
+/** Thrown when the row a write targets no longer exists. */
+export class MissingError extends Error {
+  constructor() {
+    super("That carousel is gone.");
+    this.name = "MissingError";
+  }
+}
+
 /** Thrown when a write is based on a version that is no longer current. */
 export class ConflictError extends Error {
   constructor() {
@@ -100,7 +108,13 @@ export function ensureSchema(db: D1Database) {
         // Column already present.
       }
     }
-  })();
+  })().catch((error) => {
+    // Memoising the promise means a rejection would otherwise be cached for the
+    // isolate's lifetime, so one transient failure would break every later request
+    // until the worker recycled. Clear it so the next request retries.
+    ready = null;
+    throw error;
+  });
   return ready;
 }
 
@@ -187,7 +201,7 @@ export async function saveCarousel(
     if (changes(updated) === 0) {
       // No row matched: either it is gone, or someone else has written since.
       const current = await getCarousel(db, input.id);
-      if (!current) throw new Error("That carousel is gone.");
+      if (!current) throw new MissingError();
       throw new ConflictError();
     }
   }

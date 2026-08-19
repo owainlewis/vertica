@@ -181,3 +181,63 @@ test("a session cookie signed with a different secret is refused", async () => {
 test("with no secret set the API is open, which is what local development wants", async () => {
   assert.equal(await isAuthorised(new Request("http://localhost/api/carousels"), undefined), true);
 });
+
+test("an unexpected database fault does not leak its message to the client", async () => {
+  const env = { DB: fakeDb() };
+  const { carousel } = await (await handleApi(post({ config }), env)).json();
+  // A SQL error carries internal detail. The client gets a 500 and a generic line.
+  env.DB.prepare = () => ({
+    bind() { return this; },
+    async all() { return { results: [] }; },
+    async first() { throw new Error("D1_ERROR: no such column: secret_internal_detail"); },
+    async run() { throw new Error("D1_ERROR: no such column: secret_internal_detail"); },
+  });
+
+  const response = await handleApi(post({ config, version: carousel.version }, `/api/carousels/${carousel.id}`, "PUT"), env);
+  assert.equal(response.status, 500);
+  const { error } = await response.json();
+  assert.doesNotMatch(error, /D1_ERROR|secret_internal_detail/);
+});
+
+test("a bad payload is still a 400, not a 500", async () => {
+  const env = { DB: fakeDb() };
+  const response = await handleApi(post({ config: JSON.stringify({ slides: [] }) }), env);
+  assert.equal(response.status, 400);
+});
+
+test("updating a carousel that has been deleted reports 404", async () => {
+  const env = { DB: fakeDb() };
+  const { carousel } = await (await handleApi(post({ config }), env)).json();
+  env.DB.rows.clear();
+
+  const response = await handleApi(post({ config, version: carousel.version }, `/api/carousels/${carousel.id}`, "PUT"), env);
+  assert.equal(response.status, 404);
+  assert.match((await response.json()).error, /gone/);
+});
+
+test("the session cookie is only marked Secure over https", async () => {
+  const env = { DB: fakeDb(), APP_SECRET: "hunter2" };
+
+  const plain = await handleApi(post({ password: "hunter2" }, "/api/session"), env);
+  assert.doesNotMatch(plain.headers.get("set-cookie"), /Secure/, "local http must still be able to sign in");
+
+  const secure = await handleApi(
+    new Request("https://vertica.example/api/session", {
+      method: "POST", body: JSON.stringify({ password: "hunter2" }),
+      headers: { "content-type": "application/json" },
+    }),
+    env,
+  );
+  const cookie = secure.headers.get("set-cookie");
+  assert.match(cookie, /Secure/);
+  assert.match(cookie, /HttpOnly/);
+});
+
+test("a password of the wrong length is rejected like any other", async () => {
+  const env = { DB: fakeDb(), APP_SECRET: "hunter2" };
+  for (const password of ["", "h", "hunter", "hunter2!", "wrong77"]) {
+    const response = await handleApi(post({ password }, "/api/session"), env);
+    assert.equal(response.status, 401, `${JSON.stringify(password)} must not authenticate`);
+  }
+  assert.equal((await handleApi(post({ password: "hunter2" }, "/api/session"), env)).status, 200);
+});
