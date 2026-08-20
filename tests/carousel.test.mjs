@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   aiPrompt,
+  BRAND_FOOTER,
+  BRAND_MARK,
   bodyParagraphs,
   bodySize,
   deckTypeScale,
@@ -176,7 +178,7 @@ test("tightens tracking and leading as the title gets bigger", () => {
   const leading = sizes.map(titleLeading);
 
   for (const value of tracking) assert.ok(value < 0 && value > -0.05, `${value} is not display tracking`);
-  for (const value of leading) assert.ok(value >= 0.85 && value <= 1.2, `${value} is not display leading`);
+  for (const value of leading) assert.ok(value >= 0.9 && value <= 1.2, `${value} is not display leading`);
 
   for (let i = 1; i < titles.length; i += 1) {
     assert.ok(sizes[i] < sizes[i - 1], "sizes should step down");
@@ -324,20 +326,33 @@ test("keeps a measured background brightness, and discards a malformed one", () 
   assert.equal(config.slides[4].luma, undefined);
 });
 
-test("carries a deck wordmark, and normalises it the way the footer name is", () => {
-  const config = parseCarouselConfig(JSON.stringify({
-    mark: "  ai engineering  ",
+test("everything is branded AI Engineer unless a deck says otherwise", () => {
+  const plain = parseCarouselConfig(JSON.stringify({ slides: [{ title: "Slide" }] }));
+  assert.equal(plain.mark, BRAND_MARK, "an unmarked deck still carries the brand");
+  assert.equal(plain.author, BRAND_FOOTER, "and the footer still carries the offer");
+
+  // An explicit mark wins, and is normalised the way the footer name is.
+  const custom = parseCarouselConfig(JSON.stringify({
+    mark: "  something else  ",
+    author: "  owain lewis ",
     slides: [{ title: "Slide" }],
   }));
-  assert.equal(config.mark, "AI ENGINEERING");
+  assert.equal(custom.mark, "SOMETHING ELSE");
+  assert.equal(custom.author, "OWAIN LEWIS");
 
-  // Absent rather than empty, so `config.mark &&` in the renderer draws nothing.
-  assert.equal(parseCarouselConfig(JSON.stringify({ slides: [{ title: "Slide" }] })).mark, undefined);
-  assert.equal(parseCarouselConfig(JSON.stringify({ mark: "   ", slides: [{ title: "Slide" }] })).mark, undefined);
+  // Blank falls back to the brand rather than drawing an empty strip.
+  assert.equal(parseCarouselConfig(JSON.stringify({ mark: "   ", slides: [{ title: "Slide" }] })).mark, BRAND_MARK);
   assert.throws(
     () => parseCarouselConfig(JSON.stringify({ mark: "x".repeat(31), slides: [{ title: "Slide" }] })),
     /Wordmark must be 30 characters or fewer/,
   );
+
+  // A generated deck is branded too, not just a parsed one.
+  const generated = generateCarouselFromText("An opening idea.\n\nA supporting point that explains it.");
+  assert.equal(generated.mark, BRAND_MARK);
+  assert.equal(generated.author, BRAND_FOOTER);
+  assert.equal(starterConfig.mark, BRAND_MARK);
+  assert.equal(starterConfig.author, BRAND_FOOTER);
 });
 
 test("a text plate is opt-in and only ever true", () => {
@@ -375,7 +390,7 @@ test("leading opens as a headline takes more lines", () => {
   assert.ok(titleLeading(size, 2) === titleLeading(size, 1), "one and two lines set the same");
   for (const lines of [1, 2, 3, 4, 6]) {
     const value = titleLeading(size, lines);
-    assert.ok(value >= 0.86 && value <= 1.16, `${value} is not display leading`);
+    assert.ok(value >= 0.9 && value <= 1.18, `${value} is not display leading`);
   }
   // The default has to match the old two-line behaviour, or every deck reflows.
   assert.equal(titleLeading(size), titleLeading(size, 2));

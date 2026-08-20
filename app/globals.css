@@ -1,21 +1,22 @@
 @import "tailwindcss";
 
-/* Playfair Display carries the headlines. It replaced a text face: sturdy serifs and
-   low stroke contrast, which is right at reading size and blunt at 100px. A display
-   face earns its elegance from the opposite, thick stems against hairline thins, and
-   that was the whole difference between our slides and the references. */
+/* Playfair carries the headlines: the newer family, not Playfair Display. Display
+   bottoms out at weight 400, so it could not be taken any lighter. This one starts at
+   300 and adds an optical size axis, which is the part that matters. Winding opsz up
+   is what thins the hairlines and narrows the letterfit, and that is where a Didone
+   gets its elegance from. */
 @font-face {
-  font-family: "Playfair Display";
+  font-family: "Playfair";
   font-style: normal;
-  font-weight: 400 700;
+  font-weight: 300 900;
   font-display: block;
   src: url("/fonts/playfair-latin.woff2") format("woff2");
 }
 
 @font-face {
-  font-family: "Playfair Display";
+  font-family: "Playfair";
   font-style: italic;
-  font-weight: 400 700;
+  font-weight: 300 900;
   font-display: block;
   src: url("/fonts/playfair-latin-italic.woff2") format("woff2");
 }
@@ -146,7 +147,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .thumb-card { aspect-ratio: 4/5; display: flex; align-items: center; overflow: hidden; padding: 5px; color: #f6f1e7; background: #14140f; }
 .thumb-card.template-midnight { background: #0e1f17; }
 .thumb-card.template-paper { color: #14140f; background: #fbfaf7; }
-.thumb-card span { font-family: "Playfair Display", Georgia, serif; font-size: 5.5px; line-height: 1.1; }
+.thumb-card span { font-family: Playfair, Georgia, serif; font-size: 5.5px; line-height: 1.1; }
 .thumb-label { overflow: hidden; font-size: 11px; font-weight: 650; text-overflow: ellipsis; text-transform: capitalize; white-space: nowrap; }
 .rail-import { margin-top: auto; padding: 22px 4px 3px; }
 .rail-import > span { display: block; margin-bottom: 9px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
@@ -192,7 +193,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   position: relative; width: 100%; height: 100%; overflow: hidden;
   display: flex; flex-direction: column;
   color: var(--cream); background: #14140f;
-  font-family: "Playfair Display", Georgia, "Times New Roman", serif;
+  font-family: Playfair, Georgia, "Times New Roman", serif;
 }
 .slide-image, .slide-overlay, .slide-texture { position: absolute; inset: 0; }
 /* Paper grain, as fractal noise rather than a photograph of paper, so it costs one
@@ -218,7 +219,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
    rasteriser only honours what the computed style states outright. */
 /* text-wrap: balance evens the line lengths instead of filling each line to the
    edge, which is the ragging the reference covers have. */
-.slide-content h2 { max-width: 100%; margin: 0; font-size: var(--title-size); font-weight: 400; line-height: var(--title-leading); letter-spacing: var(--title-tracking); word-spacing: -.03em; font-kerning: normal; font-variant-ligatures: common-ligatures contextual; overflow-wrap: anywhere; }
+.slide-content h2 { max-width: 100%; margin: 0; font-size: var(--title-size); font-weight: 300; font-optical-sizing: none; font-variation-settings: "opsz" 96, "wght" 300; line-height: var(--title-leading); letter-spacing: var(--title-tracking); word-spacing: -.03em; font-kerning: normal; font-variant-ligatures: common-ligatures contextual; overflow-wrap: anywhere; }
 /* Each `|` segment is its own block, so the author's break is the break. Balancing
    still runs inside a segment that is long enough to wrap on its own. */
 .title-line { display: block; text-wrap: balance; }
@@ -277,10 +278,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .slide-meta { position: relative; z-index: 1; display: flex; justify-content: space-between; gap: 8%; padding: 0 9.5% 7%; color: rgb(246 241 231 / .42); font-family: Inter, system-ui, sans-serif; font-size: 1.4cqw; font-weight: 500; line-height: 1; letter-spacing: .14em; text-transform: uppercase; }
 .slide-meta span { min-width: 0; overflow-wrap: anywhere; }
 .align-center .slide-meta { justify-content: center; gap: 3%; }
-/* The wordmark already says whose deck this is, so repeating it in the footer is
-   clutter. The counter stays: it is the only thing telling a reader how far in
-   they are. */
-.has-mark .slide-meta .meta-author { display: none; }
+/* The footer carries the offer, so it stays on every slide even when a wordmark is
+   already at the top. The two are doing different jobs: the mark is the category, the
+   footer is where to go. */
+.slide-meta .meta-author { letter-spacing: .2em; }
 
 /* Centred layouts sit on the lower golden section rather than the middle, which is
    where the reference covers put their type. */

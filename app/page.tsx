@@ -3,7 +3,7 @@
 import { LoaderCircle, Lock } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getSession, inlineBackgrounds, loadCarousel, signIn, type CarouselSummary } from "./api-client";
-import { CarouselConfig, starterConfig } from "./carousel";
+import { BRAND_FOOTER, BRAND_MARK, CarouselConfig } from "./carousel";
 import Dashboard from "./dashboard";
 import Editor from "./editor";
 
@@ -24,7 +24,8 @@ function emptyConfig(): CarouselConfig {
   return {
     version: 1,
     title: "Untitled carousel",
-    author: starterConfig.author,
+    author: BRAND_FOOTER,
+    mark: BRAND_MARK,
     template: "cinematic",
     slides: [
       { id: `slide-${Date.now().toString(36)}`, layout: "cover", title: "Your headline here", body: "" },

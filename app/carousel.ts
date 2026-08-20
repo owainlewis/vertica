@@ -67,10 +67,15 @@ export function slideTemplate(slide: CarouselSlide, config: CarouselConfig) {
   return slide.template ?? config.template;
 }
 
+/** The offer every deck promotes. The mark is the category, the footer is where to go. */
+export const BRAND_MARK = "AI ENGINEER";
+export const BRAND_FOOTER = "AIENGINEER.CO";
+
 export const starterConfig: CarouselConfig = {
   version: 1,
   title: "Directing AI",
-  author: "OWAIN LEWIS",
+  author: BRAND_FOOTER,
+  mark: BRAND_MARK,
   template: "cinematic",
   slides: [
     {
@@ -201,12 +206,16 @@ export function parseCarouselConfig(input: string): CarouselConfig {
     } satisfies CarouselSlide;
   });
 
-  const mark = limitedText(record.mark, "Wordmark", 30).toUpperCase();
+  // Defaults to the brand rather than to nothing: everything is branded AI Engineer
+  // unless a deck deliberately says otherwise.
+  // The fallback has to be applied after trimming, not instead of it. A value of
+  // "   " is a string, so it never reached the default and came back as nothing.
+  const mark = (limitedText(record.mark, "Wordmark", 30) || BRAND_MARK).toUpperCase();
 
   return {
     version: 1,
     title: limitedText(record.title, "Carousel title", 100, "Untitled carousel"),
-    author: limitedText(record.author, "Author", 40, "YOUR NAME").toUpperCase(),
+    author: (limitedText(record.author, "Author", 40) || BRAND_FOOTER).toUpperCase(),
     template,
     ...(mark ? { mark } : {}),
     slides,
@@ -260,7 +269,7 @@ function splitHeading(chunk: string) {
 export function generateCarouselFromText(
   source: string,
   options: Pick<CarouselConfig, "author" | "template"> = {
-    author: "YOUR NAME",
+    author: BRAND_FOOTER,
     template: "cinematic",
   },
 ): CarouselConfig {
@@ -285,7 +294,8 @@ export function generateCarouselFromText(
   return {
     version: 1,
     title: slides[0].title.replace(/[.!?]$/, ""),
-    author: options.author.trim().toUpperCase() || "YOUR NAME",
+    author: options.author.trim().toUpperCase() || BRAND_FOOTER,
+    mark: BRAND_MARK,
     template: options.template,
     slides,
   };
@@ -374,10 +384,19 @@ function clamp(value: number, low: number, high: number) {
  * for one extra character. The curve moves by a fraction of a percent instead.
  */
 const BODY = 3.1;
-/** The top of the scale. Larger than this and even a three-word title starts to crowd. */
-const TITLE_MAX = 10.6;
-const TITLE_MIN = 4.8;
-const AREA = 2700;
+/**
+ * These are font-size numbers, and font size is not what a reader sees: cap height is.
+ * Playfair draws a 0.571em cap where Playfair Display drew 0.708em, so the same
+ * font-size renders about a fifth smaller. AREA and the clamps are scaled by the
+ * inverse of that ratio, which keeps every headline at the cap height it had before
+ * the face changed while the numbers below stay honest font sizes.
+ *
+ * Scale these together if the face changes again. AREA moves by the square of the
+ * ratio because size varies with the square root of it.
+ */
+const TITLE_MAX = 13.1;
+const TITLE_MIN = 5.95;
+const AREA = 4150;
 
 export function titleSize(title: string | undefined) {
   const length = Math.max(visibleLength(title), 1);
@@ -469,7 +488,10 @@ export function deckTypeScale(slides: CarouselSlide[]) {
  * now interpolated rather than stepped so it tracks the continuous size curve.
  */
 export function titleTracking(size: number) {
-  return round3(clamp(-0.0104 - (size - 5) * 0.00208, -0.023, -0.009));
+  // Tighter than it was, and tighter than a text face would take. A Didone set large
+  // wants its letters close: the hairlines already separate the shapes, so the default
+  // fit reads gappy. Roughly -2% at the bottom of the scale down to -4% at the top.
+  return round3(clamp(-0.020 - (size - 6) * 0.0018, -0.042, -0.016));
 }
 
 /**
@@ -483,7 +505,7 @@ export function titleLeading(size: number, lines = 2) {
   // so every cover in the app was pinned to the clamp floor and the line count below
   // stopped having any effect at all. A curve flattens toward a sane display leading
   // instead of running off the bottom.
-  const base = 0.88 + 1.1 / Math.max(size, 1);
+  const base = 0.88 + 1.36 / Math.max(size, 1);
   // Every line past the second opens it a little. A four line headline set as tight as
   // a two line one reads as a solid block, and descenders start colliding with the
   // caps beneath them.
@@ -500,11 +522,11 @@ export function titleLeading(size: number, lines = 2) {
  */
 /**
  * Mean advance width of the display face over a realistic headline, in em, measured
- * from the font file rather than guessed: Playfair Display comes out at 0.4395 across
+ * from the font file rather than guessed: Playfair at opsz 96 comes out at 0.394 across
  * a sample of the copy these decks actually carry. Change this if the face changes,
  * or every line estimate drifts and the cover sizing drifts with it.
  */
-const AVG_ADVANCE = 0.44;
+const AVG_ADVANCE = 0.394;
 
 export function estimateLines(title: string | undefined, size: number, measure = 0.88) {
   const segments = titleLines(title ?? "");

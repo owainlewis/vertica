@@ -7,7 +7,7 @@ A minimal studio for creating LinkedIn document carousels.
 - saves every carousel to a database and lists them on a home gallery
 - turns pasted text into an editable slide sequence
 - imports and exports a small JSON format that Claude or Codex can generate
-- sets titles in Playfair Display and text in Inter, with Cinematic, Midnight and Paper colours per slide
+- sets titles in Playfair at weight 300 and text in Inter, with Cinematic, Midnight and Paper colours per slide
 - keeps colour, placement and slide type separate, so any text position works with any colour
 - accepts local background images per slide, and darkens each one to suit its own brightness
 - exports one PDF for LinkedIn, or numbered JPEGs zipped for Instagram, both at 2×
@@ -58,6 +58,13 @@ npm run dev
 ```
 
 Open the local URL shown in the terminal.
+
+## Branding
+
+Every deck is branded AI Engineer unless it says otherwise: `AI ENGINEER` as the
+wordmark at the top of each slide, `AIENGINEER.CO` in the footer. Both are defaults in
+`app/carousel.ts`, so a new deck, a generated deck and a pasted config all get them
+without anyone typing them in.
 
 ## Typography
 
