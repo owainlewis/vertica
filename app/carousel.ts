@@ -400,6 +400,17 @@ export function bodySize(body: string | undefined) {
 const COVER_SCALE = 1.45;
 /** Past three lines a headline stops reading as a statement and starts reading as a paragraph. */
 const COVER_MAX_LINES = 3;
+/**
+ * The cover is always the largest type in its deck, and never more than half again
+ * larger than the slides behind it.
+ *
+ * Cover and content sizes are measured from different text, so left to themselves
+ * their relationship is accidental: decks ranged from a cover 1.89x the body slides
+ * to one 0.73x, which is a cover set smaller than the slides it introduces. Tying
+ * the cover to the deck's own body size is what makes a shelf of decks look related.
+ */
+const COVER_MIN_RATIO = 1.15;
+const COVER_MAX_RATIO = 1.6;
 
 /**
  * The cover boost is a ceiling, not a promise. Applied flat, 1.45x pushed any headline
@@ -425,10 +436,14 @@ export function deckTypeScale(slides: CarouselSlide[]) {
 
   const title = Math.min(...measured.map((slide) => titleSize(slide.title)));
   const coverSlides = covers.length ? covers : measured;
-  const cover = fitCoverSize(
-    Math.min(...coverSlides.map((slide) => titleSize(slide.title))),
-    coverSlides.map((slide) => slide.title),
-  );
+  // Fit for three lines first, then hold the result inside the ratio band. The band
+  // wins: a cover that has to take a fourth line is a smaller problem than a cover
+  // that is not obviously the cover.
+  const cover = round(clamp(
+    fitCoverSize(Math.min(...coverSlides.map((slide) => titleSize(slide.title))), coverSlides.map((slide) => slide.title)),
+    title * COVER_MIN_RATIO,
+    title * COVER_MAX_RATIO,
+  ));
 
   // Leading is chosen for the longest-setting slide in each group, so one four line
   // headline does not leave the rest of the deck led as if every title were two.

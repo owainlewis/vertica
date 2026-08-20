@@ -397,3 +397,31 @@ test("a deck of four-line covers is led looser than a deck of two-line ones", ()
   const short = deckTypeScale([{ layout: "cover", title: "Taste is the moat", body: "" }]);
   assert.ok(long.coverLeading > short.coverLeading, "the taller stack of lines needs more leading");
 });
+
+test("the cover is always the largest type in its deck, and never wildly so", () => {
+  // Covers and content are measured from different text, so their relationship used
+  // to be accidental: a long cover title over short body titles produced a cover set
+  // smaller than the slides it was introducing.
+  const cases = [
+    { name: "long cover, short body titles", slides: [
+      { layout: "cover", title: "You don't have a model problem. | You have an eval problem", body: "" },
+      { layout: "content", title: "Vibes do not survive users", body: "Short." },
+      { layout: "content", title: "Ship the harness first", body: "Short." },
+    ] },
+    { name: "short cover, long body titles", slides: [
+      { layout: "cover", title: "Taste", body: "" },
+      { layout: "content", title: "A considerably longer headline that keeps going", body: "x".repeat(200) },
+    ] },
+    { name: "everything short", slides: [
+      { layout: "cover", title: "Ship it", body: "" },
+      { layout: "content", title: "Do less", body: "Short." },
+    ] },
+  ];
+
+  for (const { name, slides } of cases) {
+    const scale = deckTypeScale(slides);
+    assert.ok(scale.cover > scale.title, `${name}: cover must be larger than the body slides`);
+    const ratio = scale.cover / scale.title;
+    assert.ok(ratio >= 1.14 && ratio <= 1.61, `${name}: ratio ${ratio.toFixed(2)} is outside the band`);
+  }
+});
