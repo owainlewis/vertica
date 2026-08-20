@@ -16,11 +16,11 @@ A minimal studio for creating LinkedIn document carousels.
 
 ## The gallery
 
-The home page is the Instagram profile grid: three square tiles, no rounded corners,
-no card chrome. Instagram centre-crops a 4:5 post to a square there, cutting 12.5% off
-the top and bottom, so the gallery shows exactly that crop rather than the whole slide.
-What you see on the home page is what the grid will show. The editor has a **Grid crop**
-toggle that draws the same two lines over the full slide.
+Three across, four pixel gutters, no rounded corners and no card chrome anywhere a
+slide is drawn. Tiles show the slide at its own 4:5, which is what a carousel is.
+Instagram centre-crops a portrait post to a square on the profile grid; the editor's
+**Grid crop** toggle draws that cut over the full slide when you want to check it,
+which is better than designing against the crop all day.
 
 ## Storage
 
@@ -64,8 +64,13 @@ Open the local URL shown in the terminal.
 Sizes are set in container-width units against the slide itself, so the preview and the
 export are the same drawing at different scales. The deck is set at one title size,
 chosen so the longest headline fits, on a continuous curve rather than fixed steps: one
-extra character never resizes the deck. Put a `|` in a headline to break the line where
-the sense breaks instead of leaving it to automatic balancing.
+extra character never resizes the deck, and the cover boost backs off rather than push a
+headline past three lines. Leading opens as a headline takes more lines. Put a `|` in a
+headline to break the line where the sense breaks; the words after it are still balanced.
+
+Quotes, apostrophes, ellipses and number ranges are made typographic at render time,
+never in the stored text, so what you typed is what the editor and the exported config
+give back.
 
 ## Use AI-generated configs
 

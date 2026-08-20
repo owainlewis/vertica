@@ -70,10 +70,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; max-width: 935px; margin: 0; padding: 0; list-style: none; }
 .gallery-card { position: relative; display: block; border: 0; border-radius: 0; background: #14140f; }
 .card-open { display: block; width: 100%; padding: 0; border: 0; background: transparent; text-align: left; cursor: pointer; }
-/* A square window onto a 4:5 slide, centre cropped. Instagram cuts 12.5% off the top
-   and bottom of a portrait post here, so this is the real preview of the profile. */
-.card-preview { position: relative; display: block; aspect-ratio: 1/1; overflow: hidden; }
-.card-preview .carousel-slide { position: absolute; top: 50%; left: 0; width: 100%; height: auto; min-height: 0; aspect-ratio: 4/5; transform: translateY(-50%); }
+/* The slide at its own 4:5, which is what a carousel actually is. The square profile
+   crop is checked with the Grid crop toggle in the editor instead: useful to see, but
+   the wrong thing to design against all day. */
+.card-preview { position: relative; display: block; aspect-ratio: 4/5; overflow: hidden; }
+.card-preview .carousel-slide { position: absolute; inset: 0; }
 
 /* Instagram reveals its overlay on hover. focus-within keeps it reachable by keyboard,
    which a hover-only control would not be. */
@@ -189,7 +190,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   color: var(--cream); background: #14140f;
   font-family: Castoro, Georgia, "Times New Roman", serif;
 }
-.slide-image, .slide-overlay { position: absolute; inset: 0; }
+.slide-image, .slide-overlay, .slide-texture { position: absolute; inset: 0; }
+/* Paper grain, as fractal noise rather than a photograph of paper, so it costs one
+   inline SVG and no request. A flat fill reads as a browser default; the same colour
+   with a tooth reads as stock. Multiplied so it darkens the ground slightly rather
+   than fogging it, and kept faint enough to survive JPEG export without banding. */
+.slide-texture { display: none; z-index: 0; opacity: .5; mix-blend-mode: multiply; background-repeat: repeat; background-size: 180px 180px; background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.34'/%3E%3C/svg%3E"); }
+.template-paper .slide-texture { display: block; }
 /* One grade across every photograph. Shots taken in different light read as a folder
    of images without it; pulled to a common saturation and contrast they read as one
    deck. Kept gentle: this is a correction, not a look. */
@@ -211,9 +218,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 /* Each `|` segment is its own block, so the author's break is the break. Balancing
    still runs inside a segment that is long enough to wrap on its own. */
 .title-line { display: block; text-wrap: balance; }
-/* A deliberately broken title has already had its line lengths decided, so the only
-   job left is avoiding an orphan inside a segment that still has to wrap. */
-.title-broken .title-line { text-wrap: pretty; }
+/* Balance stays on inside every segment. Turning it off here was wrong: an author's
+   break decides where one line ends, it says nothing about how the words after it
+   should fall, and a long segment still has to wrap. */
 /* Hangs an opening quote into the margin so the first line optically aligns with the
    copy below it. Roughly the sidebearing of a double quote in a serif at display size. */
 .title-hang .title-line:first-child { text-indent: -.36em; }
@@ -225,6 +232,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
    a step smaller and led a little looser than the serif wanted. */
 .slide-content p { max-width: 96%; margin: .85em 0 0; color: rgb(246 241 231 / .88); font-family: Inter, system-ui, sans-serif; font-size: var(--body-size); font-weight: 400; line-height: 1.5; letter-spacing: -.004em; font-kerning: normal; text-wrap: pretty; overflow-wrap: anywhere; }
 .slide-content h2 + p { margin-top: 1.45em; }
+/* Drawn on the paragraph rather than as an element, so it needs no markup and cannot
+   appear on a slide that has no copy to separate. Centred layouts only: against a
+   left-aligned lower third the title and body already read as two things. */
+.align-center .slide-content h2 + p { position: relative; margin-top: 2.5em; }
+.align-center .slide-content h2 + p::before { content: ""; position: absolute; top: -1.35em; left: 50%; width: 13%; height: 1px; transform: translateX(-50%); background: currentColor; opacity: .32; }
 /* A wide, soft shadow only where there is a photograph under the type. It buys back
    the legibility that a bright patch takes away without darkening the whole frame the
    way a heavier scrim would, so the image stays an image. Sized in cqw so it scales
@@ -236,11 +248,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .mark-accent { color: var(--gold); }
 /* Same words, same place, every slide. Set small and widely tracked so it reads as a
    signature rather than as a heading competing with the title. */
-.slide-mark { position: absolute; z-index: 1; top: 15%; left: 0; right: 0; padding: 0 9.5%; color: rgb(246 241 231 / .74); font-family: Inter, system-ui, sans-serif; font-size: 1.45cqw; font-weight: 500; letter-spacing: .26em; line-height: 1; text-align: center; text-transform: uppercase; }
+.slide-mark { position: absolute; z-index: 1; top: 7.5%; left: 0; right: 0; padding: 0 9.5%; color: rgb(246 241 231 / .74); font-family: Inter, system-ui, sans-serif; font-size: 1.45cqw; font-weight: 500; letter-spacing: .26em; line-height: 1; text-align: center; text-transform: uppercase; }
 .template-paper .slide-mark { color: rgb(20 20 15 / .5); }
 .template-cinematic .slide-mark { text-shadow: 0 .1cqw 1.2cqw rgb(6 6 4 / .5); }
 /* Text sitting at the top needs to clear the wordmark rather than collide with it. */
-.has-mark.pos-top .slide-content { padding-top: 25%; }
+.has-mark.pos-top .slide-content { padding-top: 18%; }
 
 /* A filled panel instead of a gradient. On a photograph with detail everywhere, a
    scrim either fails to separate the text or flattens the whole picture; a panel
@@ -260,6 +272,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 
 .slide-meta { position: relative; z-index: 1; display: flex; justify-content: space-between; gap: 8%; padding: 0 9.5% 7%; color: rgb(246 241 231 / .42); font-family: Inter, system-ui, sans-serif; font-size: 1.4cqw; font-weight: 500; line-height: 1; letter-spacing: .14em; text-transform: uppercase; }
 .slide-meta span { min-width: 0; overflow-wrap: anywhere; }
+.align-center .slide-meta { justify-content: center; gap: 3%; }
+/* The wordmark already says whose deck this is, so repeating it in the footer is
+   clutter. The counter stays: it is the only thing telling a reader how far in
+   they are. */
+.has-mark .slide-meta .meta-author { display: none; }
 
 /* Centred layouts sit on the lower golden section rather than the middle, which is
    where the reference covers put their type. */

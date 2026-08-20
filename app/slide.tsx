@@ -10,6 +10,7 @@ import {
   slideAlign,
   slidePosition,
   slideTemplate,
+  smartQuotes,
   titleLines,
 } from "./carousel";
 import { scrimGradient } from "./scrim";
@@ -19,7 +20,7 @@ export type TypeScale = ReturnType<typeof deckTypeScale>;
 function Marked({ text }: { text: string }) {
   return (
     <>
-      {parseInlineMarks(text).map((run, index) =>
+      {parseInlineMarks(smartQuotes(text)).map((run, index) =>
         run.mark === "plain"
           ? run.text
           : <span className={`mark-${run.mark}`} key={index}>{run.text}</span>,
@@ -62,7 +63,7 @@ export function Slide({
   // A headline opening on a quote mark sits visibly indented against the copy below
   // it unless the mark is hung into the margin. CSS hanging-punctuation is Safari
   // only, so the indent is set by hand, and only where there is a margin to hang into.
-  const hangs = /^["“”'‘’]/.test(lines[0]) && slideAlign(slide) === "left";
+  const hangs = /^["“”'‘’]/.test(smartQuotes(lines[0])) && slideAlign(slide) === "left";
 
   const copy = (
     <>
@@ -91,6 +92,7 @@ export function Slide({
   return (
     <article className={classes} style={style} data-export-slide={exportMode ? "true" : undefined}>
       <div className="slide-image" />
+      <div className="slide-texture" />
       <div className="slide-overlay" />
       {config.mark && <div className="slide-mark">{config.mark}</div>}
       <div className="slide-content">
@@ -99,7 +101,7 @@ export function Slide({
         {slide.plate ? <div className="slide-plate">{copy}</div> : copy}
       </div>
       <footer className="slide-meta">
-        <span>{config.author}</span>
+        <span className="meta-author">{config.author}</span>
         <span>{String(index + 1).padStart(2, "0")} / {String(config.slides.length).padStart(2, "0")}</span>
       </footer>
     </article>

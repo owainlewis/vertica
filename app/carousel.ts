@@ -291,6 +291,31 @@ export function generateCarouselFromText(
   };
 }
 
+/**
+ * Typewriter quotes are the single most obvious tell that type was set in a browser
+ * rather than laid out. A straight apostrophe in a display serif is a vertical tick
+ * where the face draws a comma, and at 100px it is impossible to miss.
+ *
+ * Applied at render, never to the stored text, so what the author typed is what they
+ * get back in the editor and in the exported config.
+ */
+export function smartQuotes(text: string) {
+  return text
+    // Anything between two word characters is an apostrophe: don't, it's, '90s.
+    .replace(/(\w)'(\w)/g, "$1\u2019$2")
+    // Opening double, then closing double; order matters.
+    .replace(/"(?=\w)/g, "\u201c")
+    .replace(/"/g, "\u201d")
+    // A leading single before a word is an opening quote unless it elides a year.
+    .replace(/(^|[\s([])'(?=\d)/g, "$1\u2019")
+    .replace(/(^|[\s([])'/g, "$1\u2018")
+    .replace(/'/g, "\u2019")
+    // Ranges and dashes, so "2 - 3" and "so -- then" stop looking like code.
+    .replace(/(\d)\s*--?\s*(\d)/g, "$1\u2013$2")
+    .replace(/\s--\s/g, "\u2009\u2014\u2009")
+    .replace(/\.\.\./g, "\u2026");
+}
+
 export type MarkedRun = { text: string; mark: "plain" | "italic" | "accent" };
 
 /**
@@ -373,6 +398,22 @@ export function bodySize(body: string | undefined) {
  * whole deck matches and nothing overflows.
  */
 const COVER_SCALE = 1.45;
+/** Past three lines a headline stops reading as a statement and starts reading as a paragraph. */
+const COVER_MAX_LINES = 3;
+
+/**
+ * The cover boost is a ceiling, not a promise. Applied flat, 1.45x pushed any headline
+ * over about forty characters into four or five lines, which is the opposite of what
+ * setting a cover large is for. So it backs off toward the base size until the longest
+ * cover fits in three.
+ */
+function fitCoverSize(base: number, titles: (string | undefined)[]) {
+  let size = round(base * COVER_SCALE);
+  while (size > base && Math.max(...titles.map((title) => estimateLines(title, size))) > COVER_MAX_LINES) {
+    size = round(size - 0.2);
+  }
+  return size;
+}
 
 export function deckTypeScale(slides: CarouselSlide[]) {
   // Covers are measured on their own. They carry the headline alone, at their own
@@ -383,15 +424,24 @@ export function deckTypeScale(slides: CarouselSlide[]) {
   const measured = content.length ? content : slides;
 
   const title = Math.min(...measured.map((slide) => titleSize(slide.title)));
-  const cover = round(Math.min(...(covers.length ? covers : measured).map((slide) => titleSize(slide.title))) * COVER_SCALE);
+  const coverSlides = covers.length ? covers : measured;
+  const cover = fitCoverSize(
+    Math.min(...coverSlides.map((slide) => titleSize(slide.title))),
+    coverSlides.map((slide) => slide.title),
+  );
+
+  // Leading is chosen for the longest-setting slide in each group, so one four line
+  // headline does not leave the rest of the deck led as if every title were two.
+  const contentLines = Math.max(...measured.map((slide) => estimateLines(slide.title, title)));
+  const coverLines = Math.max(...coverSlides.map((slide) => estimateLines(slide.title, cover)));
 
   return {
     title,
     tracking: titleTracking(title),
-    leading: titleLeading(title),
+    leading: titleLeading(title, contentLines),
     cover,
     coverTracking: round3(titleTracking(cover) - 0.004),
-    coverLeading: titleLeading(cover),
+    coverLeading: titleLeading(cover, coverLines),
     body: Math.min(...measured.map((slide) => bodySize(slide.body))),
   };
 }
@@ -412,8 +462,23 @@ export function titleTracking(size: number) {
  * wants near-solid setting: the line gap a serif needs at reading size becomes a
  * gutter at 110px. Anything above 1.1 on a two-line title is the stock-HTML look.
  */
-export function titleLeading(size: number) {
-  return round3(clamp(1.08 - (size - 5) * 0.042, 0.86, 1.1));
+export function titleLeading(size: number, lines = 2) {
+  const base = 1.08 - (size - 5) * 0.042;
+  // Every line past the second opens the leading a little. A four line headline set
+  // as tight as a two line one reads as a solid block rather than as lines, and the
+  // descenders start colliding with the caps beneath them.
+  const opened = base + Math.max(0, lines - 2) * 0.035;
+  return round3(clamp(opened, 0.86, 1.16));
+}
+
+/**
+ * How many lines a title will take at a given size, near enough to choose leading by.
+ * Assumes a serif at roughly 0.46em average advance across the measure it is given.
+ */
+export function estimateLines(title: string | undefined, size: number, measure = 0.88) {
+  const segments = titleLines(title ?? "");
+  const perLine = Math.max(1, Math.floor((100 * measure) / (size * 0.46)));
+  return segments.reduce((total, segment) => total + Math.max(1, Math.ceil(visibleLength(segment) / perLine)), 0);
 }
 
 /* The footer (1.4cqw) is fixed in CSS so it holds steady across the deck while the

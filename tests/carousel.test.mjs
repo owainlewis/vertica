@@ -12,6 +12,8 @@ import {
   slidePosition,
   slideTemplate,
   starterConfig,
+  estimateLines,
+  smartQuotes,
   titleLeading,
   titleLines,
   titleSize,
@@ -194,7 +196,9 @@ test("sets the whole deck at one size, chosen so the longest copy fits", () => {
   assert.equal(scale.title, titleSize(slides[1].title), "title size should suit the longest title");
   assert.equal(scale.body, bodySize(slides[1].body), "body size should suit the longest body");
   assert.equal(scale.tracking, titleTracking(scale.title));
-  assert.equal(scale.leading, titleLeading(scale.title));
+  // Leading follows the tallest stack of lines in the deck, not the title size alone.
+  const lines = Math.max(...slides.map((slide) => estimateLines(slide.title, scale.title)));
+  assert.equal(scale.leading, titleLeading(scale.title, lines));
 
   const uniform = deckTypeScale([{ layout: "content", title: "Short", body: "Brief." }]);
   assert.ok(uniform.title > scale.title, "a deck of short titles should still be set large");
@@ -349,4 +353,47 @@ test("a text plate is opt-in and only ever true", () => {
   // real boolean counts.
   assert.equal(config.slides[2].plate, undefined);
   assert.equal(config.slides[3].plate, undefined);
+});
+
+test("sets typographic quotes, dashes and ellipses at render time", () => {
+  assert.equal(smartQuotes("You don't have a model problem"), "You don\u2019t have a model problem");
+  assert.equal(smartQuotes('He said "no" twice'), "He said \u201cno\u201d twice");
+  assert.equal(smartQuotes("'quoted' aside"), "\u2018quoted\u2019 aside");
+  assert.equal(smartQuotes("shipping in the '90s"), "shipping in the \u201990s");
+  assert.equal(smartQuotes("wait for it..."), "wait for it\u2026");
+  assert.equal(smartQuotes("takes 2-3 weeks"), "takes 2\u20133 weeks");
+  // Plain prose must come back untouched, marks included.
+  assert.equal(smartQuotes("Build the *context*"), "Build the *context*");
+});
+
+test("leading opens as a headline takes more lines", () => {
+  const size = 8;
+  assert.ok(titleLeading(size, 4) > titleLeading(size, 2), "four lines need more air than two");
+  assert.ok(titleLeading(size, 2) === titleLeading(size, 1), "one and two lines set the same");
+  for (const lines of [1, 2, 3, 4, 6]) {
+    const value = titleLeading(size, lines);
+    assert.ok(value >= 0.86 && value <= 1.16, `${value} is not display leading`);
+  }
+  // The default has to match the old two-line behaviour, or every deck reflows.
+  assert.equal(titleLeading(size), titleLeading(size, 2));
+});
+
+test("estimates line count from the copy, the size and the hard breaks", () => {
+  // A short headline at display size is one line; the same words at the same size
+  // with a break in them are two.
+  assert.equal(estimateLines("Taste is the moat", 10.6), 1);
+  assert.equal(estimateLines("Taste is | the moat", 10.6), 2);
+  // Long copy at a big size has to wrap several times.
+  assert.ok(estimateLines("The skill that decides who ships. Nobody lists it.", 10.6) >= 3);
+  // And the same copy set small fits in fewer.
+  assert.ok(
+    estimateLines("The skill that decides who ships. Nobody lists it.", 5) <
+    estimateLines("The skill that decides who ships. Nobody lists it.", 10.6),
+  );
+});
+
+test("a deck of four-line covers is led looser than a deck of two-line ones", () => {
+  const long = deckTypeScale([{ layout: "cover", title: "The skill that decides who ships. Nobody lists it.", body: "" }]);
+  const short = deckTypeScale([{ layout: "cover", title: "Taste is the moat", body: "" }]);
+  assert.ok(long.coverLeading > short.coverLeading, "the taller stack of lines needs more leading");
 });
