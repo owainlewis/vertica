@@ -216,7 +216,10 @@ test("a long cover title does not shrink the content slides behind it", () => {
 
   assert.equal(withCover.title, deckTypeScale(content).title, "content slides keep their own size");
   assert.ok(withCover.cover > withCover.title, "the cover is still set larger than the content slides");
-  assert.equal(withCover.coverLeading, titleLeading(withCover.cover));
+  assert.equal(
+    withCover.coverLeading,
+    titleLeading(withCover.cover, estimateLines("Four AI reviewers worth your time", withCover.cover)),
+  );
   assert.ok(withCover.coverTracking < withCover.tracking, "the bigger cover is tracked tighter");
 
   const coversOnly = deckTypeScale([{ layout: "cover", title: "Only a cover", body: "" }]);

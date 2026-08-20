@@ -7,7 +7,7 @@ A minimal studio for creating LinkedIn document carousels.
 - saves every carousel to a database and lists them on a home gallery
 - turns pasted text into an editable slide sequence
 - imports and exports a small JSON format that Claude or Codex can generate
-- sets titles in Castoro and text in Inter, with Cinematic, Midnight and Paper colours per slide
+- sets titles in Playfair Display and text in Inter, with Cinematic, Midnight and Paper colours per slide
 - keeps colour, placement and slide type separate, so any text position works with any colour
 - accepts local background images per slide, and darkens each one to suit its own brightness
 - exports one PDF for LinkedIn, or numbered JPEGs zipped for Instagram, both at 2×

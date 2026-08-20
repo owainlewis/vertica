@@ -478,21 +478,37 @@ export function titleTracking(size: number) {
  * gutter at 110px. Anything above 1.1 on a two-line title is the stock-HTML look.
  */
 export function titleLeading(size: number, lines = 2) {
-  const base = 1.08 - (size - 5) * 0.042;
-  // Every line past the second opens the leading a little. A four line headline set
-  // as tight as a two line one reads as a solid block rather than as lines, and the
-  // descenders start colliding with the caps beneath them.
+  // Leading tightens as type grows, but it has to level off rather than keep falling.
+  // A straight line did keep falling: at cover sizes it returned 0.66 and even 0.44,
+  // so every cover in the app was pinned to the clamp floor and the line count below
+  // stopped having any effect at all. A curve flattens toward a sane display leading
+  // instead of running off the bottom.
+  const base = 0.88 + 1.1 / Math.max(size, 1);
+  // Every line past the second opens it a little. A four line headline set as tight as
+  // a two line one reads as a solid block, and descenders start colliding with the
+  // caps beneath them.
   const opened = base + Math.max(0, lines - 2) * 0.035;
-  return round3(clamp(opened, 0.86, 1.16));
+  // The floor sits at 0.9 rather than 0.86 because Playfair Display has a tall
+  // x-height (0.514em against a 0.708em cap). Lines of a large-x face read closer
+  // together than their leading says, so solid setting closes up faster.
+  return round3(clamp(opened, 0.9, 1.18));
 }
 
 /**
  * How many lines a title will take at a given size, near enough to choose leading by.
  * Assumes a serif at roughly 0.46em average advance across the measure it is given.
  */
+/**
+ * Mean advance width of the display face over a realistic headline, in em, measured
+ * from the font file rather than guessed: Playfair Display comes out at 0.4395 across
+ * a sample of the copy these decks actually carry. Change this if the face changes,
+ * or every line estimate drifts and the cover sizing drifts with it.
+ */
+const AVG_ADVANCE = 0.44;
+
 export function estimateLines(title: string | undefined, size: number, measure = 0.88) {
   const segments = titleLines(title ?? "");
-  const perLine = Math.max(1, Math.floor((100 * measure) / (size * 0.46)));
+  const perLine = Math.max(1, Math.floor((100 * measure) / (size * AVG_ADVANCE)));
   return segments.reduce((total, segment) => total + Math.max(1, Math.ceil(visibleLength(segment) / perLine)), 0);
 }
 
