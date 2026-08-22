@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   aiPrompt,
+  assertBackgroundsAvailableForExport,
   BRAND_FOOTER,
   BRAND_MARK,
   bodyParagraphs,
@@ -21,6 +22,25 @@ import {
   titleSize,
   titleTracking,
 } from "../app/carousel.ts";
+
+test("blocks exports that would silently omit unresolved backgrounds", () => {
+  const config = parseCarouselConfig(JSON.stringify({
+    slides: [
+      { title: "Ready", background: "data:image/jpeg;base64,YQ==" },
+      { title: "Missing", background: "img:first" },
+      { title: "Also missing", background: "img:second" },
+    ],
+  }));
+
+  assert.throws(
+    () => assertBackgroundsAvailableForExport(config),
+    /slides 2, 3 are not available in this browser/,
+  );
+  assert.doesNotThrow(() => assertBackgroundsAvailableForExport({
+    ...config,
+    slides: config.slides.map((slide) => ({ ...slide, background: undefined })),
+  }));
+});
 import { bandFor, scrimGradient, scrimPeak } from "../app/scrim.ts";
 
 test("generates a readable slide sequence from paragraphs", () => {

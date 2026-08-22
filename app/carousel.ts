@@ -67,6 +67,19 @@ export function slideTemplate(slide: CarouselSlide, config: CarouselConfig) {
   return slide.template ?? config.template;
 }
 
+/** Stops an export that would silently paint an unresolved local image as blank. */
+export function assertBackgroundsAvailableForExport(config: CarouselConfig) {
+  const missing = config.slides
+    .map((slide, index) => (slide.background?.startsWith("img:") ? index + 1 : null))
+    .filter((index): index is number => index !== null);
+
+  if (!missing.length) return;
+  const slides = missing.length === 1 ? `slide ${missing[0]}` : `slides ${missing.join(", ")}`;
+  throw new Error(
+    `Background images for ${slides} are not available in this browser. Open this carousel where the images were uploaded, or replace them before exporting.`,
+  );
+}
+
 /** The offer every deck promotes. The mark is the category, the footer is where to go. */
 export const BRAND_MARK = "AI ENGINEER";
 export const BRAND_FOOTER = "AIENGINEER.CO";

@@ -9,7 +9,7 @@ import {
   loadCarousel,
   type CarouselSummary,
 } from "./api-client";
-import { CarouselConfig, CarouselSlide, deckTypeScale } from "./carousel";
+import { assertBackgroundsAvailableForExport, CarouselConfig, CarouselSlide, deckTypeScale } from "./carousel";
 import { exportStageToPdf, exportStageToZip, fileNameFor } from "./export";
 import { loadImages } from "./image-store";
 import { ExportStage, Slide } from "./slide";
@@ -145,7 +145,9 @@ export default function Dashboard({
     setError(null);
     try {
       const { config } = await loadCarousel(carousel.id);
-      setPending({ config: await inlineBackgrounds(config), title: config.title, kind });
+      const painted = await inlineBackgrounds(config);
+      assertBackgroundsAvailableForExport(painted);
+      setPending({ config: painted, title: config.title, kind });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not open that carousel.");
       setBusyId(null);

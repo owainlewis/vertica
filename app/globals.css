@@ -179,8 +179,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .slide-actions button:disabled { opacity: .28; cursor: default; }
 .slide-actions .danger-action:hover { color: #a32d20; }
 
-/* Slides. One typeface, one scrim, no ornament. Every size is in cqw against the
-   slide itself, so the 520px preview and the 1080px export render identically. */
+/* Slides. Editorial details create rhythm across a deck while every size remains in
+   cqw, so the 520px preview and the 1080px export render identically. */
 .carousel-slide {
   --slide-background: none;
   --cream: #f6f1e7;
@@ -190,12 +190,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   --title-leading: 1;
   --body-size: 3.1cqw;
   container-type: inline-size;
-  position: relative; width: 100%; height: 100%; overflow: hidden;
+  position: relative; width: 100%; height: 100%; overflow: hidden; isolation: isolate;
   display: flex; flex-direction: column;
   color: var(--cream); background: #14140f;
   font-family: Playfair, Georgia, "Times New Roman", serif;
 }
-.slide-image, .slide-overlay, .slide-texture { position: absolute; inset: 0; }
+.slide-image, .slide-overlay, .slide-texture, .slide-frame { position: absolute; inset: 0; }
 /* Paper grain, as fractal noise rather than a photograph of paper, so it costs one
    inline SVG and no request. A flat fill reads as a browser default; the same colour
    with a tooth reads as stock. Multiplied so it darkens the ground slightly rather
@@ -209,6 +209,23 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 /* Built per slide from the measured brightness under the text. See scrim.ts. The
    value here is only the fallback for a slide that renders before its variable. */
 .slide-overlay { background: var(--slide-scrim, linear-gradient(180deg, rgb(9 9 7 / .46) 0%, rgb(9 9 7 / .16) 22%, rgb(9 9 7 / .42) 52%, rgb(7 7 5 / .8) 80%, rgb(6 6 4 / .9) 100%)); }
+
+/* A fine inset frame and a quiet deck-progress line make separate slides feel like
+   one collectible set. Both stay behind the copy and require no authoring controls. */
+.slide-frame { inset: 3.2%; z-index: 1; border: 1px solid rgb(246 241 231 / .16); pointer-events: none; }
+.template-paper .slide-frame { border-color: rgb(20 20 15 / .16); }
+.slide-progress { position: absolute; z-index: 3; left: 0; right: 0; bottom: 0; height: .52%; background: rgb(246 241 231 / .12); }
+.slide-progress span { display: block; width: var(--slide-progress); height: 100%; background: var(--gold); }
+.template-paper .slide-progress { background: rgb(20 20 15 / .1); }
+.template-paper .slide-progress span { background: #9b8036; }
+
+/* The oversized folio is visible only on text-led slides. It gives the eye a second
+   scale to land on without competing with a photograph or a cover headline. */
+.slide-ordinal { display: none; position: absolute; z-index: 0; top: 12%; right: 6%; color: currentColor; font-family: Inter, system-ui, sans-serif; font-size: 17cqw; font-weight: 700; line-height: 1; letter-spacing: -.09em; opacity: .045; }
+.template-midnight.layout-content .slide-ordinal,
+.template-midnight.layout-quote .slide-ordinal,
+.template-paper.layout-content .slide-ordinal,
+.template-paper.layout-quote .slide-ordinal { display: block; }
 
 /* Vertical rhythm is set in em against each element's own size, so the gaps stay
    proportional whichever step of the scale the title and body land on. */
@@ -237,6 +254,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
    a step smaller and led a little looser than the serif wanted. */
 .slide-content p { max-width: 96%; margin: .85em 0 0; color: rgb(246 241 231 / .88); font-family: Inter, system-ui, sans-serif; font-size: var(--body-size); font-weight: 400; line-height: 1.5; letter-spacing: -.004em; font-kerning: normal; text-wrap: pretty; overflow-wrap: anywhere; }
 .slide-content h2 + p { margin-top: 1.45em; }
+
+/* Content slides get a compact gold lead-in. It is a repeatable visual beat that
+   helps a reader recognise a new point while swiping through the deck. */
+.layout-content .slide-content h2::before { content: ""; display: block; width: 1.05em; height: .08em; margin: 0 0 .38em; background: var(--gold); }
+.layout-content.align-center .slide-content h2::before { margin-right: auto; margin-left: auto; }
+.template-paper.layout-content .slide-content h2::before { background: #9b8036; }
 /* Drawn on the paragraph rather than as an element, so it needs no markup and cannot
    appear on a slide that has no copy to separate. Centred layouts only: against a
    left-aligned lower third the title and body already read as two things. */
@@ -274,6 +297,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
    attention that the size used to do. */
 .slide-plate h2 { font-size: calc(var(--title-size) * .74); }
 .has-plate .slide-content { justify-content: center; }
+.has-plate .slide-frame { border-color: rgb(246 241 231 / .28); }
 
 .slide-meta { position: relative; z-index: 1; display: flex; justify-content: space-between; gap: 8%; padding: 0 9.5% 7%; color: rgb(246 241 231 / .42); font-family: Inter, system-ui, sans-serif; font-size: 1.4cqw; font-weight: 500; line-height: 1; letter-spacing: .14em; text-transform: uppercase; }
 .slide-meta span { min-width: 0; overflow-wrap: anywhere; }
@@ -303,10 +327,24 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 /* A near-full measure. Narrower than this and a display-size headline shatters into
    four or five stacked fragments instead of two or three full lines. */
 .layout-cover .slide-content h2 { max-width: 100%; }
-.layout-quote .slide-content h2 { font-style: italic; }
+.layout-cover .slide-content::after { content: ""; flex: 0 0 auto; width: 12%; height: .2cqw; margin-top: 5%; background: var(--gold); }
+.layout-cover.align-center .slide-content::after { align-self: center; }
+.template-paper.layout-cover .slide-content::after { background: #9b8036; }
 
-.template-midnight { background: #0e1f17; }
-.template-paper { color: #14140f; background: #fbfaf7; }
+/* Quotes behave like a deliberate change of pace instead of another content slide. */
+.layout-quote .slide-content::before { content: "“"; height: .45em; margin: 0 0 .24em -.08em; color: var(--gold); font-size: calc(var(--title-size) * 1.7); font-style: normal; line-height: .65; }
+.layout-quote.align-center .slide-content::before { margin-right: auto; margin-left: auto; }
+.layout-quote .slide-content h2 { max-width: 92%; font-size: calc(var(--title-size) * 1.04); font-style: italic; }
+.layout-quote .slide-content p { max-width: 78%; font-size: calc(var(--body-size) * .82); font-weight: 650; letter-spacing: .1em; text-transform: uppercase; }
+.template-paper.layout-quote .slide-content::before { color: #9b8036; }
+
+/* A closing slide resolves the sequence with a tighter measure and a clear CTA chip. */
+.layout-closing .slide-content h2 { max-width: 88%; }
+.layout-closing .slide-content p { width: max-content; max-width: 82%; padding: .72em 1.1em; border: 1px solid rgb(246 241 231 / .3); border-radius: 999px; font-size: calc(var(--body-size) * .84); font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
+.template-paper.layout-closing .slide-content p { border-color: rgb(20 20 15 / .22); }
+
+.template-midnight { background: radial-gradient(circle at 82% 12%, rgb(218 190 115 / .12), transparent 34%), linear-gradient(145deg, #132b20 0%, #0a1b14 100%); }
+.template-paper { color: #14140f; background: radial-gradient(circle at 12% 8%, #fff 0%, transparent 32%), linear-gradient(145deg, #fbfaf7 0%, #eee8dc 100%); }
 .template-midnight .slide-image, .template-midnight .slide-overlay,
 .template-paper .slide-image, .template-paper .slide-overlay { display: none; }
 .template-paper .slide-content p { color: rgb(20 20 15 / .82); letter-spacing: 0; }

@@ -27,6 +27,7 @@ import { isImageKey } from "./image-store";
 import { measureDataUrl } from "./scrim";
 import {
   aiPrompt,
+  assertBackgroundsAvailableForExport,
   CarouselConfig,
   CarouselSlide,
   deckTypeScale,
@@ -40,6 +41,7 @@ import {
   TemplateId,
 } from "./carousel";
 import { downloadBlob, exportStageToPdf, exportStageToZip, fileNameFor } from "./export";
+import { SaveQueue } from "./save-queue";
 import { ExportStage, Slide } from "./slide";
 
 type Notice = { kind: "success" | "error"; message: string } | null;
@@ -92,10 +94,6 @@ export default function Editor({
   onSaved: (summary: CarouselSummary) => void;
 }) {
   const [config, setConfig] = useState<CarouselConfig>(initialConfig);
-  const [savedId, setSavedId] = useState(carouselId);
-  // The version last read from the server. Sent with every save so a write based on
-  // stale state is refused rather than quietly overwriting someone else's.
-  const [savedVersion, setSavedVersion] = useState(initialVersion);
   const [showCrop, setShowCrop] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [inspectorTab, setInspectorTab] = useState<"content" | "layout" | "design">("content");
@@ -107,6 +105,29 @@ export default function Editor({
   const [notice, setNotice] = useState<Notice>(null);
   const [exporting, setExporting] = useState<false | "pdf" | "zip">(false);
   const [saveState, setSaveState] = useState<keyof typeof SAVE_LABEL>("saved");
+  const [exiting, setExiting] = useState(false);
+
+  const mounted = useRef(true);
+  const savedIdRef = useRef(carouselId);
+  const savedVersionRef = useRef(initialVersion);
+  const onSavedRef = useRef(onSaved);
+  const saveQueueRef = useRef<SaveQueue<CarouselConfig, CarouselSummary> | null>(null);
+
+  useEffect(() => {
+    const queue = new SaveQueue<CarouselConfig, CarouselSummary>(async (nextConfig) => {
+      const summary = await saveCarousel(savedIdRef.current, nextConfig, savedVersionRef.current);
+      savedIdRef.current = summary.id;
+      savedVersionRef.current = summary.version;
+
+      if (mounted.current) {
+        onSavedRef.current(summary);
+      }
+
+      return summary;
+    });
+    saveQueueRef.current = queue;
+    return () => { saveQueueRef.current = null; };
+  }, []);
 
   const selectedSlide = config.slides[selectedIndex] ?? config.slides[0];
   const activeTemplate = slideTemplate(selectedSlide, config);
@@ -120,6 +141,25 @@ export default function Editor({
     setNotice(next);
     window.setTimeout(() => setNotice(null), 3200);
   }
+
+  const flushSave = useCallback(async () => {
+    const queue = saveQueueRef.current;
+    if (!queue) return false;
+    if (!queue.dirty) return true;
+
+    setSaveState("saving");
+    try {
+      await queue.flush();
+      if (mounted.current) setSaveState(queue.dirty ? "dirty" : "saved");
+      return !queue.dirty;
+    } catch (error) {
+      if (mounted.current) {
+        setSaveState(error instanceof StaleSaveError ? "stale" : "error");
+        setNotice({ kind: "error", message: error instanceof Error ? error.message : "Could not save." });
+      }
+      return false;
+    }
+  }, []);
 
   // Undo holds whole configs. The deck is a small plain object, so keeping sixty of
   // them costs less than the machinery to diff them would.
@@ -168,7 +208,6 @@ export default function Editor({
     return () => window.removeEventListener("keydown", onKey);
   }, [step]);
 
-  const mounted = useRef(true);
   // Set on the way in as well as cleared on the way out. With only the cleanup, a
   // StrictMode mount/cleanup/mount cycle would leave this false for good and every
   // save result would be discarded.
@@ -177,48 +216,50 @@ export default function Editor({
     return () => { mounted.current = false; };
   }, []);
 
-  /**
-   * Autosave on a pause in typing. Each edit marks the deck dirty and restarts the
-   * timer, so a burst of keystrokes costs one write.
-   *
-   * The cleanup cancels the timer and nothing else. It deliberately does not cancel a
-   * request already in flight: setting "saving" changes this effect's own dependency,
-   * so React tears it down the moment the request starts. A cleanup that marked the
-   * result stale therefore threw away every outcome, leaving the indicator on
-   * "Saving…" for good and swallowing save errors entirely.
-   *
-   * A failure lands on "error" or "stale" rather than back on "dirty", which would
-   * retry in a loop every 1.2 seconds against a server that will refuse it every time.
-   */
   useEffect(() => {
-    if (saveState !== "dirty") return;
-    const timer = window.setTimeout(async () => {
-      setSaveState("saving");
-      try {
-        const summary = await saveCarousel(savedId, config, savedVersion);
-        if (!mounted.current) return;
-        setSavedId(summary.id);
-        setSavedVersion(summary.version);
-        onSaved(summary);
-        // Typing during the request has already marked the deck dirty again, and
-        // that pending edit outranks this result.
-        setSaveState((current) => (current === "saving" ? "saved" : current));
-      } catch (error) {
-        if (!mounted.current) return;
-        setSaveState(error instanceof StaleSaveError ? "stale" : "error");
-        showNotice({ kind: "error", message: error instanceof Error ? error.message : "Could not save." });
-      }
-    }, 1200);
-    return () => window.clearTimeout(timer);
-  }, [saveState, config, savedId, savedVersion, onSaved]);
+    onSavedRef.current = onSaved;
+  }, [onSaved]);
 
-  // Opening a carousel should not immediately rewrite it, so the first render is
-  // not a change. A brand new carousel has no id yet and is saved on its first edit.
-  const settled = useRef(false);
+  // Every edit replaces the queued snapshot. The queue drains one request at a time,
+  // adopting the returned id and version before it writes anything newer.
+  const lastQueuedConfig = useRef(initialConfig);
   useEffect(() => {
-    if (settled.current) setSaveState("dirty");
-    settled.current = true;
-  }, [config]);
+    if (config === lastQueuedConfig.current) return;
+    lastQueuedConfig.current = config;
+    saveQueueRef.current?.enqueue(config);
+    setSaveState("dirty");
+
+    const timer = window.setTimeout(() => { void flushSave(); }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [config, flushSave]);
+
+  // Refreshing or closing cannot reliably finish an async request, so the browser
+  // warns instead of silently discarding a queued or in-flight edit.
+  useEffect(() => {
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!saveQueueRef.current?.dirty) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, []);
+
+  // Back is same-document navigation here, so beforeunload does not run. Hold the
+  // editor in place, flush it, then repeat the Back action with a clean queue.
+  useEffect(() => {
+    const onPop = (event: PopStateEvent) => {
+      if (!saveQueueRef.current?.dirty) return;
+      event.stopImmediatePropagation();
+      const editorUrl = savedIdRef.current ? `/?id=${encodeURIComponent(savedIdRef.current)}` : "/";
+      window.history.pushState(savedIdRef.current ? { id: savedIdRef.current } : {}, "", editorUrl);
+      void flushSave().then((saved) => {
+        if (saved && mounted.current) window.history.back();
+      });
+    };
+    window.addEventListener("popstate", onPop, { capture: true });
+    return () => window.removeEventListener("popstate", onPop, { capture: true });
+  }, [flushSave]);
 
   /**
    * `key` groups a burst of edits into one undo step. Text fields pass a stable key
@@ -342,10 +383,18 @@ export default function Editor({
     downloadBlob(blob, exportFileName.replace(/\.pdf$/, ".json"));
   }
 
+  async function requestExit() {
+    if (exiting) return;
+    setExiting(true);
+    if (await flushSave()) onExit();
+    else setExiting(false);
+  }
+
   async function runExport(kind: "pdf" | "zip") {
     if (exporting) return;
     setExporting(kind);
     try {
+      assertBackgroundsAvailableForExport(config);
       if (kind === "pdf") {
         await exportStageToPdf(exportFileName, config.slides.length);
         showNotice({ kind: "success", message: `Exported ${config.slides.length} PDF pages for LinkedIn.` });
@@ -363,8 +412,8 @@ export default function Editor({
   return (
     <main className="studio-shell">
       <header className="topbar">
-        <button className="brand brand-back" type="button" onClick={onExit} aria-label="Back to all carousels">
-          <ArrowLeft size={16} /><span className="brand-mark">V</span><span>All carousels</span>
+        <button className="brand brand-back" type="button" onClick={() => { void requestExit(); }} disabled={exiting} aria-label="Back to all carousels">
+          {exiting ? <LoaderCircle className="spin" size={16} /> : <ArrowLeft size={16} />}<span className="brand-mark">V</span><span>All carousels</span>
         </button>
         <label className="project-name">
           <span className={`status-dot ${saveState}`} title={SAVE_LABEL[saveState]} />

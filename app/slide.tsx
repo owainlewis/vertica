@@ -57,6 +57,7 @@ export function Slide({
     "--title-leading": `${isCover ? scale.coverLeading : scale.leading}`,
     "--body-size": `${scale.body}cqw`,
     "--slide-scrim": scrimGradient(slide.layout, position, slide.luma),
+    "--slide-progress": `${((index + 1) / config.slides.length) * 100}%`,
     ...(painted ? { "--slide-background": `url(${painted})` } : {}),
   } as CSSProperties;
 
@@ -94,6 +95,8 @@ export function Slide({
       <div className="slide-image" />
       <div className="slide-texture" />
       <div className="slide-overlay" />
+      <div className="slide-frame" aria-hidden="true" />
+      <div className="slide-ordinal" aria-hidden="true">{String(index + 1).padStart(2, "0")}</div>
       {config.mark && <div className="slide-mark">{config.mark}</div>}
       <div className="slide-content">
         {/* Only wrapped when there is a plate to draw, so every other slide keeps
@@ -104,6 +107,7 @@ export function Slide({
         <span className="meta-author">{config.author}</span>
         <span>{String(index + 1).padStart(2, "0")} / {String(config.slides.length).padStart(2, "0")}</span>
       </footer>
+      <div className="slide-progress" aria-hidden="true"><span /></div>
     </article>
   );
 }

@@ -11,8 +11,10 @@ A minimal studio for creating LinkedIn document carousels.
 - keeps colour, placement and slide type separate, so any text position works with any colour
 - accepts local background images per slide, and darkens each one to suit its own brightness
 - exports one PDF for LinkedIn, or numbered JPEGs zipped for Instagram, both at 2×
+- blocks an export rather than silently omitting a background that only exists in another browser
 - undo and redo across the whole deck, with ⌘Z and ⇧⌘Z
-- a deck wordmark, and a text plate for copy that has to sit on a busy photograph
+- serializes autosaves and flushes queued edits before leaving the editor
+- a deck wordmark, progress line, editorial frames, distinct quote and closing treatments, and a text plate for copy that has to sit on a busy photograph
 
 ## The gallery
 
