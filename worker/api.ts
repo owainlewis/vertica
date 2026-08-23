@@ -204,7 +204,8 @@ export async function handleApi(request: Request, env: ApiEnv): Promise<Response
   try {
     if (path === "/media" && request.method === "GET") {
       await tryCollectMediaGarbage(db, env.MEDIA);
-      return json({ media: await listMediaAssets(db) });
+      const page = await listMediaAssets(db, url.searchParams.get("cursor"));
+      return json({ media: page.items, nextCursor: page.nextCursor });
     }
 
     const mediaMatch = path.match(/^\/media\/(.+)$/);

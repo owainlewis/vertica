@@ -326,15 +326,41 @@ function toMediaAsset(row: MediaRow): MediaAsset {
   };
 }
 
-export async function listMediaAssets(db: D1Database): Promise<MediaAsset[]> {
+const MEDIA_PAGE_SIZE = 60;
+
+function mediaCursor(asset: MediaAsset) {
+  return btoa(JSON.stringify([asset.updatedAt, asset.key]));
+}
+
+function readMediaCursor(cursor: string | null) {
+  if (!cursor) return null;
+  try {
+    const value = JSON.parse(atob(cursor));
+    if (!Array.isArray(value) || value.length !== 2 || value.some((part) => typeof part !== "string")) return null;
+    return { updatedAt: value[0] as string, key: value[1] as string };
+  } catch {
+    return null;
+  }
+}
+
+export async function listMediaAssets(db: D1Database, cursor: string | null = null) {
   await ensureSchema(db);
-  const { results } = await db
-    .prepare(
-      `SELECT key, kind, name, mime_type, width, height, byte_size, created_at, updated_at
-       FROM media_assets ORDER BY updated_at DESC LIMIT 500`,
-    )
-    .all<MediaRow>();
-  return results.map(toMediaAsset);
+  const position = readMediaCursor(cursor);
+  const select = `SELECT key, kind, name, mime_type, width, height, byte_size, created_at, updated_at
+    FROM media_assets`;
+  const statement = position
+    ? db.prepare(
+      `${select}
+       WHERE updated_at < ? OR (updated_at = ? AND key < ?)
+       ORDER BY updated_at DESC, key DESC LIMIT ?`,
+    ).bind(position.updatedAt, position.updatedAt, position.key, MEDIA_PAGE_SIZE + 1)
+    : db.prepare(`${select} ORDER BY updated_at DESC, key DESC LIMIT ?`).bind(MEDIA_PAGE_SIZE + 1);
+  const { results } = await statement.all<MediaRow>();
+  const items = results.slice(0, MEDIA_PAGE_SIZE).map(toMediaAsset);
+  return {
+    items,
+    nextCursor: results.length > MEDIA_PAGE_SIZE && items.length ? mediaCursor(items.at(-1)!) : null,
+  };
 }
 
 export async function upsertMediaAsset(

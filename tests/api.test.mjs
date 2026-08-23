@@ -25,8 +25,15 @@ function fakeDb() {
             .map(([key, item]) => ({ key, notBefore: item.notBefore })),
         };
       }
-      if (/FROM media_assets ORDER BY updated_at/.test(query)) {
-        return { results: [...assets.values()].sort((a, b) => b.updated_at.localeCompare(a.updated_at)) };
+      if (/FROM media_assets/.test(query)) {
+        let results = [...assets.values()].sort((a, b) =>
+          b.updated_at.localeCompare(a.updated_at) || b.key.localeCompare(a.key));
+        if (/WHERE updated_at < \?/.test(query)) {
+          const [updatedAt, , key, limit] = this._values;
+          results = results.filter((row) => row.updated_at < updatedAt || (row.updated_at === updatedAt && row.key < key));
+          return { results: results.slice(0, limit) };
+        }
+        return { results: results.slice(0, this._values[0]) };
       }
       if (/FROM carousels/.test(query)) {
         return { results: [...rows.values()].sort((a, b) => b.updated_at.localeCompare(a.updated_at)) };
@@ -315,6 +322,33 @@ test("stores reusable library images and blocks deletion while they are in use",
   matureGc(env.DB, key);
   await handleApi(new Request("http://localhost/api/media"), env);
   assert.equal(media.objects.size, 0, "unreferenced bytes are collected after the grace period");
+});
+
+test("paginates the media library without hiding older assets", async () => {
+  const env = { DB: fakeDb(), MEDIA: fakeMedia() };
+  for (let index = 0; index < 65; index += 1) {
+    const suffix = index.toString(16).padStart(32, "0");
+    const timestamp = new Date(Date.UTC(2026, 0, 1, 0, index)).toISOString();
+    env.DB.assets.set(`img:${suffix}`, {
+      key: `img:${suffix}`,
+      kind: "image",
+      name: `Image ${index}`,
+      mime_type: "image/webp",
+      width: 1080,
+      height: 1350,
+      byte_size: 3,
+      created_at: timestamp,
+      updated_at: timestamp,
+    });
+  }
+
+  const first = await (await handleApi(new Request("http://localhost/api/media"), env)).json();
+  assert.equal(first.media.length, 60);
+  assert.ok(first.nextCursor);
+  const second = await (await handleApi(new Request(`http://localhost/api/media?cursor=${encodeURIComponent(first.nextCursor)}`), env)).json();
+  assert.equal(second.media.length, 5);
+  assert.equal(second.nextCursor, null);
+  assert.equal(new Set([...first.media, ...second.media].map((asset) => asset.key)).size, 65);
 });
 
 test("persists image bytes through the media API", async () => {

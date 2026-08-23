@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Images, LoaderCircle, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { listMedia, type MediaAsset } from "./api-client";
 import { mediaUrl } from "./image-store";
 
@@ -13,15 +13,26 @@ export default function MediaPicker({
   onClose: () => void;
 }) {
   const [media, setMedia] = useState<MediaAsset[] | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [choosing, setChoosing] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     let live = true;
     listMedia()
-      .then((items) => { if (live) setMedia(items); })
+      .then((page) => { if (live) { setMedia(page.media); setNextCursor(page.nextCursor); } })
       .catch((cause) => { if (live) setError(cause instanceof Error ? cause.message : "Could not load your media."); });
     return () => { live = false; };
+  }, []);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    dialog.showModal();
+    closeRef.current?.focus();
   }, []);
 
   async function choose(asset: MediaAsset) {
@@ -29,18 +40,39 @@ export default function MediaPicker({
     setError(null);
     try {
       await onChoose(asset);
+      dialogRef.current?.close();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not use that image.");
       setChoosing(null);
     }
   }
 
+  async function loadMore() {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const page = await listMedia(nextCursor);
+      setMedia((current) => [...(current ?? []), ...page.media]);
+      setNextCursor(page.nextCursor);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not load more media.");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
   return (
-    <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
-      <section className="composer-dialog media-picker" role="dialog" aria-modal="true" aria-labelledby="media-picker-title">
+    <dialog
+      ref={dialogRef}
+      className="native-dialog"
+      aria-labelledby="media-picker-title"
+      onCancel={(event) => { event.preventDefault(); dialogRef.current?.close(); }}
+      onClose={onClose}
+    >
+      <section className="composer-dialog media-picker">
         <div className="dialog-header">
           <div><span className="dialog-icon"><Images size={17} /></span><div><h2 id="media-picker-title">Choose from media</h2><p>Reuse an image from your library on this slide.</p></div></div>
-          <button type="button" onClick={onClose} aria-label="Close"><X size={18} /></button>
+          <button ref={closeRef} type="button" onClick={() => dialogRef.current?.close()} aria-label="Close"><X size={18} /></button>
         </div>
         <div className="media-picker-body">
           {error && <p className="dashboard-error" role="status">{error}</p>}
@@ -59,9 +91,14 @@ export default function MediaPicker({
               </button>
             ))}
           </div>
+          {nextCursor && (
+            <button className="secondary-button media-load-more" type="button" onClick={() => { void loadMore(); }} disabled={loadingMore}>
+              {loadingMore ? <LoaderCircle className="spin" size={14} /> : null}{loadingMore ? "Loading…" : "Load more images"}
+            </button>
+          )}
         </div>
-        <div className="dialog-footer"><button className="secondary-button" type="button" onClick={onClose}>Cancel</button></div>
+        <div className="dialog-footer"><button className="secondary-button" type="button" onClick={() => dialogRef.current?.close()}>Cancel</button></div>
       </section>
-    </div>
+    </dialog>
   );
 }

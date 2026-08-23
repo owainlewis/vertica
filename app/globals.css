@@ -74,6 +74,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .media-delete, .media-confirm button { display: inline-flex; align-items: center; justify-content: center; min-height: 28px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; background: white; color: var(--muted); font-size: 9px; font-weight: 700; cursor: pointer; }
 .media-delete:hover, .media-confirm .danger-action { color: #9f3529; }
 .media-confirm { display: flex; gap: 4px; }
+.media-load-more { display: flex; width: max-content; margin: 22px auto 0; }
 
 /* The profile grid, as Instagram draws it: three square tiles, four pixel gutters,
    935px of content, and no chrome of any kind around the picture. Rounded corners and
@@ -442,6 +443,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .json-label { display: flex; align-items: center; justify-content: space-between; }
 .json-label button { display: inline-flex; align-items: center; gap: 5px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; background: white; font-size: 9px; font-weight: 700; cursor: pointer; }
 .dialog-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--line); background: #f1efe9; }
+.native-dialog { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; padding: 22px; border: 0; background: transparent; }
+.native-dialog[open] { display: grid; place-items: center; }
+.native-dialog::backdrop { background: rgb(29 29 26 / .48); backdrop-filter: blur(5px); }
 .media-picker { width: min(760px, 100%); }
 .media-picker-body { min-height: 240px; max-height: min(65vh, 620px); overflow: auto; padding: 18px 20px; }
 .picker-loading, .picker-empty { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 210px; color: var(--muted); font-size: 11px; }
@@ -512,6 +516,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .topbar-actions .generate-button { display: inline-flex; }
   .topbar-actions .generate-button span { display: none; }
   .dialog-backdrop { align-items: end; padding: 0; }
+  .native-dialog { align-items: end; padding: 0; }
   .composer-dialog { border-radius: 14px 14px 0 0; }
 }
 

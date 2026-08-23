@@ -326,7 +326,6 @@ export default function Editor({
     const background = images[asset.key];
     if (!background) throw new Error("That image could not be loaded. Try uploading it again from Media.");
     await chooseBackground(background);
-    setMediaOpen(false);
     showNotice({ kind: "success", message: `${asset.name} is now the slide background.` });
   }
 

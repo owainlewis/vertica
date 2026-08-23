@@ -16,7 +16,9 @@ export default function MediaGallery() {
   const [media, setMedia] = useState<MediaAsset[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [uploadCount, setUploadCount] = useState(0);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [confirmKey, setConfirmKey] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -24,7 +26,9 @@ export default function MediaGallery() {
 
   const refresh = useCallback(async () => {
     try {
-      setMedia(await listMedia());
+      const page = await listMedia();
+      setMedia(page.media);
+      setNextCursor(page.nextCursor);
       setError(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not load your media.");
@@ -34,7 +38,7 @@ export default function MediaGallery() {
   useEffect(() => {
     let live = true;
     listMedia()
-      .then((items) => { if (live) setMedia(items); })
+      .then((page) => { if (live) { setMedia(page.media); setNextCursor(page.nextCursor); } })
       .catch((cause) => { if (live) setError(cause instanceof Error ? cause.message : "Could not load your media."); });
     return () => { live = false; };
   }, []);
@@ -44,25 +48,47 @@ export default function MediaGallery() {
     setUploading(true);
     setUploadCount(0);
     setError(null);
+    let completed = 0;
     try {
-      const images = await prepareImages(files);
-      for (let start = 0; start < images.length; start += 3) {
-        const batch = images.slice(start, start + 3);
-        await Promise.all(batch.map((image) => putImage(image.dataUrl, {
+      const selected = Array.from(files);
+      for (let start = 0; start < selected.length; start += 3) {
+        // Decode, resize, and upload one small batch before allocating the next.
+        const prepared = await prepareImages(selected.slice(start, start + 3));
+        await Promise.all(prepared.map((image) => putImage(image.dataUrl, {
           name: image.name,
           width: image.width,
           height: image.height,
         })));
-        setUploadCount(Math.min(start + batch.length, images.length));
+        completed += prepared.length;
+        setUploadCount(completed);
       }
       await refresh();
-      if (!images.length) setError("Choose PNG, JPEG, GIF, AVIF, or WebP images.");
+      if (!completed) setError("Choose PNG, JPEG, GIF, AVIF, or WebP images.");
     } catch (cause) {
+      // Earlier batches are already durable. Show them even when a later one fails.
+      if (completed) await refresh().catch(() => undefined);
       setError(cause instanceof Error ? cause.message : "Could not upload those images.");
     } finally {
       setUploading(false);
       setDragging(false);
       if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  async function loadMore() {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const page = await listMedia(nextCursor);
+      setMedia((current) => {
+        const existing = new Set((current ?? []).map((item) => item.key));
+        return [...(current ?? []), ...page.media.filter((item) => !existing.has(item.key))];
+      });
+      setNextCursor(page.nextCursor);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not load more media.");
+    } finally {
+      setLoadingMore(false);
     }
   }
 
@@ -153,6 +179,11 @@ export default function MediaGallery() {
             </li>
           ))}
         </ul>
+        {nextCursor && (
+          <button className="secondary-button media-load-more" type="button" onClick={() => { void loadMore(); }} disabled={loadingMore}>
+            {loadingMore ? <LoaderCircle className="spin" size={14} /> : null}{loadingMore ? "Loading…" : "Load more images"}
+          </button>
+        )}
       </section>
     </div>
   );

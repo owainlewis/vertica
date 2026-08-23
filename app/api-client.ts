@@ -68,8 +68,9 @@ export async function listCarousels() {
   return (await call<{ carousels: CarouselSummary[] }>("/carousels")).carousels;
 }
 
-export async function listMedia() {
-  return (await call<{ media: MediaAsset[] }>("/media")).media;
+export function listMedia(cursor?: string | null) {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  return call<{ media: MediaAsset[]; nextCursor: string | null }>(`/media${query}`);
 }
 
 export function deleteMedia(key: string) {
