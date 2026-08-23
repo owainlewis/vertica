@@ -1,4 +1,5 @@
 /** Carousel storage on D1. One table, so plain SQL rather than an ORM. */
+import { deckTypeScale, type CarouselSlide } from "../app/carousel.ts";
 
 export interface D1Result<T> {
   results: T[];
@@ -133,12 +134,45 @@ function toSummary(row: Row): CarouselSummary {
   };
 }
 
+/**
+ * Old rows predate the shared type scale and have no reliable gallery scale. Rebuild
+ * the compact cover payload while the list is on the server, so the first browser
+ * paint is already the same size as the editor rather than flashing a cover-only fit.
+ */
+function toListSummary(row: Row): CarouselSummary {
+  const summary = toSummary(row);
+  if (!row.config) return summary;
+
+  try {
+    const parsed = JSON.parse(row.config) as { slides?: unknown[]; mark?: unknown };
+    if (!Array.isArray(parsed.slides) || !parsed.slides.length) return summary;
+    const stored = JSON.parse(row.cover || "{}") as { slide?: unknown; mark?: unknown };
+    const slide = stored.slide ?? parsed.slides[0];
+    return {
+      ...summary,
+      cover: JSON.stringify({
+        slide,
+        scale: deckTypeScale(parsed.slides as CarouselSlide[]),
+        scaleVersion: 2,
+        mark: typeof stored.mark === "string"
+          ? stored.mark
+          : typeof parsed.mark === "string"
+            ? parsed.mark.slice(0, 30)
+            : "",
+      }),
+    };
+  } catch {
+    // A malformed legacy cover should still leave the rest of the gallery usable.
+    return summary;
+  }
+}
+
 export async function listCarousels(db: D1Database): Promise<CarouselSummary[]> {
   await ensureSchema(db);
   const { results } = await db
-    .prepare("SELECT id, title, author, template, slide_count, cover_title, cover, version, created_at, updated_at FROM carousels ORDER BY updated_at DESC LIMIT 200")
-    .all<Omit<Row, "config">>();
-  return results.map((row) => toSummary({ ...row, config: "" }));
+    .prepare("SELECT id, title, author, template, slide_count, cover_title, cover, version, config, created_at, updated_at FROM carousels ORDER BY updated_at DESC LIMIT 200")
+    .all<Row>();
+  return results.map(toListSummary);
 }
 
 export async function getCarousel(db: D1Database, id: string): Promise<CarouselRecord | null> {

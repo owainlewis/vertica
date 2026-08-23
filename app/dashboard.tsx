@@ -68,11 +68,8 @@ function CardPreview({
       ...(parsed.plate ? { plate: true } : {}),
       ...(background ? { background } : {}),
     };
-    return {
-      slide: cover,
-      scale: scaleOverride ?? (stored.scaleVersion === 2 && stored.scale ? stored.scale : deckTypeScale([cover])),
-      mark: stored.mark ?? "",
-    };
+    const scale = scaleOverride ?? (stored.scaleVersion === 2 && stored.scale ? stored.scale : undefined);
+    return { slide: cover, scale, mark: stored.mark ?? "" };
   }, [carousel, background, scaleOverride]);
 
   // The footer counter reads off the deck length, so the card needs the real count.
@@ -87,6 +84,10 @@ function CardPreview({
     }),
     [carousel, slide, mark],
   );
+
+  if (!scale) {
+    return <span className="card-preview card-preview-pending" aria-hidden="true" />;
+  }
 
   return (
     <span className="card-preview">
