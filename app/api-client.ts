@@ -17,6 +17,18 @@ export type CarouselSummary = {
   updatedAt: string;
 };
 
+export type MediaAsset = {
+  key: string;
+  kind: "image" | "video";
+  name: string;
+  mimeType: string;
+  width: number | null;
+  height: number | null;
+  byteSize: number | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 /** A save refused because someone else wrote first. Reloading is the only fix. */
 export class StaleSaveError extends Error {
   constructor(message: string) {
@@ -54,6 +66,14 @@ export function signOut() {
 
 export async function listCarousels() {
   return (await call<{ carousels: CarouselSummary[] }>("/carousels")).carousels;
+}
+
+export async function listMedia() {
+  return (await call<{ media: MediaAsset[] }>("/media")).media;
+}
+
+export function deleteMedia(key: string) {
+  return call<{ ok: true }>(`/media/${encodeURIComponent(key)}`, { method: "DELETE" });
 }
 
 export function deleteCarousel(id: string) {

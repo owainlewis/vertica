@@ -176,7 +176,7 @@ export default function Dashboard({
   return (
     <main className="dashboard">
       <header className="dashboard-bar">
-        <span className="brand"><span className="brand-mark">V</span><span>Vertica</span></span>
+        <div><strong>Carousels</strong><span>Create, edit, and export your decks</span></div>
         <button className="export-button" type="button" onClick={onCreate}><Plus size={15} /> New carousel</button>
       </header>
 

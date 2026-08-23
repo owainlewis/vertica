@@ -9,12 +9,16 @@ import {
   isMediaReferenced,
   listCarousels,
   listMediaCleanup,
+  listMediaAssets,
   MissingError,
   postponeMediaCleanup,
   protectMedia,
   queueMediaCleanup,
   releaseMediaCleanup,
+  removeMediaAsset,
   saveCarousel,
+  unqueueMediaCleanup,
+  upsertMediaAsset,
   type D1Database,
 } from "./db.ts";
 import { deleteMedia, getMedia, InvalidMediaInput, isMediaKey, putMedia, readMediaRequest, type R2Bucket } from "./media.ts";
@@ -149,6 +153,21 @@ function newId() {
   return crypto.randomUUID();
 }
 
+function mediaHeader(request: Request, name: string, maxLength: number) {
+  const value = request.headers.get(name);
+  if (!value) return "";
+  try {
+    return decodeURIComponent(value).trim().slice(0, maxLength);
+  } catch {
+    return "";
+  }
+}
+
+function mediaDimension(request: Request, name: string) {
+  const value = Number(request.headers.get(name));
+  return Number.isInteger(value) && value > 0 && value <= 20_000 ? value : null;
+}
+
 export async function handleApi(request: Request, env: ApiEnv): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname.replace(/^\/api/, "") || "/";
@@ -183,6 +202,11 @@ export async function handleApi(request: Request, env: ApiEnv): Promise<Response
   }
 
   try {
+    if (path === "/media" && request.method === "GET") {
+      await tryCollectMediaGarbage(db, env.MEDIA);
+      return json({ media: await listMediaAssets(db) });
+    }
+
     const mediaMatch = path.match(/^\/media\/(.+)$/);
     if (mediaMatch) {
       let key = "";
@@ -199,8 +223,23 @@ export async function handleApi(request: Request, env: ApiEnv): Promise<Response
         // content hash from a matured collector; the second starts a full grace period
         // for abandoned uploads after the bytes are durable.
         await protectMedia(db, [key]);
-        await putMedia(env.MEDIA, key, await readMediaRequest(request));
+        const stored = await putMedia(env.MEDIA, key, await readMediaRequest(request));
         await protectMedia(db, [key]);
+        if (request.headers.get("x-media-library") === "1") {
+          if (stored.mimeType === "image/svg+xml") {
+            throw new InvalidMediaInput("SVG images cannot be added to the media library.");
+          }
+          await upsertMediaAsset(db, {
+            key,
+            kind: "image",
+            name: mediaHeader(request, "x-media-name", 180) || "Untitled image",
+            mimeType: stored.mimeType,
+            width: mediaDimension(request, "x-media-width"),
+            height: mediaDimension(request, "x-media-height"),
+            byteSize: stored.byteSize,
+          });
+          await unqueueMediaCleanup(db, key);
+        }
         return json({ ok: true, key });
       }
       if (request.method === "GET") {
@@ -212,6 +251,15 @@ export async function handleApi(request: Request, env: ApiEnv): Promise<Response
             "content-type": object.httpMetadata?.contentType ?? "application/octet-stream",
           },
         });
+      }
+      if (request.method === "DELETE") {
+        const result = await removeMediaAsset(db, key);
+        if (result === "missing") return json({ error: "That image is not in your media library." }, { status: 404 });
+        if (result === "in-use") {
+          return json({ error: "This image is used by a carousel. Remove it from every slide before deleting it." }, { status: 409 });
+        }
+        await tryCollectMediaGarbage(db, env.MEDIA, [key]);
+        return json({ ok: true });
       }
       return json({ error: "Method not allowed." }, { status: 405 });
     }

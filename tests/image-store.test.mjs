@@ -6,6 +6,7 @@ test("deduplicates concurrent durable uploads for the same image", async () => {
   const originalIndexedDb = globalThis.indexedDB;
   const originalFetch = globalThis.fetch;
   let uploads = 0;
+  let lastRequest;
   let releaseUpload;
   const uploadGate = new Promise((resolve) => { releaseUpload = resolve; });
 
@@ -19,8 +20,9 @@ test("deduplicates concurrent durable uploads for the same image", async () => {
       return request;
     },
   };
-  globalThis.fetch = async () => {
+  globalThis.fetch = async (path, init) => {
     uploads += 1;
+    lastRequest = { path, init };
     await uploadGate;
     return new Response(JSON.stringify({ ok: true }), {
       status: 200,
@@ -35,6 +37,18 @@ test("deduplicates concurrent durable uploads for the same image", async () => {
     releaseUpload();
     const keys = await Promise.all(requests);
     assert.equal(new Set(keys).size, 1);
+
+    await putImage("data:image/png;base64,dW5pcXVlLWNvbmN1cnJlbnQ=", {
+      name: "Office portrait.jpg",
+      width: 1080,
+      height: 1350,
+    });
+    assert.equal(uploads, 2, "adding persisted bytes to the library still registers its metadata");
+    assert.match(lastRequest.path, /^\/api\/media\/img%3A/);
+    assert.equal(lastRequest.init.headers["x-media-library"], "1");
+    assert.equal(decodeURIComponent(lastRequest.init.headers["x-media-name"]), "Office portrait.jpg");
+    assert.equal(lastRequest.init.headers["x-media-width"], "1080");
+    assert.equal(lastRequest.init.headers["x-media-height"], "1350");
   } finally {
     globalThis.indexedDB = originalIndexedDb;
     globalThis.fetch = originalFetch;

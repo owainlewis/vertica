@@ -15,6 +15,12 @@ export const IMAGE_PREFIX = "img:";
 const persistedKeys = new Set<string>();
 const pendingPuts = new Map<string, Promise<string>>();
 
+export type ImageMetadata = {
+  name: string;
+  width: number;
+  height: number;
+};
+
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, 1);
@@ -43,10 +49,11 @@ async function hash(value: string) {
 }
 
 /** Stores a data URL and returns the key to keep in the carousel config. */
-export async function putImage(dataUrl: string) {
+export async function putImage(dataUrl: string, metadata?: ImageMetadata) {
   const key = `${IMAGE_PREFIX}${await hash(dataUrl)}`;
-  if (persistedKeys.has(key)) return key;
-  const existing = pendingPuts.get(key);
+  if (!metadata && persistedKeys.has(key)) return key;
+  const requestKey = metadata ? `${key}:library` : key;
+  const existing = pendingPuts.get(requestKey);
   if (existing) return existing;
 
   const pending = (async () => {
@@ -56,7 +63,15 @@ export async function putImage(dataUrl: string) {
 
     const response = await fetch(`/api/media/${encodeURIComponent(key)}`, {
       method: "PUT",
-      headers: { "content-type": "text/plain" },
+      headers: {
+        "content-type": "text/plain",
+        ...(metadata ? {
+          "x-media-library": "1",
+          "x-media-name": encodeURIComponent(metadata.name),
+          "x-media-width": String(metadata.width),
+          "x-media-height": String(metadata.height),
+        } : {}),
+      },
       body: dataUrl,
     });
     // Do not report a carousel as saved when its bytes never reached durable storage.
@@ -70,16 +85,20 @@ export async function putImage(dataUrl: string) {
     return key;
   })();
 
-  pendingPuts.set(key, pending);
+  pendingPuts.set(requestKey, pending);
   try {
     return await pending;
   } finally {
-    if (pendingPuts.get(key) === pending) pendingPuts.delete(key);
+    if (pendingPuts.get(requestKey) === pending) pendingPuts.delete(requestKey);
   }
 }
 
 export function isImageKey(value: string | undefined): value is string {
   return typeof value === "string" && value.startsWith(IMAGE_PREFIX);
+}
+
+export function mediaUrl(key: string) {
+  return `/api/media/${encodeURIComponent(key)}`;
 }
 
 function blobToDataUrl(blob: Blob) {
@@ -93,7 +112,7 @@ function blobToDataUrl(blob: Blob) {
 
 async function loadRemoteImage(key: string) {
   try {
-    const response = await fetch(`/api/media/${encodeURIComponent(key)}`);
+    const response = await fetch(mediaUrl(key));
     if (!response.ok) return undefined;
     persistedKeys.add(key);
     return await blobToDataUrl(await response.blob());

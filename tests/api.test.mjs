@@ -6,6 +6,7 @@ import { createSessionCookie, isAuthorised } from "../worker/auth.ts";
 /** Enough of D1 to exercise the handlers without a real database. */
 function fakeDb() {
   const rows = new Map();
+  const assets = new Map();
   const gc = new Map();
   const hooks = {};
   const queries = [];
@@ -24,6 +25,9 @@ function fakeDb() {
             .map(([key, item]) => ({ key, notBefore: item.notBefore })),
         };
       }
+      if (/FROM media_assets ORDER BY updated_at/.test(query)) {
+        return { results: [...assets.values()].sort((a, b) => b.updated_at.localeCompare(a.updated_at)) };
+      }
       if (/FROM carousels/.test(query)) {
         return { results: [...rows.values()].sort((a, b) => b.updated_at.localeCompare(a.updated_at)) };
       }
@@ -32,9 +36,13 @@ function fakeDb() {
     async first() {
       if (/SELECT 1 AS found FROM carousels/.test(query)) {
         const key = this._values[0];
-        const found = [...rows.values()].some((row) => row.config.includes(key));
+        const found = [...rows.values()].some((row) => row.config.includes(key)) ||
+          (/FROM media_assets/.test(query) && assets.has(key));
         await hooks.afterReferenceCheck?.(key, found);
         return found ? { found: 1 } : null;
+      }
+      if (/SELECT key FROM media_assets/.test(query)) {
+        return assets.has(this._values[0]) ? { key: this._values[0] } : null;
       }
       return rows.get(this._values[0]) ?? null;
     },
@@ -57,6 +65,38 @@ function fakeDb() {
             // Mirrors the json_valid guard in the D1 migration.
           }
         }
+        return { meta: { changes: 1 } };
+      }
+      if (/^\s*INSERT OR IGNORE INTO media_assets/.test(query)) {
+        for (const row of rows.values()) {
+          try {
+            const parsed = JSON.parse(row.config);
+            for (const slide of parsed.slides ?? []) {
+              const key = slide?.background;
+              if (typeof key !== "string" || !/^img:[a-f0-9]{32}$/.test(key) || assets.has(key)) continue;
+              assets.set(key, {
+                key, kind: "image", name: "Imported image", mime_type: "",
+                width: null, height: null, byte_size: null,
+                created_at: row.updated_at, updated_at: row.updated_at,
+              });
+            }
+          } catch {
+            // Mirrors the json_valid guard in the migration.
+          }
+        }
+        return { meta: { changes: 1 } };
+      }
+      if (/^\s*INSERT INTO media_assets/.test(query)) {
+        const [key, kind, name, mime_type, width, height, byte_size, created_at, updated_at] = this._values;
+        const existing = assets.get(key);
+        assets.set(key, {
+          key, kind, name, mime_type,
+          width: width ?? existing?.width ?? null,
+          height: height ?? existing?.height ?? null,
+          byte_size: byte_size ?? existing?.byte_size ?? null,
+          created_at: existing?.created_at ?? created_at,
+          updated_at,
+        });
         return { meta: { changes: 1 } };
       }
       if (/^INSERT INTO media_gc/.test(query)) {
@@ -89,10 +129,22 @@ function fakeDb() {
         if (item?.claim === claim) gc.set(key, { notBefore, claim: null, claimUntil: null });
         return { meta: { changes: 1 } };
       }
+      if (/^DELETE FROM media_gc WHERE key = \? AND claim IS NULL/.test(query)) {
+        const [key] = this._values;
+        if (!gc.get(key)?.claim) gc.delete(key);
+        return { meta: { changes: 1 } };
+      }
       if (/^DELETE FROM media_gc/.test(query)) {
         const [key, notBefore, claim] = this._values;
         const item = gc.get(key);
         if (item?.notBefore === notBefore && item.claim === claim) gc.delete(key);
+        return { meta: { changes: 1 } };
+      }
+      if (/^\s*DELETE FROM media_assets/.test(query)) {
+        const [key] = this._values;
+        if (!assets.has(key)) return { meta: { changes: 0 } };
+        if ([...rows.values()].some((row) => row.config.includes(key))) return { meta: { changes: 0 } };
+        assets.delete(key);
         return { meta: { changes: 1 } };
       }
       if (/^INSERT INTO carousels/.test(query)) {
@@ -125,6 +177,7 @@ function fakeDb() {
 
   return {
     rows,
+    assets,
     gc,
     hooks,
     queries,
@@ -170,6 +223,7 @@ function post(body, path = "/api/carousels", method = "POST") {
 
 test("saves a carousel and lists it back with a summary", async () => {
   const env = { DB: fakeDb() };
+  const legacyImage = "img:1234567890abcdef1234567890abcdef";
   env.DB.rows.set("legacy", {
     id: "legacy",
     title: "Legacy carousel",
@@ -181,7 +235,7 @@ test("saves a carousel and lists it back with a summary", async () => {
     config: JSON.stringify({
       title: "Legacy carousel",
       mark: "AI ENGINEER",
-      slides: [{ layout: "cover", title: "Legacy cover", body: "Preserve this copy", plate: true }],
+      slides: [{ layout: "cover", title: "Legacy cover", body: "Preserve this copy", plate: true, background: legacyImage }],
     }),
     version: 1,
     created_at: "2025-01-01T00:00:00.000Z",
@@ -205,11 +259,62 @@ test("saves a carousel and lists it back with a summary", async () => {
   assert.equal(legacyCover.slide.body, "Preserve this copy");
   assert.equal(legacyCover.slide.plate, true);
   assert.equal(legacyCover.mark, "AI ENGINEER");
+  assert.equal(env.DB.assets.get(legacyImage)?.name, "Imported image", "saved backgrounds are backfilled into the library");
   // The list view must not ship every slide of every deck to the dashboard.
   assert.equal(carousels[0].config, undefined);
   const listQuery = env.DB.queries.find((query) => /^SELECT id,/.test(query));
   assert.ok(listQuery);
   assert.doesNotMatch(listQuery, /\bconfig\b/);
+});
+
+test("stores reusable library images and blocks deletion while they are in use", async () => {
+  const media = fakeMedia();
+  const env = { DB: fakeDb(), MEDIA: media };
+  const key = "img:9876543210abcdef9876543210abcdef";
+  const upload = await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(key)}`, {
+    method: "PUT",
+    body: "data:image/webp;base64,AQID",
+    headers: {
+      "content-type": "text/plain",
+      "x-media-library": "1",
+      "x-media-name": encodeURIComponent("Cinematic office"),
+      "x-media-width": "1080",
+      "x-media-height": "1350",
+    },
+  }), env);
+  assert.equal(upload.status, 200);
+  assert.equal(env.DB.gc.has(key), false, "library media is removed from the orphan queue");
+
+  const listed = await handleApi(new Request("http://localhost/api/media"), env);
+  const body = await listed.json();
+  assert.deepEqual(body.media.map(({ name, kind, mimeType, width, height, byteSize }) => ({ name, kind, mimeType, width, height, byteSize })), [{
+    name: "Cinematic office",
+    kind: "image",
+    mimeType: "image/webp",
+    width: 1080,
+    height: 1350,
+    byteSize: 3,
+  }]);
+
+  const withLibraryImage = JSON.stringify({
+    ...JSON.parse(config),
+    slides: [{ layout: "cover", title: "Uses library", background: key }],
+  });
+  const carousel = (await (await handleApi(post({ config: withLibraryImage }), env)).json()).carousel;
+  const inUse = await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(key)}`, { method: "DELETE" }), env);
+  assert.equal(inUse.status, 409);
+  assert.match((await inUse.json()).error, /used by a carousel/i);
+  assert.equal(env.DB.assets.has(key), true);
+  assert.equal(media.objects.size, 1);
+
+  await handleApi(new Request(`http://localhost/api/carousels/${carousel.id}`, { method: "DELETE" }), env);
+  const removed = await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(key)}`, { method: "DELETE" }), env);
+  assert.equal(removed.status, 200);
+  assert.equal(env.DB.assets.has(key), false);
+  assert.equal(media.objects.size, 1, "bytes remain during the deletion grace period");
+  matureGc(env.DB, key);
+  await handleApi(new Request("http://localhost/api/media"), env);
+  assert.equal(media.objects.size, 0, "unreferenced bytes are collected after the grace period");
 });
 
 test("persists image bytes through the media API", async () => {
@@ -242,6 +347,13 @@ test("persists image bytes through the media API", async () => {
   assert.equal(legacySvg.status, 200);
   const legacySvgDownload = await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(legacySvgKey)}`), env);
   assert.equal(legacySvgDownload.headers.get("content-type"), "image/svg+xml");
+  const librarySvg = await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(legacySvgKey)}`, {
+    method: "PUT",
+    body: "data:image/svg+xml;base64,PHN2Zy8+",
+    headers: { "x-media-library": "1" },
+  }), env);
+  assert.equal(librarySvg.status, 400);
+  assert.equal(env.DB.assets.has(legacySvgKey), false);
 
   const invalid = await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(key)}`, {
     method: "PUT",

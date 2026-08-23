@@ -8,7 +8,6 @@ import {
   ChevronDown,
   Copy,
   Download,
-  ImagePlus,
   Images,
   Layers3,
   LoaderCircle,
@@ -18,13 +17,12 @@ import {
   Square,
   Trash2,
   Undo2,
-  Upload,
   X,
 } from "lucide-react";
-import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { saveCarousel, StaleSaveError, type CarouselSummary } from "./api-client";
-import { SUPPORTED_IMAGE_ACCEPT, SUPPORTED_IMAGE_MIME_TYPES } from "./image-formats";
-import { isImageKey } from "./image-store";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { saveCarousel, StaleSaveError, type CarouselSummary, type MediaAsset } from "./api-client";
+import { isImageKey, loadImages } from "./image-store";
+import MediaPicker from "./media-picker";
 import { measureDataUrl } from "./scrim";
 import {
   aiPrompt,
@@ -60,50 +58,6 @@ const templateNames: Record<TemplateId, { name: string; note: string }> = {
   light: { name: "Light", note: "Soft white with blue-grey ink" },
 };
 
-const MAX_BACKGROUND_EDGE = 2160;
-const BACKGROUND_QUALITY = 0.86;
-
-function blobToDataUrl(blob: Blob, fileName: string) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error(`Could not read ${fileName}.`));
-    reader.readAsDataURL(blob);
-  });
-}
-
-async function prepareImage(file: File) {
-  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-  try {
-    const scale = Math.min(1, MAX_BACKGROUND_EDGE / Math.max(bitmap.width, bitmap.height));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-    const context = canvas.getContext("2d");
-    if (!context) throw new Error(`Could not prepare ${file.name}.`);
-    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(
-        (result) => result ? resolve(result) : reject(new Error(`Could not prepare ${file.name}.`)),
-        "image/webp",
-        BACKGROUND_QUALITY,
-      );
-    });
-    return blobToDataUrl(blob, file.name);
-  } finally {
-    bitmap.close();
-  }
-}
-
-function readImages(files: FileList) {
-  const supportedTypes = new Set<string>(SUPPORTED_IMAGE_MIME_TYPES);
-  return Promise.all(
-    Array.from(files)
-      .filter((file) => supportedTypes.has(file.type.toLowerCase()))
-      .map(prepareImage),
-  );
-}
-
 /** Longest a burst of edits can be folded into one undo step. */
 const COALESCE_MS = 700;
 const HISTORY_LIMIT = 60;
@@ -129,7 +83,7 @@ export default function Editor({
   const [composeMode, setComposeMode] = useState<"text" | "json">("text");
   const [sourceText, setSourceText] = useState("");
   const [jsonText, setJsonText] = useState("");
-  const [backgrounds, setBackgrounds] = useState<string[]>([]);
+  const [mediaOpen, setMediaOpen] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
   const [exporting, setExporting] = useState<false | "pdf" | "zip">(false);
   const [saveState, setSaveState] = useState<keyof typeof SAVE_LABEL>("saved");
@@ -203,6 +157,8 @@ export default function Editor({
    * state from before the burst rather than from the middle of it.
    */
   function commit(next: CarouselConfig, key = "") {
+    // This runs only in user and async callbacks, never while rendering.
+    // eslint-disable-next-line react-hooks/purity
     const now = Date.now();
     const continuing = key !== "" && key === lastMark.current.key && now - lastMark.current.at < COALESCE_MS;
     if (!continuing) past.current = [...past.current, config].slice(-HISTORY_LIMIT);
@@ -306,6 +262,8 @@ export default function Editor({
 
   function addSlide() {
     const slide: CarouselSlide = {
+      // Event-time uniqueness keeps imported and duplicated slide ids distinct.
+      // eslint-disable-next-line react-hooks/purity
       id: `slide-${Date.now().toString(36)}`,
       layout: "content",
       title: "Add a clear headline",
@@ -316,6 +274,7 @@ export default function Editor({
   }
 
   function duplicateSlide() {
+    // eslint-disable-next-line react-hooks/purity
     const copy = { ...selectedSlide, id: `slide-${Date.now().toString(36)}` };
     const slides = [...config.slides];
     slides.splice(selectedIndex + 1, 0, copy);
@@ -362,22 +321,13 @@ export default function Editor({
     }));
   }
 
-  async function uploadBackgrounds(event: ChangeEvent<HTMLInputElement>, replaceCurrent = false) {
-    if (!event.target.files?.length) return;
-    try {
-      const images = await readImages(event.target.files);
-      const keptCount = Math.min(images.length, 12);
-      const newestImage = images.at(-1);
-      setBackgrounds((current) => [...current, ...images].slice(-12));
-      if ((replaceCurrent || !selectedSlide.background) && newestImage) await chooseBackground(newestImage);
-      showNotice({
-        kind: "success",
-        message: `${keptCount} background${keptCount === 1 ? "" : "s"} added${images.length > 12 ? "; the 12 most recent were kept" : ""}.`,
-      });
-    } catch (error) {
-      showNotice({ kind: "error", message: error instanceof Error ? error.message : "Could not add that image." });
-    }
-    event.target.value = "";
+  async function chooseMedia(asset: MediaAsset) {
+    const images = await loadImages([asset.key]);
+    const background = images[asset.key];
+    if (!background) throw new Error("That image could not be loaded. Try uploading it again from Media.");
+    await chooseBackground(background);
+    setMediaOpen(false);
+    showNotice({ kind: "success", message: `${asset.name} is now the slide background.` });
   }
 
   function openComposer(mode: "text" | "json") {
@@ -476,19 +426,9 @@ export default function Editor({
             ))}
           </div>
           <div className="rail-import">
-            <span>Backgrounds</span>
-            <label className="upload-tile"><ImagePlus size={16} /><span>Upload images</span><input type="file" accept={SUPPORTED_IMAGE_ACCEPT} multiple onChange={uploadBackgrounds} /></label>
-            {backgrounds.length > 0 && (
-              <div className="asset-grid">
-                {backgrounds.map((background, index) => (
-                  <button type="button" className={selectedSlide.background === background ? "active" : ""} onClick={() => chooseBackground(background)} key={`${background.slice(-20)}-${index}`} aria-label={`Use background ${index + 1}`}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img alt="" src={background} />
-                    {selectedSlide.background === background && <Check size={13} />}
-                  </button>
-                ))}
-              </div>
-            )}
+            <span>Background</span>
+            <button className="library-picker-button" type="button" onClick={() => setMediaOpen(true)}><Images size={16} /><span>Choose from media</span></button>
+            <small>Reuse images from your shared library.</small>
           </div>
         </aside>
 
@@ -590,11 +530,11 @@ export default function Editor({
               <label className="field-label" htmlFor="author">Footer name</label>
               <input id="author" maxLength={40} value={config.author} onChange={(event) => commit({ ...config, author: event.target.value.toUpperCase() }, "author")} />
               <span className="field-label">Slide background</span>
-              <label className="wide-upload"><Upload size={15} /> {selectedSlide.background ? "Replace image" : "Upload an image"}<input type="file" accept={SUPPORTED_IMAGE_ACCEPT} onChange={(event) => uploadBackgrounds(event, true)} /></label>
+              <button className="wide-upload" type="button" onClick={() => setMediaOpen(true)}><Images size={15} /> {selectedSlide.background ? "Choose another image" : "Choose from media"}</button>
               {isImageKey(selectedSlide.background) && (
                 <p className="field-hint warning">
                   This slide has an image that is not available in this browser, so it cannot be shown or exported here.
-                  It is kept in the saved carousel. If it predates media persistence, open the deck in the original browser and save once to migrate it, or upload a replacement here.
+                  It is kept in the saved carousel. If it predates media persistence, add it to Media again or choose a replacement from your library.
                 </p>
               )}
               {selectedSlide.background && <button type="button" className="text-button" onClick={() => updateSlide({ background: undefined, luma: undefined })}>Remove image</button>}
@@ -638,6 +578,8 @@ export default function Editor({
           </section>
         </div>
       )}
+
+      {mediaOpen && <MediaPicker onChoose={chooseMedia} onClose={() => setMediaOpen(false)} />}
 
       {notice && <div className={`toast ${notice.kind}`} role="status">{notice.kind === "success" ? <Check size={16} /> : <X size={16} />}{notice.message}</div>}
     </main>

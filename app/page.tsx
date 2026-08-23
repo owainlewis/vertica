@@ -1,14 +1,16 @@
 "use client";
 
-import { LoaderCircle, Lock } from "lucide-react";
+import { Images, LayoutGrid, LoaderCircle, Lock } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getSession, inlineBackgrounds, loadCarousel, signIn, type CarouselSummary } from "./api-client";
 import { BRAND_FOOTER, BRAND_MARK, CarouselConfig } from "./carousel";
 import Dashboard from "./dashboard";
 import Editor from "./editor";
+import MediaGallery from "./media-gallery";
 
 type View =
   | { kind: "gallery" }
+  | { kind: "media" }
   /**
    * `key` identifies which document is open and never changes while it is open.
    * The Editor used to be keyed on `id`, which is null until the first save lands
@@ -106,8 +108,15 @@ export default function Home() {
   // before the fetch lands, so a slow load cannot overwrite a later choice.
   useEffect(() => {
     if (authorised !== true) return;
-    const id = new URLSearchParams(window.location.search).get("id");
-    if (!id) return;
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("id");
+    if (!id) {
+      let live = true;
+      if (params.get("view") === "media") {
+        queueMicrotask(() => { if (live) setView({ kind: "media" }); });
+      }
+      return () => { live = false; };
+    }
 
     let live = true;
     loadCarousel(id)
@@ -120,9 +129,10 @@ export default function Home() {
   // The back button returns to whatever the URL says.
   useEffect(() => {
     const onPop = () => {
-      const next = new URLSearchParams(window.location.search).get("id");
+      const params = new URLSearchParams(window.location.search);
+      const next = params.get("id");
       if (next) void openCarousel(next, false);
-      else setView({ kind: "gallery" });
+      else setView({ kind: params.get("view") === "media" ? "media" : "gallery" });
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -137,6 +147,12 @@ export default function Home() {
     setView({ kind: "gallery" });
     setReloadToken((token) => token + 1);
     window.history.pushState({}, "", "/");
+  }
+
+  function showLibrary(kind: "gallery" | "media") {
+    setView({ kind });
+    if (kind === "gallery") setReloadToken((token) => token + 1);
+    window.history.pushState({}, "", kind === "media" ? "/?view=media" : "/");
   }
 
   function handleSaved(summary: CarouselSummary) {
@@ -168,9 +184,19 @@ export default function Home() {
   }
 
   return (
-    <>
+    <div className="library-shell">
       {error && <div className="toast error" role="status">{error}</div>}
-      <Dashboard onOpen={openCarousel} onCreate={createCarousel} reloadToken={reloadToken} />
-    </>
+      <aside className="library-nav" aria-label="Main navigation">
+        <span className="brand"><span className="brand-mark">V</span><span>Vertica</span></span>
+        <nav>
+          <button type="button" className={view.kind === "gallery" ? "active" : ""} aria-current={view.kind === "gallery" ? "page" : undefined} onClick={() => showLibrary("gallery")}><LayoutGrid size={17} /> Carousels</button>
+          <button type="button" className={view.kind === "media" ? "active" : ""} aria-current={view.kind === "media" ? "page" : undefined} onClick={() => showLibrary("media")}><Images size={17} /> Media</button>
+        </nav>
+        <p>Images now. Video backgrounds can join this library later.</p>
+      </aside>
+      {view.kind === "media"
+        ? <MediaGallery />
+        : <Dashboard onOpen={openCarousel} onCreate={createCarousel} reloadToken={reloadToken} />}
+    </div>
   );
 }

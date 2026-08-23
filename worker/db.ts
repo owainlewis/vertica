@@ -55,6 +55,19 @@ export class ConflictError extends Error {
 
 export type CarouselRecord = CarouselSummary & { config: string };
 
+/** A reusable media item. `kind` is explicit so video can join the library later. */
+export type MediaAsset = {
+  key: string;
+  kind: "image" | "video";
+  name: string;
+  mimeType: string;
+  width: number | null;
+  height: number | null;
+  byteSize: number | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type Row = {
   id: string;
   title: string;
@@ -65,6 +78,18 @@ type Row = {
   cover: string;
   version: number;
   config: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type MediaRow = {
+  key: string;
+  kind: "image" | "video";
+  name: string;
+  mime_type: string;
+  width: number | null;
+  height: number | null;
+  byte_size: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -84,6 +109,18 @@ CREATE TABLE IF NOT EXISTS carousels (
   updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS carousels_updated_at ON carousels (updated_at DESC);
+CREATE TABLE IF NOT EXISTS media_assets (
+  key TEXT PRIMARY KEY,
+  kind TEXT NOT NULL DEFAULT 'image',
+  name TEXT NOT NULL,
+  mime_type TEXT NOT NULL DEFAULT '',
+  width INTEGER,
+  height INTEGER,
+  byte_size INTEGER,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS media_assets_updated_at ON media_assets (updated_at DESC);
 CREATE TABLE IF NOT EXISTS media_gc (
   key TEXT PRIMARY KEY,
   not_before TEXT NOT NULL,
@@ -116,6 +153,32 @@ WHERE cover = ''
   AND json_type(config, '$.slides[0]') = 'object'
 `;
 
+/** Turn backgrounds from saved decks into reusable library items after migration. */
+const BACKFILL_MEDIA_ASSETS = `
+INSERT OR IGNORE INTO media_assets (
+  key, kind, name, mime_type, width, height, byte_size, created_at, updated_at
+)
+SELECT
+  json_extract(slide.value, '$.background') AS background,
+  'image',
+  'Imported image',
+  '',
+  NULL,
+  NULL,
+  NULL,
+  MAX(carousels.updated_at),
+  MAX(carousels.updated_at)
+FROM carousels,
+  json_each(
+    CASE WHEN json_valid(carousels.config) THEN carousels.config ELSE '{"slides":[]}' END,
+    '$.slides'
+  ) AS slide
+WHERE json_type(slide.value, '$.background') = 'text'
+  AND length(json_extract(slide.value, '$.background')) = 36
+  AND json_extract(slide.value, '$.background') GLOB 'img:[0-9a-f]*'
+GROUP BY background
+`;
+
 let ready: Promise<unknown> | null = null;
 
 /**
@@ -135,6 +198,7 @@ export function ensureSchema(db: D1Database) {
     // This becomes a no-op after the first successful backfill. Building the JSON in
     // D1 avoids transferring every legacy config through the worker or to the client.
     await db.prepare(BACKFILL_COVERS).run();
+    await db.prepare(BACKFILL_MEDIA_ASSETS).run();
   })().catch((error) => {
     // Memoising the promise means a rejection would otherwise be cached for the
     // isolate's lifetime, so one transient failure would break every later request
@@ -248,6 +312,79 @@ export async function deleteCarousel(db: D1Database, id: string) {
   await db.prepare("DELETE FROM carousels WHERE id = ?").bind(id).run();
 }
 
+function toMediaAsset(row: MediaRow): MediaAsset {
+  return {
+    key: row.key,
+    kind: row.kind,
+    name: row.name,
+    mimeType: row.mime_type,
+    width: row.width,
+    height: row.height,
+    byteSize: row.byte_size,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export async function listMediaAssets(db: D1Database): Promise<MediaAsset[]> {
+  await ensureSchema(db);
+  const { results } = await db
+    .prepare(
+      `SELECT key, kind, name, mime_type, width, height, byte_size, created_at, updated_at
+       FROM media_assets ORDER BY updated_at DESC LIMIT 500`,
+    )
+    .all<MediaRow>();
+  return results.map(toMediaAsset);
+}
+
+export async function upsertMediaAsset(
+  db: D1Database,
+  input: Omit<MediaAsset, "createdAt" | "updatedAt">,
+) {
+  await ensureSchema(db);
+  const now = new Date().toISOString();
+  await db.prepare(
+    `INSERT INTO media_assets (
+       key, kind, name, mime_type, width, height, byte_size, created_at, updated_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET
+       name = excluded.name,
+       mime_type = excluded.mime_type,
+       width = COALESCE(excluded.width, media_assets.width),
+       height = COALESCE(excluded.height, media_assets.height),
+       byte_size = COALESCE(excluded.byte_size, media_assets.byte_size),
+       updated_at = excluded.updated_at`,
+  ).bind(
+    input.key,
+    input.kind,
+    input.name,
+    input.mimeType,
+    input.width,
+    input.height,
+    input.byteSize,
+    now,
+    now,
+  ).run();
+}
+
+export async function removeMediaAsset(db: D1Database, key: string) {
+  await ensureSchema(db);
+  const result = await db.prepare(
+    `DELETE FROM media_assets
+     WHERE key = ?
+       AND NOT EXISTS (SELECT 1 FROM carousels WHERE instr(config, ?) > 0)`,
+  ).bind(key, key).run();
+  if (changes(result) > 0) return "deleted" as const;
+  const existing = await db.prepare("SELECT key FROM media_assets WHERE key = ?").bind(key).first<{ key: string }>();
+  return existing ? "in-use" as const : "missing" as const;
+}
+
+/** A library item is durable even when no carousel currently uses it. */
+export async function unqueueMediaCleanup(db: D1Database, key: string) {
+  await ensureSchema(db);
+  await db.prepare("DELETE FROM media_gc WHERE key = ? AND claim IS NULL").bind(key).run();
+}
+
 /**
  * Queue possible orphans instead of deleting immediately. The delay prevents a
  * concurrent save that has just uploaded the same content hash from losing it.
@@ -314,8 +451,13 @@ export async function claimMediaCleanup(db: D1Database, key: string, notBefore: 
 export async function isMediaReferenced(db: D1Database, key: string) {
   await ensureSchema(db);
   const row = await db
-    .prepare("SELECT 1 AS found FROM carousels WHERE instr(config, ?) > 0 LIMIT 1")
-    .bind(key)
+    .prepare(
+      `SELECT 1 AS found FROM carousels WHERE instr(config, ?) > 0
+       UNION ALL
+       SELECT 1 AS found FROM media_assets WHERE key = ?
+       LIMIT 1`,
+    )
+    .bind(key, key)
     .first<{ found: number }>();
   return Boolean(row);
 }

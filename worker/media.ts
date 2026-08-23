@@ -93,6 +93,7 @@ export async function putMedia(bucket: R2Bucket, key: string, dataUrl: string) {
       cacheControl: "private, max-age=31536000, immutable",
     },
   });
+  return { mimeType: match[1].toLowerCase(), byteSize: bytes.byteLength };
 }
 
 export function getMedia(bucket: R2Bucket, key: string) {
