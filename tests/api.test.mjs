@@ -52,7 +52,7 @@ function fakeDb() {
 const config = JSON.stringify({
   title: "AI code review",
   author: "OWAIN LEWIS",
-  template: "cinematic",
+  template: "dark",
   slides: [{ layout: "cover", title: "Four AI reviewers" }, { layout: "content", title: "CodeRabbit" }],
 });
 
@@ -67,6 +67,7 @@ test("saves a carousel and lists it back with a summary", async () => {
   assert.equal(created.status, 201);
   const { carousel } = await created.json();
   assert.equal(carousel.title, "AI code review");
+  assert.equal(carousel.template, "dark");
   assert.equal(carousel.slideCount, 2);
   assert.equal(carousel.coverTitle, "Four AI reviewers");
 

@@ -9,7 +9,7 @@ import {
   loadCarousel,
   type CarouselSummary,
 } from "./api-client";
-import { assertBackgroundsAvailableForExport, CarouselConfig, CarouselSlide, deckTypeScale } from "./carousel";
+import { assertBackgroundsAvailableForExport, CarouselConfig, CarouselSlide, deckTypeScale, normalizeTemplate } from "./carousel";
 import { exportStageToPdf, exportStageToZip, fileNameFor } from "./export";
 import { loadImages } from "./image-store";
 import { ExportStage, Slide } from "./slide";
@@ -68,7 +68,7 @@ function CardPreview({ carousel, background }: { carousel: CarouselSummary; back
       version: 1,
       title: carousel.title,
       author: carousel.author,
-      template: (carousel.template as CarouselConfig["template"]) ?? "cinematic",
+      template: normalizeTemplate(carousel.template),
       ...(mark ? { mark } : {}),
       slides: Array.from({ length: Math.max(carousel.slideCount, 1) }, () => slide),
     }),

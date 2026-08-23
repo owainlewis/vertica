@@ -55,9 +55,8 @@ const SAVE_LABEL = {
 } as const;
 
 const templateNames: Record<TemplateId, { name: string; note: string }> = {
-  cinematic: { name: "Cinematic", note: "Your shot, dimmed" },
-  midnight: { name: "Midnight", note: "Deep green, no photo" },
-  paper: { name: "Paper", note: "Ink on off-white" },
+  dark: { name: "Dark", note: "Near-black with blue-grey type" },
+  light: { name: "Light", note: "Soft white with blue-grey ink" },
 };
 
 function readImages(files: FileList) {
@@ -424,7 +423,7 @@ export default function Editor({
           <button className="secondary-button icon-button" type="button" onClick={() => step("past")} disabled={depth.past === 0} title="Undo (⌘Z)" aria-label="Undo"><Undo2 size={15} /></button>
           <button className="secondary-button icon-button" type="button" onClick={() => step("future")} disabled={depth.future === 0} title="Redo (⇧⌘Z)" aria-label="Redo"><Redo2 size={15} /></button>
           <button className="secondary-button generate-button" type="button" onClick={() => openComposer("text")}><Sparkles size={15} /> Generate</button>
-          <button className="secondary-button" type="button" onClick={() => runExport("zip")} disabled={Boolean(exporting)} title="Numbered JPEGs, zipped, for Instagram">
+          <button className="secondary-button export-images-button" type="button" onClick={() => runExport("zip")} disabled={Boolean(exporting)} title="Numbered JPEGs, zipped, for Instagram">
             {exporting === "zip" ? <LoaderCircle className="spin" size={15} /> : <Images size={15} />}
             {exporting === "zip" ? "Zipping…" : "Images"}
           </button>
@@ -519,7 +518,7 @@ export default function Editor({
               </button>
 
               {selectedSlide.layout === "cover" && (
-                <p className="field-hint">A cover shows the headline on its own, set larger. Position and alignment still apply.</p>
+                <p className="field-hint">A cover shows the headline on its own. Position and alignment still apply.</p>
               )}
             </div>
           ) : inspectorTab === "content" ? (
@@ -530,7 +529,7 @@ export default function Editor({
               <p className="field-hint">Put a <em>|</em> where the headline should break. Without one the lines are evened automatically, which rarely breaks where the sense does.</p>
               <label className="field-label" htmlFor="body">Supporting copy</label>
               <textarea id="body" maxLength={280} rows={6} value={selectedSlide.body} onChange={(event) => updateSlide({ body: event.target.value }, "body")} />
-              <p className="field-hint"><em>*word*</em> sets a phrase in italic. <em>**word**</em> tints it gold. Leave a blank line to start a new paragraph.</p>
+              <p className="field-hint"><em>*word*</em> sets a phrase in italic. <em>**word**</em> tints it with the accent colour. Leave a blank line to start a new paragraph.</p>
               {selectedSlide.layout === "cover" && (
                 <p className="field-hint">This slide is a Cover, so only the headline is drawn. The supporting copy is kept — change the slide type under Layout to show it.</p>
               )}

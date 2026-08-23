@@ -55,7 +55,7 @@ function readInput(body: unknown) {
     id: text(record.id, ""),
     title: text(parsed.title, "Untitled carousel"),
     author: text(parsed.author, ""),
-    template: text(parsed.template, "cinematic"),
+    template: parsed.template === "light" || parsed.template === "paper" ? "light" : "dark",
     slideCount: slides.length,
     coverTitle: text(cover?.title, ""),
     // The gallery renders the real first slide rather than an approximation of it, so

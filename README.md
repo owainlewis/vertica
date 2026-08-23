@@ -7,14 +7,14 @@ A minimal studio for creating LinkedIn document carousels.
 - saves every carousel to a database and lists them on a home gallery
 - turns pasted text into an editable slide sequence
 - imports and exports a small JSON format that Claude or Codex can generate
-- sets titles in Playfair at weight 300 and text in Inter, with Cinematic, Midnight and Paper colours per slide
+- sets titles in Playfair at weight 500 and text in Inter, with two consistent dark and light colour modes
 - keeps colour, placement and slide type separate, so any text position works with any colour
 - accepts local background images per slide, and darkens each one to suit its own brightness
 - exports one PDF for LinkedIn, or numbered JPEGs zipped for Instagram, both at 2×
 - blocks an export rather than silently omitting a background that only exists in another browser
 - undo and redo across the whole deck, with ⌘Z and ⇧⌘Z
 - serializes autosaves and flushes queued edits before leaving the editor
-- a deck wordmark, progress line, editorial frames, distinct quote and closing treatments, and a text plate for copy that has to sit on a busy photograph
+- a deck wordmark, understated quote callouts, and a text plate for copy that has to sit on a busy photograph
 
 ## The gallery
 
@@ -71,11 +71,9 @@ without anyone typing them in.
 ## Typography
 
 Sizes are set in container-width units against the slide itself, so the preview and the
-export are the same drawing at different scales. The deck is set at one title size,
-chosen so the longest headline fits, on a continuous curve rather than fixed steps: one
-extra character never resizes the deck, and the cover boost backs off rather than push a
-headline past three lines. Leading opens as a headline takes more lines. Put a `|` in a
-headline to break the line where the sense breaks; the words after it are still balanced.
+export are the same drawing at different scales. Every slide in a deck shares one title
+size and one body size, chosen so the longest copy fits. Put a `|` in a headline to break
+the line where the sense breaks; the words after it are still balanced.
 
 Quotes, apostrophes, ellipses and number ranges are made typographic at render time,
 never in the stored text, so what you typed is what the editor and the exported config
