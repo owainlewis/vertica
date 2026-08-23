@@ -1,6 +1,6 @@
 "use client";
 
-import { parseCarouselConfig, type CarouselConfig } from "./carousel";
+import type { CarouselConfig } from "./carousel";
 import { isImageKey, loadImages, putImage } from "./image-store";
 
 export type CarouselSummary = {
@@ -109,5 +109,5 @@ export async function saveCarousel(id: string | null, config: CarouselConfig, ve
 
 export async function loadCarousel(id: string) {
   const { carousel } = await call<{ carousel: CarouselSummary & { config: string } }>(`/carousels/${id}`);
-  return { summary: carousel, config: parseCarouselConfig(carousel.config) };
+  return { summary: carousel, config: JSON.parse(carousel.config) as CarouselConfig };
 }

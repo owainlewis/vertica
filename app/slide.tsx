@@ -10,6 +10,7 @@ import {
   slideAlign,
   slidePosition,
   slideTemplate,
+  isLegacyTypeOnlyTemplate,
   smartQuotes,
   titleLines,
 } from "./carousel";
@@ -46,6 +47,8 @@ export function Slide({
   const position = slidePosition(slide);
   const lines = titleLines(slide.title);
   const paragraphs = bodyParagraphs(slide.body);
+  const rawTemplate = slide.template ?? (config.template as unknown);
+  const legacyTypeOnly = isLegacyTypeOnlyTemplate(rawTemplate);
 
   // Only real bytes are painted. An `img:` key that survived to here is an image
   // saved in another browser: it stays in the config so saving cannot lose it, but
@@ -91,6 +94,7 @@ export function Slide({
     `layout-${slide.layout}`,
     `pos-${position}`,
     `align-${slideAlign(slide)}`,
+    legacyTypeOnly ? "legacy-type-only" : "",
     painted ? "has-background" : "",
     slide.plate ? "has-plate" : "",
     config.mark ? "has-mark" : "",

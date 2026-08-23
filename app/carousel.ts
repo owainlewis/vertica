@@ -77,6 +77,11 @@ export function normalizeTemplate(value: unknown): TemplateId {
   return value === "light" || value === "paper" ? "light" : "dark";
 }
 
+/** Midnight and Paper were type-only styles. Keep their no-photo behavior for old decks. */
+export function isLegacyTypeOnlyTemplate(value: unknown) {
+  return value === "midnight" || value === "paper";
+}
+
 /** Stops an export that would silently paint an unresolved local image as blank. */
 export function assertBackgroundsAvailableForExport(config: CarouselConfig) {
   const missing = config.slides

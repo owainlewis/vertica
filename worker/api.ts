@@ -55,7 +55,7 @@ function readInput(body: unknown) {
     id: text(record.id, ""),
     title: text(parsed.title, "Untitled carousel"),
     author: text(parsed.author, ""),
-    template: parsed.template === "light" || parsed.template === "paper" ? "light" : "dark",
+    template: text(parsed.template, "dark"),
     slideCount: slides.length,
     coverTitle: text(cover?.title, ""),
     // The gallery renders the real first slide rather than an approximation of it, so
@@ -65,6 +65,7 @@ function readInput(body: unknown) {
     cover: JSON.stringify({
       slide: cover ?? {},
       scale: deckTypeScale(slides as CarouselSlide[]),
+      scaleVersion: 2,
       mark: typeof parsed.mark === "string" ? parsed.mark.slice(0, 30) : "",
     }),
     config,

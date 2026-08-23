@@ -9,6 +9,7 @@ import {
   bodySize,
   deckTypeScale,
   generateCarouselFromText,
+  isLegacyTypeOnlyTemplate,
   parseCarouselConfig,
   parseInlineMarks,
   slideAlign,
@@ -445,4 +446,8 @@ test("legacy template names normalize to the two supported modes", () => {
   assert.equal(config.slides[0].template, "dark");
   assert.equal(config.slides[1].template, "light");
   assert.deepEqual(new Set([config.template, ...config.slides.map((slide) => slide.template).filter(Boolean)]), new Set(["dark", "light"]));
+  assert.equal(isLegacyTypeOnlyTemplate("midnight"), true);
+  assert.equal(isLegacyTypeOnlyTemplate("paper"), true);
+  assert.equal(isLegacyTypeOnlyTemplate("cinematic"), false);
+  assert.equal(isLegacyTypeOnlyTemplate("dark"), false);
 });

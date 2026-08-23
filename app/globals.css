@@ -307,6 +307,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   display: block;
   background: linear-gradient(180deg, rgb(251 252 253 / .86), rgb(251 252 253 / .68));
 }
+.carousel-slide.legacy-type-only .slide-image,
+.carousel-slide.legacy-type-only .slide-overlay { display: none; }
 .carousel-slide .slide-content h2 {
   font-weight: 500;
   font-variation-settings: "opsz" 96, "wght" 500;

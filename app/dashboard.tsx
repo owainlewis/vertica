@@ -9,7 +9,7 @@ import {
   loadCarousel,
   type CarouselSummary,
 } from "./api-client";
-import { assertBackgroundsAvailableForExport, CarouselConfig, CarouselSlide, deckTypeScale, normalizeTemplate } from "./carousel";
+import { assertBackgroundsAvailableForExport, CarouselConfig, CarouselSlide, deckTypeScale } from "./carousel";
 import { exportStageToPdf, exportStageToZip, fileNameFor } from "./export";
 import { loadImages } from "./image-store";
 import { ExportStage, Slide } from "./slide";
@@ -20,6 +20,7 @@ function readCover(cover: string) {
     return JSON.parse(cover || "{}") as {
       slide?: Partial<CarouselSlide>;
       scale?: ReturnType<typeof deckTypeScale>;
+      scaleVersion?: number;
       mark?: string;
     };
   } catch {
@@ -59,7 +60,11 @@ function CardPreview({ carousel, background }: { carousel: CarouselSummary; back
       ...(parsed.plate ? { plate: true } : {}),
       ...(background ? { background } : {}),
     };
-    return { slide: cover, scale: stored.scale ?? deckTypeScale([cover]), mark: stored.mark ?? "" };
+    return {
+      slide: cover,
+      scale: stored.scaleVersion === 2 && stored.scale ? stored.scale : deckTypeScale([cover]),
+      mark: stored.mark ?? "",
+    };
   }, [carousel, background]);
 
   // The footer counter reads off the deck length, so the card needs the real count.
@@ -68,7 +73,7 @@ function CardPreview({ carousel, background }: { carousel: CarouselSummary; back
       version: 1,
       title: carousel.title,
       author: carousel.author,
-      template: normalizeTemplate(carousel.template),
+      template: (carousel.template as CarouselConfig["template"]) ?? "dark",
       ...(mark ? { mark } : {}),
       slides: Array.from({ length: Math.max(carousel.slideCount, 1) }, () => slide),
     }),
