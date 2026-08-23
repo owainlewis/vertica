@@ -143,10 +143,17 @@ function toListSummary(row: Row): CarouselSummary {
   const summary = toSummary(row);
   if (!row.config) return summary;
 
+  let stored: { slide?: unknown; mark?: unknown; scaleVersion?: number; scale?: unknown } = {};
+  try {
+    stored = JSON.parse(row.cover || "{}") as typeof stored;
+  } catch {
+    // Rebuild the compact payload below from the full config.
+  }
+  if (stored.scaleVersion === 2 && stored.scale) return summary;
+
   try {
     const parsed = JSON.parse(row.config) as { slides?: unknown[]; mark?: unknown };
     if (!Array.isArray(parsed.slides) || !parsed.slides.length) return summary;
-    const stored = JSON.parse(row.cover || "{}") as { slide?: unknown; mark?: unknown };
     const slide = stored.slide ?? parsed.slides[0];
     return {
       ...summary,
