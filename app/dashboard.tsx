@@ -19,8 +19,6 @@ function readCover(cover: string) {
   try {
     return JSON.parse(cover || "{}") as {
       slide?: Partial<CarouselSlide>;
-      scale?: ReturnType<typeof deckTypeScale>;
-      scaleVersion?: number;
       mark?: string;
     };
   } catch {
@@ -45,12 +43,9 @@ function relativeDate(iso: string) {
 function CardPreview({
   carousel,
   background,
-  scaleOverride,
 }: {
   carousel: CarouselSummary;
   background?: string;
-  /** Undefined is still loading; null means the legacy row could not be loaded. */
-  scaleOverride?: ReturnType<typeof deckTypeScale> | null;
 }) {
   const { slide, scale, mark } = useMemo(() => {
     const stored = readCover(carousel.cover);
@@ -69,13 +64,10 @@ function CardPreview({
       ...(parsed.plate ? { plate: true } : {}),
       ...(background ? { background } : {}),
     };
-    const storedScale = stored.scaleVersion === 2 && stored.scale ? stored.scale : undefined;
-    // A failed legacy load must still draw something. The single-cover scale may not
-    // match the missing deck perfectly, but it is safer than leaving a permanent blank
-    // tile. Undefined remains the loading state, so successful migrations do not flash.
-    const scale = scaleOverride === null ? deckTypeScale([cover]) : scaleOverride ?? storedScale;
-    return { slide: cover, scale, mark: stored.mark ?? "" };
-  }, [carousel, background, scaleOverride]);
+    // The type scale is a design-system value now, not saved carousel data. Recompute
+    // it so old rows cannot bring their adaptive title sizes back into the gallery.
+    return { slide: cover, scale: deckTypeScale([cover]), mark: stored.mark ?? "" };
+  }, [carousel, background]);
 
   // The footer counter reads off the deck length, so the card needs the real count.
   const config = useMemo<CarouselConfig>(
@@ -89,10 +81,6 @@ function CardPreview({
     }),
     [carousel, slide, mark],
   );
-
-  if (!scale) {
-    return <span className="card-preview card-preview-pending" aria-hidden="true" />;
-  }
 
   return (
     <span className="card-preview">
@@ -119,7 +107,6 @@ export default function Dashboard({
   const [pending, setPending] = useState<{ config: CarouselConfig; title: string; kind: "pdf" | "zip" } | null>(null);
   // Cover backgrounds are loaded from the durable media store once the list arrives.
   const [covers, setCovers] = useState<Record<string, string>>({});
-  const [legacyScales, setLegacyScales] = useState<Record<string, ReturnType<typeof deckTypeScale> | null>>({});
 
   useEffect(() => {
     let live = true;
@@ -139,30 +126,6 @@ export default function Dashboard({
       if (!live) return;
       setCovers(Object.fromEntries(keys.filter(([, key]) => images[key]).map(([id, key]) => [id, images[key]])));
     });
-    return () => { live = false; };
-  }, [carousels]);
-
-  useEffect(() => {
-    const legacyRows = (carousels ?? []).filter((row) => readCover(row.cover).scaleVersion !== 2);
-    if (!legacyRows.length) return;
-
-    let live = true;
-    Promise.all(
-      legacyRows.map(async (row) => {
-        try {
-          const { config } = await loadCarousel(row.id);
-          return [row.id, deckTypeScale(config.slides)] as const;
-        } catch {
-          // Keep the cover-only fallback if an old row cannot be loaded. The list
-          // remains usable, and a fresh save will receive the versioned scale.
-          return [row.id, null] as const;
-        }
-      }),
-    ).then((entries) => {
-      if (!live) return;
-      setLegacyScales(Object.fromEntries(entries));
-    });
-
     return () => { live = false; };
   }, [carousels]);
 
@@ -240,7 +203,6 @@ export default function Dashboard({
                 <CardPreview
                   carousel={carousel}
                   background={covers[carousel.id]}
-                  scaleOverride={readCover(carousel.cover).scaleVersion !== 2 ? legacyScales[carousel.id] : undefined}
                 />
               </button>
               <div className="card-overlay">

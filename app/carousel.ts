@@ -400,121 +400,57 @@ function clamp(value: number, low: number, high: number) {
   return Math.min(high, Math.max(low, value));
 }
 
-/**
- * Type sizes are in container width, so the 520px preview and the 1080px export
- * agree exactly.
- *
- * Sizing is continuous rather than banded. Set type fills an area of roughly
- * length × size², and the text block it has to fill is a fixed share of the frame, so
- * size ≈ √(area / length) holds the block at a constant fullness however long the
- * copy runs. AREA is fitted to the golden-ratio steps this replaced: it reproduces
- * them to within a few percent at 24, 44 and 66 characters.
- *
- * Bands were the problem. deckTypeScale sizes the whole deck off its longest title,
- * so one headline crossing a band edge dropped every title by a full √φ step, 21%,
- * for one extra character. The curve moves by a fraction of a percent instead.
- */
+/** Type sizes are in container width, so preview and export agree exactly. */
+const TITLE = 8;
 const BODY = 3.1;
-/**
- * These are font-size numbers, and font size is not what a reader sees: cap height is.
- * Playfair draws a 0.571em cap where Playfair Display drew 0.708em, so the same
- * font-size renders about a fifth smaller. AREA and the clamps are scaled by the
- * inverse of that ratio, which keeps every headline at the cap height it had before
- * the face changed while the numbers below stay honest font sizes.
- *
- * Scale these together if the face changes again. AREA moves by the square of the
- * ratio because size varies with the square root of it.
- */
-const TITLE_MAX = 13.1;
-const TITLE_MIN = 5.95;
-const AREA = 4150;
+const TITLE_TRACKING = -0.035;
+const TITLE_LEADING = 0.96;
 
 export function titleSize(title: string | undefined) {
-  const length = Math.max(visibleLength(title), 1);
-  return round(clamp(Math.sqrt(AREA / length), TITLE_MIN, TITLE_MAX));
+  void title;
+  return TITLE;
 }
 
 export function bodySize(body: string | undefined) {
-  const length = visibleLength(body);
-  if (length <= 110) return round(BODY * 1.128); // 3.5 — ⁴√φ
-  if (length <= 200) return BODY;
-  return round(BODY / 1.128); // 2.75
+  void body;
+  return BODY;
 }
 
 /**
- * Every slide in a deck shares one display size and one body size. Layouts can still
- * change where copy sits, but they no longer change the type itself. That gives a
- * swipe-through deck a consistent voice and keeps dark and light modes comparable.
+ * Every carousel shares the same title and body scale. Copy can wrap to more lines,
+ * but it cannot make one cover look louder than the next in the gallery.
  */
 export function deckTypeScale(slides: CarouselSlide[]) {
-  const measured = slides.length ? slides : [{ title: "", body: "", layout: "content" as const }];
-  const title = Math.min(...measured.map((slide) => titleSize(slide.title)));
-  const lines = Math.max(...measured.map((slide) => estimateLines(slide.title, title)));
-  const tracking = titleTracking(title);
-  const leading = titleLeading(title, lines);
-  const bodyMeasured = measured.filter((slide) => slide.layout !== "cover");
-
+  void slides;
   return {
-    title,
-    tracking,
-    leading,
-    cover: title,
-    coverTracking: tracking,
-    coverLeading: leading,
-    // Cover bodies are not rendered, so they cannot be allowed to shrink body copy
-    // elsewhere. A cover-only deck has no visible body scale, but returns the normal
-    // short-copy default so the value remains finite and predictable.
-    body: bodyMeasured.length ? Math.min(...bodyMeasured.map((slide) => bodySize(slide.body))) : bodySize(""),
+    title: TITLE,
+    tracking: TITLE_TRACKING,
+    leading: TITLE_LEADING,
+    cover: TITLE,
+    coverTracking: TITLE_TRACKING,
+    coverLeading: TITLE_LEADING,
+    body: BODY,
   };
 }
 
-/**
- * Tracking has to move against size or the title reads like default web text.
- * A serif set at 110px needs the counters pulled in; the same face at 54px does
- * not, and tightening it there would just look cramped. These are the classic
- * display values: about -2% at the top of the scale easing to -1% at the bottom,
- * now interpolated rather than stepped so it tracks the continuous size curve.
- */
 export function titleTracking(size: number) {
-  // Tighter than it was, and tighter than a text face would take. A Didone set large
-  // wants its letters close: the hairlines already separate the shapes, so the default
-  // fit reads gappy. Roughly -2% at the bottom of the scale down to -4% at the top.
-  return round3(clamp(-0.020 - (size - 6) * 0.0018, -0.042, -0.016));
+  void size;
+  return TITLE_TRACKING;
 }
 
-/**
- * Leading moves against size for the same reason tracking does. Big display type
- * wants near-solid setting: the line gap a serif needs at reading size becomes a
- * gutter at 110px. Anything above 1.1 on a two-line title is the stock-HTML look.
- */
 export function titleLeading(size: number, lines = 2) {
-  // Leading tightens as type grows, but it has to level off rather than keep falling.
-  // A straight line did keep falling: at cover sizes it returned 0.66 and even 0.44,
-  // so every cover in the app was pinned to the clamp floor and the line count below
-  // stopped having any effect at all. A curve flattens toward a sane display leading
-  // instead of running off the bottom.
-  const base = 0.88 + 1.36 / Math.max(size, 1);
-  // Every line past the second opens it a little. A four line headline set as tight as
-  // a two line one reads as a solid block, and descenders start colliding with the
-  // caps beneath them.
-  const opened = base + Math.max(0, lines - 2) * 0.035;
-  // The floor sits at 0.9 rather than 0.86 because Playfair Display has a tall
-  // x-height (0.514em against a 0.708em cap). Lines of a large-x face read closer
-  // together than their leading says, so solid setting closes up faster.
-  return round3(clamp(opened, 0.9, 1.18));
+  void size;
+  void lines;
+  return TITLE_LEADING;
 }
 
 /**
- * How many lines a title will take at a given size, near enough to choose leading by.
- * Assumes a serif at roughly 0.46em average advance across the measure it is given.
+ * How many lines a title will take at a given size.
+ *
+ * Helvetica's mean advance across ordinary English display copy is about 0.46em.
+ * This estimate is used for tests and line-count guidance, not for resizing type.
  */
-/**
- * Mean advance width of the display face over a realistic headline, in em, measured
- * from the font file rather than guessed: Playfair at opsz 96 comes out at 0.394 across
- * a sample of the copy these decks actually carry. Change this if the face changes,
- * or every line estimate drifts and the cover sizing drifts with it.
- */
-const AVG_ADVANCE = 0.394;
+const AVG_ADVANCE = 0.46;
 
 export function estimateLines(title: string | undefined, size: number, measure = 0.88) {
   const segments = titleLines(title ?? "");
@@ -522,20 +458,7 @@ export function estimateLines(title: string | undefined, size: number, measure =
   return segments.reduce((total, segment) => total + Math.max(1, Math.ceil(visibleLength(segment) / perLine)), 0);
 }
 
-/* The footer (1.4cqw) is fixed in CSS so it holds steady across the deck while the
-   title and body flex with their copy. */
-
-function round(value: number) {
-  return Math.round(value * 100) / 100;
-}
-
-/**
- * Tracking and leading are rounded finer than the sizes. At two decimals a 0.004em
- * nudge quantises away, and can even round back out to looser than it started.
- */
-function round3(value: number) {
-  return Math.round(value * 1000) / 1000;
-}
+/* The footer (1.4cqw) is fixed in CSS so it holds steady across every deck. */
 
 export function aiPrompt(config: CarouselConfig) {
   return `Create a minimal LinkedIn carousel from the source text below. Return JSON only, with no markdown fences.

@@ -190,29 +190,20 @@ test("splits body copy on blank lines only", () => {
   assert.deepEqual(bodyParagraphs("   "), []);
 });
 
-test("shrinks type as copy grows, ignoring the mark characters", () => {
-  assert.ok(titleSize("Short headline") > titleSize("A considerably longer headline that keeps going and going"));
+test("keeps title and body sizes fixed as copy changes", () => {
+  assert.equal(titleSize("Short headline"), titleSize("A considerably longer headline that keeps going and going"));
   assert.equal(titleSize("*Short headline*"), titleSize("Short headline"));
-  assert.ok(bodySize("Brief.") > bodySize("x".repeat(250)));
+  assert.equal(bodySize("Brief."), bodySize("x".repeat(250)));
 });
 
-test("tightens tracking and leading as the title gets bigger", () => {
-  const titles = ["Short headline", "A headline of middling length here", "x".repeat(50), "x".repeat(80)];
-  const sizes = titles.map(titleSize);
-  const tracking = sizes.map(titleTracking);
-  const leading = sizes.map(titleLeading);
-
-  for (const value of tracking) assert.ok(value < 0 && value > -0.05, `${value} is not display tracking`);
-  for (const value of leading) assert.ok(value >= 0.9 && value <= 1.2, `${value} is not display leading`);
-
-  for (let i = 1; i < titles.length; i += 1) {
-    assert.ok(sizes[i] < sizes[i - 1], "sizes should step down");
-    assert.ok(tracking[i] > tracking[i - 1], "smaller type should be tracked looser");
-    assert.ok(leading[i] > leading[i - 1], "smaller type should be led looser");
-  }
+test("keeps title tracking and leading fixed", () => {
+  assert.equal(titleTracking(6), titleTracking(13));
+  assert.equal(titleLeading(6, 2), titleLeading(13, 5));
+  assert.ok(titleTracking(8) < 0, "Helvetica titles should be set tightly");
+  assert.ok(titleLeading(8) > 0.9 && titleLeading(8) < 1, "Helvetica titles should use compact leading");
 });
 
-test("sets the whole deck at one size, chosen so the longest copy fits", () => {
+test("sets every carousel at one fixed title and body scale", () => {
   const slides = [
     { layout: "content", title: "Short", body: "Brief." },
     { layout: "content", title: "A headline that runs a good deal longer than the first one", body: "x".repeat(250) },
@@ -220,15 +211,13 @@ test("sets the whole deck at one size, chosen so the longest copy fits", () => {
   ];
   const scale = deckTypeScale(slides);
 
-  assert.equal(scale.title, titleSize(slides[1].title), "title size should suit the longest title");
-  assert.equal(scale.body, bodySize(slides[1].body), "body size should suit the longest body");
+  assert.equal(scale.title, titleSize(slides[0].title));
+  assert.equal(scale.body, bodySize(slides[0].body));
   assert.equal(scale.tracking, titleTracking(scale.title));
-  // Leading follows the tallest stack of lines in the deck, not the title size alone.
-  const lines = Math.max(...slides.map((slide) => estimateLines(slide.title, scale.title)));
-  assert.equal(scale.leading, titleLeading(scale.title, lines));
+  assert.equal(scale.leading, titleLeading(scale.title));
 
   const uniform = deckTypeScale([{ layout: "content", title: "Short", body: "Brief." }]);
-  assert.ok(uniform.title > scale.title, "a deck of short titles should still be set large");
+  assert.deepEqual(uniform, scale, "copy length must not change the type scale");
 });
 
 test("does not size visible body copy from a hidden cover body", () => {
@@ -260,19 +249,12 @@ test("a long cover title sets one uniform title scale for the whole deck", () =>
   assert.equal(coverWithHiddenCopy.body, bodySize(""), "hidden cover copy does not affect the unused body scale");
 });
 
-test("sizing is continuous, so one extra character cannot resize the deck", () => {
-  // The old banded scale stepped at 24, 44 and 66 characters. Because deckTypeScale
-  // sizes the whole deck off its longest title, crossing an edge dropped every title
-  // by a full 21% for one character. Nothing may move by more than a few percent now.
+test("headline length cannot resize the carousel", () => {
   for (let length = 6; length < 90; length += 1) {
     const before = titleSize("x".repeat(length));
     const after = titleSize("x".repeat(length + 1));
-    assert.ok(after <= before, `size must not grow as copy does (at ${length})`);
-    assert.ok(before - after < before * 0.05, `a single character moved the size ${before} to ${after}`);
+    assert.equal(after, before, `character ${length + 1} changed the fixed title size`);
   }
-
-  // It still has to actually shrink across the range, not just move smoothly.
-  assert.ok(titleSize("x".repeat(80)) < titleSize("x".repeat(20)) * 0.7);
 });
 
 test("a hard break in a headline is honoured and does not count toward its length", () => {
@@ -416,15 +398,14 @@ test("sets typographic quotes, dashes and ellipses at render time", () => {
   assert.equal(smartQuotes("Build the *context*"), "Build the *context*");
 });
 
-test("leading opens as a headline takes more lines", () => {
+test("leading stays fixed as a headline takes more lines", () => {
   const size = 8;
-  assert.ok(titleLeading(size, 4) > titleLeading(size, 2), "four lines need more air than two");
-  assert.ok(titleLeading(size, 2) === titleLeading(size, 1), "one and two lines set the same");
+  assert.equal(titleLeading(size, 4), titleLeading(size, 2));
+  assert.equal(titleLeading(size, 2), titleLeading(size, 1));
   for (const lines of [1, 2, 3, 4, 6]) {
     const value = titleLeading(size, lines);
-    assert.ok(value >= 0.9 && value <= 1.18, `${value} is not display leading`);
+    assert.ok(value > 0.9 && value < 1, `${value} is not compact display leading`);
   }
-  // The default has to match the old two-line behaviour, or every deck reflows.
   assert.equal(titleLeading(size), titleLeading(size, 2));
 });
 
@@ -442,10 +423,10 @@ test("estimates line count from the copy, the size and the hard breaks", () => {
   );
 });
 
-test("a deck of four-line covers is led looser than a deck of two-line ones", () => {
+test("short and long covers share one leading", () => {
   const long = deckTypeScale([{ layout: "cover", title: "The skill that decides who ships. Nobody lists it.", body: "" }]);
   const short = deckTypeScale([{ layout: "cover", title: "Taste is the moat", body: "" }]);
-  assert.ok(long.coverLeading > short.coverLeading, "the taller stack of lines needs more leading");
+  assert.equal(long.coverLeading, short.coverLeading);
 });
 
 test("legacy template names remain readable and normalize at render time", () => {

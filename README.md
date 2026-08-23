@@ -7,7 +7,7 @@ A minimal studio for creating LinkedIn document carousels.
 - saves every carousel to a database and lists them on a home gallery
 - turns pasted text into an editable slide sequence
 - imports and exports a small JSON format that Claude or Codex can generate
-- pairs Iowan Old Style or Baskerville-style editorial titles with Inter text, with two consistent dark and light colour modes
+- pairs Helvetica Bold titles with Helvetica text and Castoro italics, with two consistent dark and light colour modes
 - keeps colour, placement and slide type separate, so any text position works with any colour
 - accepts local background images per slide, and darkens each one to suit its own brightness
 - exports one PDF for LinkedIn, or numbered JPEGs zipped for Instagram, both at 2×
@@ -72,14 +72,13 @@ without anyone typing them in.
 ## Typography
 
 Sizes are set in container-width units against the slide itself, so the preview and the
-export are the same drawing at different scales. Every slide in a deck shares one title
-size and one body size, chosen so the longest copy fits. Put a `|` in a headline to break
-the line where the sense breaks; the words after it are still balanced.
+export are the same drawing at different scales. Every carousel uses the same title and
+body sizes. Put a `|` in a headline to break the line where the sense breaks; the words
+after it are still balanced.
 
-Headlines use the same Iowan Old Style and Baskerville system stack as the AI Engineer
-course, with bundled Playfair as the portable fallback. Body copy, labels and controls
-use bundled Inter, so the interface and exported slides remain consistent without a
-network font request.
+Titles use Helvetica Bold and body copy, labels and controls use Helvetica. Castoro is
+bundled for italic emphasis, so marked phrases keep their contrast without a network
+font request.
 
 Quotes, apostrophes, ellipses and number ranges are made typographic at render time,
 never in the stored text, so what you typed is what the editor and the exported config

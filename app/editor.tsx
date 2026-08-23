@@ -60,20 +60,47 @@ const templateNames: Record<TemplateId, { name: string; note: string }> = {
   light: { name: "Light", note: "Soft white with blue-grey ink" },
 };
 
+const MAX_BACKGROUND_EDGE = 2160;
+const BACKGROUND_QUALITY = 0.86;
+
+function blobToDataUrl(blob: Blob, fileName: string) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error(`Could not read ${fileName}.`));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function prepareImage(file: File) {
+  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  try {
+    const scale = Math.min(1, MAX_BACKGROUND_EDGE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error(`Could not prepare ${file.name}.`);
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (result) => result ? resolve(result) : reject(new Error(`Could not prepare ${file.name}.`)),
+        "image/webp",
+        BACKGROUND_QUALITY,
+      );
+    });
+    return blobToDataUrl(blob, file.name);
+  } finally {
+    bitmap.close();
+  }
+}
+
 function readImages(files: FileList) {
   const supportedTypes = new Set<string>(SUPPORTED_IMAGE_MIME_TYPES);
   return Promise.all(
     Array.from(files)
       .filter((file) => supportedTypes.has(file.type.toLowerCase()))
-      .map(
-        (file) =>
-          new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(String(reader.result));
-            reader.onerror = () => reject(new Error(`Could not read ${file.name}.`));
-            reader.readAsDataURL(file);
-          }),
-      ),
+      .map(prepareImage),
   );
 }
 
