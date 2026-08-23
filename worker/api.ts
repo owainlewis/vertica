@@ -1,5 +1,4 @@
 /** JSON API for saved carousels. Mounted under /api by the worker entry point. */
-import { deckTypeScale, type CarouselSlide } from "../app/carousel.ts";
 import { clearSessionCookie, createSessionCookie, isAuthorised, isSecureRequest, passwordMatches } from "./auth.ts";
 import { ConflictError, deleteCarousel, getCarousel, listCarousels, MissingError, saveCarousel, type D1Database } from "./db.ts";
 import { getMedia, InvalidMediaInput, isMediaKey, putMedia, readMediaRequest, type R2Bucket } from "./media.ts";
@@ -60,14 +59,10 @@ function readInput(body: unknown) {
     template: text(parsed.template, "dark"),
     slideCount: slides.length,
     coverTitle: text(cover?.title, ""),
-    // The gallery renders the real first slide rather than an approximation of it, so
-    // it needs that slide verbatim plus the deck-wide type scale. Without the scale it
-    // would size the title from one slide, and a deck whose first slide is not its
-    // longest would render larger on the card than in the editor.
+    // The gallery renders the real first slide rather than an approximation of it.
+    // Typography is a fixed design-system value, so no deck-wide scale is persisted.
     cover: JSON.stringify({
       slide: cover ?? {},
-      scale: deckTypeScale(slides as CarouselSlide[]),
-      scaleVersion: 2,
       mark: typeof parsed.mark === "string" ? parsed.mark.slice(0, 30) : "",
     }),
     config,

@@ -1,5 +1,4 @@
 /** Carousel storage on D1. One table, so plain SQL rather than an ORM. */
-import { deckTypeScale, type CarouselSlide } from "../app/carousel.ts";
 
 export interface D1Result<T> {
   results: T[];
@@ -93,6 +92,21 @@ const ADDED_COLUMNS = [
   "ALTER TABLE carousels ADD COLUMN version INTEGER NOT NULL DEFAULT 1",
 ];
 
+/** Populate the compact gallery payload for rows saved before `cover` existed. */
+const BACKFILL_COVERS = `
+UPDATE carousels
+SET cover = json_object(
+  'slide', json_extract(config, '$.slides[0]'),
+  'mark', CASE
+    WHEN json_type(config, '$.mark') = 'text' THEN substr(json_extract(config, '$.mark'), 1, 30)
+    ELSE ''
+  END
+)
+WHERE cover = ''
+  AND json_valid(config)
+  AND json_type(config, '$.slides[0]') = 'object'
+`;
+
 let ready: Promise<unknown> | null = null;
 
 /**
@@ -109,6 +123,9 @@ export function ensureSchema(db: D1Database) {
         // Column already present.
       }
     }
+    // This becomes a no-op after the first successful backfill. Building the JSON in
+    // D1 avoids transferring every legacy config through the worker or to the client.
+    await db.prepare(BACKFILL_COVERS).run();
   })().catch((error) => {
     // Memoising the promise means a rejection would otherwise be cached for the
     // isolate's lifetime, so one transient failure would break every later request
@@ -134,52 +151,12 @@ function toSummary(row: Row): CarouselSummary {
   };
 }
 
-/**
- * Old rows predate the shared type scale and have no reliable gallery scale. Rebuild
- * the compact cover payload while the list is on the server, so the first browser
- * paint is already the same size as the editor rather than flashing a cover-only fit.
- */
-function toListSummary(row: Row): CarouselSummary {
-  const summary = toSummary(row);
-  if (!row.config) return summary;
-
-  let stored: { slide?: unknown; mark?: unknown; scaleVersion?: number; scale?: unknown } = {};
-  try {
-    stored = JSON.parse(row.cover || "{}") as typeof stored;
-  } catch {
-    // Rebuild the compact payload below from the full config.
-  }
-  if (stored.scaleVersion === 2 && stored.scale) return summary;
-
-  try {
-    const parsed = JSON.parse(row.config) as { slides?: unknown[]; mark?: unknown };
-    if (!Array.isArray(parsed.slides) || !parsed.slides.length) return summary;
-    const slide = stored.slide ?? parsed.slides[0];
-    return {
-      ...summary,
-      cover: JSON.stringify({
-        slide,
-        scale: deckTypeScale(parsed.slides as CarouselSlide[]),
-        scaleVersion: 2,
-        mark: typeof stored.mark === "string"
-          ? stored.mark
-          : typeof parsed.mark === "string"
-            ? parsed.mark.slice(0, 30)
-            : "",
-      }),
-    };
-  } catch {
-    // A malformed legacy cover should still leave the rest of the gallery usable.
-    return summary;
-  }
-}
-
 export async function listCarousels(db: D1Database): Promise<CarouselSummary[]> {
   await ensureSchema(db);
   const { results } = await db
-    .prepare("SELECT id, title, author, template, slide_count, cover_title, cover, version, config, created_at, updated_at FROM carousels ORDER BY updated_at DESC LIMIT 200")
+    .prepare("SELECT id, title, author, template, slide_count, cover_title, cover, version, created_at, updated_at FROM carousels ORDER BY updated_at DESC LIMIT 200")
     .all<Row>();
-  return results.map(toListSummary);
+  return results.map(toSummary);
 }
 
 export async function getCarousel(db: D1Database, id: string): Promise<CarouselRecord | null> {

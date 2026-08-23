@@ -6,7 +6,10 @@ import { createSessionCookie, isAuthorised } from "../worker/auth.ts";
 /** Enough of D1 to exercise the handlers without a real database. */
 function fakeDb() {
   const rows = new Map();
-  const statement = (query) => ({
+  const queries = [];
+  const statement = (query) => {
+    queries.push(query);
+    return ({
     _values: [],
     bind(...values) { this._values = values; return this; },
     async all() {
@@ -19,6 +22,26 @@ function fakeDb() {
       return rows.get(this._values[0]) ?? null;
     },
     async run() {
+      if (/^\s*UPDATE carousels\s+SET cover = json_object/.test(query)) {
+        for (const [id, row] of rows) {
+          if (row.cover) continue;
+          try {
+            const parsed = JSON.parse(row.config);
+            const slide = parsed.slides?.[0];
+            if (!slide || typeof slide !== "object" || Array.isArray(slide)) continue;
+            rows.set(id, {
+              ...row,
+              cover: JSON.stringify({
+                slide,
+                mark: typeof parsed.mark === "string" ? parsed.mark.slice(0, 30) : "",
+              }),
+            });
+          } catch {
+            // Mirrors the json_valid guard in the D1 migration.
+          }
+        }
+        return { meta: { changes: 1 } };
+      }
       if (/^INSERT INTO carousels/.test(query)) {
         const [id, title, author, template, slide_count, cover_title, cover, config, created_at, updated_at] = this._values;
         // ON CONFLICT DO NOTHING: an existing id is a no-op, and reports zero changes.
@@ -44,9 +67,10 @@ function fakeDb() {
       if (/^DELETE FROM carousels/.test(query)) rows.delete(this._values[0]);
       return { meta: { changes: 1 } };
     },
-  });
+    });
+  };
 
-  return { rows, prepare: statement, batch: async () => {}, exec: async () => {} };
+  return { rows, queries, prepare: statement, batch: async () => {}, exec: async () => {} };
 }
 
 function fakeMedia() {
@@ -77,22 +101,46 @@ function post(body, path = "/api/carousels", method = "POST") {
 
 test("saves a carousel and lists it back with a summary", async () => {
   const env = { DB: fakeDb() };
+  env.DB.rows.set("legacy", {
+    id: "legacy",
+    title: "Legacy carousel",
+    author: "OWAIN LEWIS",
+    template: "dark",
+    slide_count: 1,
+    cover_title: "Legacy cover",
+    cover: "",
+    config: JSON.stringify({
+      title: "Legacy carousel",
+      mark: "AI ENGINEER",
+      slides: [{ layout: "cover", title: "Legacy cover", body: "Preserve this copy", plate: true }],
+    }),
+    version: 1,
+    created_at: "2025-01-01T00:00:00.000Z",
+    updated_at: "2025-01-01T00:00:00.000Z",
+  });
 
   const created = await handleApi(post({ config }), env);
   assert.equal(created.status, 201);
   const { carousel } = await created.json();
   assert.equal(carousel.title, "AI code review");
   assert.equal(carousel.template, "dark");
-  assert.equal(JSON.parse(carousel.cover).scaleVersion, 2);
+  assert.equal(JSON.parse(carousel.cover).slide.title, "Four AI reviewers");
   assert.equal(carousel.slideCount, 2);
   assert.equal(carousel.coverTitle, "Four AI reviewers");
 
   const listed = await handleApi(new Request("http://localhost/api/carousels"), env);
   const { carousels } = await listed.json();
-  assert.equal(carousels.length, 1);
+  assert.equal(carousels.length, 2);
   assert.equal(carousels[0].id, carousel.id);
+  const legacyCover = JSON.parse(carousels.find((item) => item.id === "legacy").cover);
+  assert.equal(legacyCover.slide.body, "Preserve this copy");
+  assert.equal(legacyCover.slide.plate, true);
+  assert.equal(legacyCover.mark, "AI ENGINEER");
   // The list view must not ship every slide of every deck to the dashboard.
   assert.equal(carousels[0].config, undefined);
+  const listQuery = env.DB.queries.find((query) => /^SELECT id,/.test(query));
+  assert.ok(listQuery);
+  assert.doesNotMatch(listQuery, /\bconfig\b/);
 });
 
 test("persists image bytes through the media API", async () => {
