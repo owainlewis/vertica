@@ -54,13 +54,15 @@ export default function MediaGallery() {
       for (let start = 0; start < selected.length; start += 3) {
         // Decode, resize, and upload one small batch before allocating the next.
         const prepared = await prepareImages(selected.slice(start, start + 3));
-        await Promise.all(prepared.map((image) => putImage(image.dataUrl, {
+        const results = await Promise.allSettled(prepared.map((image) => putImage(image.dataUrl, {
           name: image.name,
           width: image.width,
           height: image.height,
         })));
-        completed += prepared.length;
+        completed += results.filter((result) => result.status === "fulfilled").length;
         setUploadCount(completed);
+        const failed = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
+        if (failed) throw failed.reason;
       }
       await refresh();
       if (!completed) setError("Choose PNG, JPEG, GIF, AVIF, or WebP images.");
