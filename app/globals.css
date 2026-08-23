@@ -1,15 +1,13 @@
 @import "tailwindcss";
 
-/* Playfair carries the headlines: the newer family, not Playfair Display. Display
-   bottoms out at weight 400, so it could not be taken any lighter. This one starts at
-   300 and adds an optical size axis, which is the part that matters. Winding opsz up
-   is what thins the hairlines and narrows the letterfit, and that is where a Didone
-   gets its elegance from. */
+/* Playfair is the bundled fallback for the editorial heading stack. Apple platforms
+   use Iowan Old Style, matching the course reference; Baskerville follows on other
+   systems that ship it, and Playfair keeps the result deliberate everywhere else. */
 @font-face {
   font-family: "Playfair";
   font-style: normal;
   font-weight: 300 900;
-  font-display: block;
+  font-display: swap;
   src: url("/fonts/playfair-latin.woff2") format("woff2");
 }
 
@@ -17,7 +15,7 @@
   font-family: "Playfair";
   font-style: italic;
   font-weight: 300 900;
-  font-display: block;
+  font-display: swap;
   src: url("/fonts/playfair-latin-italic.woff2") format("woff2");
 }
 
@@ -27,7 +25,7 @@
   font-family: "Inter";
   font-style: normal;
   font-weight: 400 700;
-  font-display: block;
+  font-display: swap;
   src: url("/fonts/inter-latin.woff2") format("woff2");
 }
 
@@ -35,11 +33,13 @@
   font-family: "Inter";
   font-style: italic;
   font-weight: 400 700;
-  font-display: block;
+  font-display: swap;
   src: url("/fonts/inter-latin-italic.woff2") format("woff2");
 }
 
 :root {
+  --font-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-editorial: "Iowan Old Style", Baskerville, Playfair, "Times New Roman", serif;
   --ink: #202a31;
   --muted: #5d6b73;
   --paper: #e8edf0;
@@ -50,7 +50,7 @@
 
 * { box-sizing: border-box; }
 html, body { min-height: 100%; margin: 0; }
-body { background: var(--paper); color: var(--ink); font-family: Inter, system-ui, -apple-system, sans-serif; }
+body { background: var(--paper); color: var(--ink); font-family: var(--font-sans); }
 button, input, textarea, select { color: inherit; font: inherit; }
 button, label { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid #706d63; outline-offset: 2px; }
@@ -60,11 +60,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .dashboard-bar { position: sticky; top: 0; z-index: 4; display: flex; align-items: center; justify-content: space-between; height: 64px; padding: 0 24px; background: var(--panel); border-bottom: 1px solid var(--line); }
 .dashboard-body { max-width: 935px; margin: 0 auto; padding: 40px 20px 80px; }
 .dashboard-heading { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 26px; }
-.dashboard-heading h1 { margin: 0; font-size: 22px; font-weight: 750; letter-spacing: -.03em; }
+.dashboard-heading h1 { margin: 0; font-family: var(--font-editorial); font-size: 32px; font-weight: 500; line-height: 1; letter-spacing: -.035em; }
 .dashboard-heading p { margin: 0; color: var(--muted); font-size: 12px; }
 .dashboard-error { margin: 0 0 18px; padding: 11px 14px; border: 1px solid #d9b3ad; border-radius: 9px; background: #f9eeec; color: #8d2f24; font-size: 12px; }
 .empty-state { padding: 64px 24px; border: 1px dashed #cbc7bb; border-radius: 14px; text-align: center; }
-.empty-state h2 { margin: 0 0 7px; font-size: 16px; letter-spacing: -.02em; }
+.empty-state h2 { margin: 0 0 7px; font-family: var(--font-editorial); font-size: 24px; font-weight: 500; line-height: 1.1; letter-spacing: -.025em; }
 .empty-state p { margin: 0 0 20px; color: var(--muted); font-size: 12px; }
 .empty-state button { display: inline-flex; }
 
@@ -106,7 +106,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 
 .signin-shell { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: var(--paper); }
 .signin-card { display: grid; justify-items: center; gap: 9px; width: min(340px, 100%); padding: 30px 26px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); text-align: center; }
-.signin-card h1 { margin: 4px 0 0; font-size: 19px; letter-spacing: -.03em; }
+.signin-card h1 { margin: 4px 0 0; font-family: var(--font-editorial); font-size: 27px; font-weight: 500; line-height: 1.05; letter-spacing: -.035em; }
 .signin-card p { margin: 0 0 6px; color: var(--muted); font-size: 12px; }
 .signin-card input { width: 100%; padding: 10px 11px; border: 1px solid var(--line); border-radius: 8px; background: white; font-size: 13px; }
 .signin-card button { width: 100%; }
@@ -147,7 +147,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .thumb-card { aspect-ratio: 4/5; display: flex; align-items: center; overflow: hidden; padding: 5px; color: #f6f1e7; background: #14140f; }
 .thumb-card.template-dark { color: #e7eef2; background: #0c1013; }
 .thumb-card.template-light { color: #202a31; background: #fbfcfd; }
-.thumb-card span { font-family: Playfair, Georgia, serif; font-size: 5.5px; line-height: 1.1; }
+.thumb-card span { font-family: var(--font-editorial); font-size: 5.5px; line-height: 1.1; }
 .thumb-label { overflow: hidden; font-size: 11px; font-weight: 650; text-overflow: ellipsis; text-transform: capitalize; white-space: nowrap; }
 .rail-import { margin-top: auto; padding: 22px 4px 3px; }
 .rail-import > span { display: block; margin-bottom: 9px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
@@ -193,7 +193,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   position: relative; width: 100%; height: 100%; overflow: hidden; isolation: isolate;
   display: flex; flex-direction: column;
   color: var(--cream); background: #14140f;
-  font-family: Playfair, Georgia, "Times New Roman", serif;
+  font-family: var(--font-editorial);
 }
 .slide-image, .slide-overlay { position: absolute; inset: 0; }
 /* One gentle grade across every photograph. */
@@ -211,7 +211,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
    rasteriser only honours what the computed style states outright. */
 /* text-wrap: balance evens the line lengths instead of filling each line to the
    edge, which is the ragging the reference covers have. */
-.slide-content h2 { max-width: 100%; margin: 0; font-size: var(--title-size); font-weight: 300; font-optical-sizing: none; font-variation-settings: "opsz" 96, "wght" 300; line-height: var(--title-leading); letter-spacing: var(--title-tracking); word-spacing: -.03em; font-kerning: normal; font-variant-ligatures: common-ligatures contextual; overflow-wrap: anywhere; }
+.slide-content h2 { max-width: 100%; margin: 0; font-size: var(--title-size); font-weight: 500; line-height: var(--title-leading); letter-spacing: var(--title-tracking); word-spacing: -.03em; font-kerning: normal; font-variant-ligatures: common-ligatures contextual; overflow-wrap: anywhere; }
 /* Each `|` segment is its own block, so the author's break is the break. Balancing
    still runs inside a segment that is long enough to wrap on its own. */
 .title-line { display: block; text-wrap: balance; }
@@ -227,14 +227,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
    inside a paragraph, but short of the double-spacing that reads as a bullet list. */
 /* Inter carries far more x-height than the serif at the same size, so the body is set
    a step smaller and led a little looser than the serif wanted. */
-.slide-content p { max-width: 96%; margin: .85em 0 0; color: rgb(246 241 231 / .88); font-family: Inter, system-ui, sans-serif; font-size: var(--body-size); font-weight: 400; line-height: 1.5; letter-spacing: -.004em; font-kerning: normal; text-wrap: pretty; overflow-wrap: anywhere; }
+.slide-content p { max-width: 96%; margin: .85em 0 0; color: rgb(246 241 231 / .88); font-family: var(--font-sans); font-size: var(--body-size); font-weight: 400; line-height: 1.5; letter-spacing: -.004em; font-kerning: normal; text-wrap: pretty; overflow-wrap: anywhere; }
 .slide-content h2 + p { margin-top: 1.45em; }
 
 .mark-italic { font-style: italic; }
 .mark-accent { color: var(--gold); }
 /* Same words, same place, every slide. Set small and widely tracked so it reads as a
    signature rather than as a heading competing with the title. */
-.slide-mark { position: absolute; z-index: 1; top: 7.5%; left: 0; right: 0; padding: 0 9.5%; color: rgb(246 241 231 / .74); font-family: Inter, system-ui, sans-serif; font-size: 1.45cqw; font-weight: 500; letter-spacing: .26em; line-height: 1; text-align: center; text-transform: uppercase; }
+.slide-mark { position: absolute; z-index: 1; top: 7.5%; left: 0; right: 0; padding: 0 9.5%; color: rgb(246 241 231 / .74); font-family: var(--font-sans); font-size: 1.45cqw; font-weight: 500; letter-spacing: .26em; line-height: 1; text-align: center; text-transform: uppercase; }
 /* Text sitting at the top needs to clear the wordmark rather than collide with it. */
 .has-mark.pos-top .slide-content { padding-top: 18%; }
 
@@ -248,7 +248,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
    leaving it on would smear the type. */
 .has-plate .slide-content { justify-content: center; }
 
-.slide-meta { position: relative; z-index: 1; display: flex; justify-content: space-between; gap: 8%; padding: 0 9.5% 7%; color: rgb(246 241 231 / .42); font-family: Inter, system-ui, sans-serif; font-size: 1.4cqw; font-weight: 500; line-height: 1; letter-spacing: .14em; text-transform: uppercase; }
+.slide-meta { position: relative; z-index: 1; display: flex; justify-content: space-between; gap: 8%; padding: 0 9.5% 7%; color: rgb(246 241 231 / .42); font-family: var(--font-sans); font-size: 1.4cqw; font-weight: 500; line-height: 1; letter-spacing: .14em; text-transform: uppercase; }
 .slide-meta span { min-width: 0; overflow-wrap: anywhere; }
 .align-center .slide-meta { justify-content: center; gap: 3%; }
 /* The footer carries the offer, so it stays on every slide even when a wordmark is
@@ -286,7 +286,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   --gold: var(--slide-accent);
   color: var(--slide-fg);
   background: var(--slide-bg);
-  font-family: Playfair, Georgia, "Times New Roman", serif;
+  font-family: var(--font-editorial);
 }
 .template-light {
   --slide-fg: #202a31;
@@ -311,7 +311,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .carousel-slide.legacy-type-only .slide-overlay { display: none; }
 .carousel-slide .slide-content h2 {
   font-weight: 500;
-  font-variation-settings: "opsz" 96, "wght" 500;
 }
 .carousel-slide .slide-content p {
   color: var(--slide-muted);
@@ -419,7 +418,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .dialog-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 20px 20px 17px; border-bottom: 1px solid var(--line); }
 .dialog-header > div { display: flex; gap: 11px; }
 .dialog-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; color: white; background: var(--ink); }
-.dialog-header h2 { margin: 0 0 4px; font-size: 16px; letter-spacing: -.02em; }
+.dialog-header h2 { margin: 0 0 4px; font-family: var(--font-editorial); font-size: 22px; font-weight: 500; line-height: 1.05; letter-spacing: -.025em; }
 .dialog-header p { margin: 0; color: var(--muted); font-size: 11px; }
 .dialog-header > button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 6px; background: transparent; cursor: pointer; }
 .dialog-header > button:hover { background: #ece9e2; }
