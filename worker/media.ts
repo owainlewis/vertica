@@ -85,7 +85,7 @@ export async function putMedia(bucket: R2Bucket, key: string, dataUrl: string) {
   await bucket.put(objectKey(key), bytes.buffer, {
     httpMetadata: {
       contentType: match[1].toLowerCase(),
-      cacheControl: "public, max-age=31536000, immutable",
+      cacheControl: "private, max-age=31536000, immutable",
     },
   });
 }

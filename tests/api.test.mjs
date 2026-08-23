@@ -111,6 +111,7 @@ test("persists image bytes through the media API", async () => {
   const download = await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(key)}`), env);
   assert.equal(download.status, 200);
   assert.equal(download.headers.get("content-type"), "image/png");
+  assert.equal(download.headers.get("cache-control"), "private, max-age=31536000, immutable");
   assert.deepEqual([...new Uint8Array(await download.arrayBuffer())], [1, 2, 3]);
 
   const invalid = await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(key)}`, {

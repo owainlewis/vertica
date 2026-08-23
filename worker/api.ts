@@ -134,7 +134,7 @@ export async function handleApi(request: Request, env: ApiEnv): Promise<Response
         if (!object) return json({ error: "That image is gone." }, { status: 404 });
         return new Response(object.body, {
           headers: {
-            "cache-control": object.httpMetadata?.cacheControl ?? "public, max-age=31536000, immutable",
+            "cache-control": object.httpMetadata?.cacheControl ?? "private, max-age=31536000, immutable",
             "content-type": object.httpMetadata?.contentType ?? "application/octet-stream",
           },
         });
