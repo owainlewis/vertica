@@ -321,6 +321,13 @@ test("reclaims unreferenced media without deleting shared images", async () => {
   matureGc(env.DB, abandonedKey);
   await handleApi(new Request("http://localhost/api/carousels"), env);
   assert.equal(media.objects.size, 0, "an upload abandoned before any config save is eventually reclaimed");
+  const missingAdoption = JSON.stringify({
+    ...JSON.parse(config),
+    slides: [{ layout: "cover", title: "Cached but deleted", background: abandonedKey }],
+  });
+  const missingAdoptionResponse = await handleApi(post({ config: missingAdoption }), env);
+  assert.equal(missingAdoptionResponse.status, 400);
+  assert.match((await missingAdoptionResponse.json()).error, /image was removed/i);
 
   const racingKey = "img:dddddddddddddddddddddddddddddddd";
   await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(racingKey)}`, {

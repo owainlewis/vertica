@@ -67,11 +67,17 @@ async function collectMediaGarbage(db: D1Database, bucket: R2Bucket, candidates:
   }
 }
 
-async function protectMediaForSave(db: D1Database, bucket: R2Bucket | undefined, keys: string[]) {
+async function protectMediaForSave(
+  db: D1Database,
+  bucket: R2Bucket | undefined,
+  keys: string[],
+  adoptedKeys: string[] = [],
+) {
   const waited = await protectMedia(db, keys);
-  if (!waited.length) return;
+  const verify = [...new Set([...waited, ...adoptedKeys])];
+  if (!verify.length) return;
   if (!bucket) throw new InvalidInput("Media persistence is not configured.");
-  for (const key of waited) {
+  for (const key of verify) {
     const object = await getMedia(bucket, key);
     if (!object) {
       throw new InvalidInput("An image was removed while this carousel was saving. Add it again and retry.");
@@ -217,7 +223,8 @@ export async function handleApi(request: Request, env: ApiEnv): Promise<Response
 
     if (path === "/carousels" && request.method === "POST") {
       const { input } = readInput(await request.json().catch(() => null));
-      await protectMediaForSave(db, env.MEDIA, mediaKeys(input.config));
+      const keys = mediaKeys(input.config);
+      await protectMediaForSave(db, env.MEDIA, keys, keys);
       try {
         const carousel = await saveCarousel(db, { ...input, id: input.id || newId() }, null);
         await tryCollectMediaGarbage(db, env.MEDIA);
@@ -242,13 +249,16 @@ export async function handleApi(request: Request, env: ApiEnv): Promise<Response
           await tryCollectMediaGarbage(db, env.MEDIA, mediaKeys(input.config));
           return json({ error: "This save is missing its version. Reload the page." }, { status: 409 });
         }
-        // Refresh the grace generation before the config write too. This closes the
-        // narrow window where a matured abandoned upload is being adopted by a save.
-        await protectMediaForSave(db, env.MEDIA, mediaKeys(input.config));
         const previous = await getCarousel(db, id);
+        const keys = mediaKeys(input.config);
+        const previousKeys = new Set(mediaKeys(previous?.config ?? ""));
+        const adopted = keys.filter((key) => !previousKeys.has(key));
+        // Refresh before the config write and verify newly adopted keys. Existing
+        // keys avoid an R2 read on every text-only autosave.
+        await protectMediaForSave(db, env.MEDIA, keys, adopted);
         try {
           const carousel = await saveCarousel(db, { ...input, id }, version);
-          const retained = new Set(mediaKeys(input.config));
+          const retained = new Set(keys);
           const removed = mediaKeys(previous?.config ?? "").filter((key) => !retained.has(key));
           await tryCollectMediaGarbage(db, env.MEDIA, removed);
           return json({ carousel });
