@@ -54,7 +54,7 @@ export type CarouselConfig = {
   title: string;
   author: string;
   /** The template a slide falls back to when it does not set its own. */
-  template: TemplateId;
+  template: TemplateInput;
   /**
    * A short wordmark set at the top of every slide. This is what makes a deck
    * recognisable mid-scroll: same words, same place, every slide. Deck-level on
@@ -190,7 +190,12 @@ export function parseCarouselConfig(input: string): CarouselConfig {
     throw new Error("Keep the carousel to 20 slides or fewer.");
   }
 
-  const template = normalizeTemplate(record.template);
+  // Preserve a recognised legacy value through import. Rendering still normalises
+  // it to dark or light, but Slide needs to see midnight/paper so old type-only
+  // decks do not unexpectedly reveal a retained background image.
+  const template = templateInputs.includes(record.template as TemplateInput)
+    ? (record.template as TemplateInput)
+    : "dark";
 
   const slides = record.slides.map((item, index) => {
     if (!item || typeof item !== "object" || Array.isArray(item)) {
@@ -221,7 +226,7 @@ export function parseCarouselConfig(input: string): CarouselConfig {
       ...(luma ? { luma } : {}),
       ...(slide.plate === true ? { plate: true } : {}),
       ...(templateInputs.includes(slide.template as TemplateInput)
-        ? { template: normalizeTemplate(slide.template) }
+        ? { template: slide.template as TemplateInput }
         : {}),
       ...(positions.includes(slide.position as SlidePosition)
         ? { position: slide.position as SlidePosition }
@@ -445,9 +450,7 @@ export function deckTypeScale(slides: CarouselSlide[]) {
   const lines = Math.max(...measured.map((slide) => estimateLines(slide.title, title)));
   const tracking = titleTracking(title);
   const leading = titleLeading(title, lines);
-  const bodyMeasured = measured.some((slide) => slide.layout !== "cover")
-    ? measured.filter((slide) => slide.layout !== "cover")
-    : measured;
+  const bodyMeasured = measured.filter((slide) => slide.layout !== "cover");
 
   return {
     title,
@@ -456,7 +459,10 @@ export function deckTypeScale(slides: CarouselSlide[]) {
     cover: title,
     coverTracking: tracking,
     coverLeading: leading,
-    body: Math.min(...bodyMeasured.map((slide) => bodySize(slide.body))),
+    // Cover bodies are not rendered, so they cannot be allowed to shrink body copy
+    // elsewhere. A cover-only deck has no visible body scale, but returns the normal
+    // short-copy default so the value remains finite and predictable.
+    body: bodyMeasured.length ? Math.min(...bodyMeasured.map((slide) => bodySize(slide.body))) : bodySize(""),
   };
 }
 

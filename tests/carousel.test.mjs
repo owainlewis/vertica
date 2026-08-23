@@ -108,7 +108,7 @@ test("lets a slide override the carousel template and ignores unknown ones", () 
   }));
 
   assert.equal(config.slides[0].template, undefined);
-  assert.equal(config.slides[1].template, "light");
+  assert.equal(config.slides[1].template, "paper");
   assert.equal(config.slides[2].template, undefined);
   assert.equal(slideTemplate(config.slides[0], config), "dark");
   assert.equal(slideTemplate(config.slides[1], config), "light");
@@ -252,6 +252,8 @@ test("a long cover title sets one uniform title scale for the whole deck", () =>
 
   const coversOnly = deckTypeScale([{ layout: "cover", title: "Only a cover", body: "" }]);
   assert.ok(coversOnly.title > 0 && coversOnly.cover === coversOnly.title, "a deck of covers still resolves");
+  const coverWithHiddenCopy = deckTypeScale([{ layout: "cover", title: "Only a cover", body: "x".repeat(250) }]);
+  assert.equal(coverWithHiddenCopy.body, bodySize(""), "hidden cover copy does not affect the unused body scale");
 });
 
 test("sizing is continuous, so one extra character cannot resize the deck", () => {
@@ -442,7 +444,7 @@ test("a deck of four-line covers is led looser than a deck of two-line ones", ()
   assert.ok(long.coverLeading > short.coverLeading, "the taller stack of lines needs more leading");
 });
 
-test("legacy template names normalize to the two supported modes", () => {
+test("legacy template names remain readable and normalize at render time", () => {
   const config = parseCarouselConfig(JSON.stringify({
     template: "midnight",
     slides: [
@@ -451,10 +453,13 @@ test("legacy template names normalize to the two supported modes", () => {
     ],
   }));
 
-  assert.equal(config.template, "dark");
-  assert.equal(config.slides[0].template, "dark");
-  assert.equal(config.slides[1].template, "light");
-  assert.deepEqual(new Set([config.template, ...config.slides.map((slide) => slide.template).filter(Boolean)]), new Set(["dark", "light"]));
+  // Keep the source value in the parsed config so old type-only backgrounds can
+  // still be suppressed by Slide. slideTemplate is the canonical visual mode.
+  assert.equal(config.template, "midnight");
+  assert.equal(config.slides[0].template, "cinematic");
+  assert.equal(config.slides[1].template, "paper");
+  assert.equal(slideTemplate(config.slides[0], config), "dark");
+  assert.equal(slideTemplate(config.slides[1], config), "light");
   assert.equal(isLegacyTypeOnlyTemplate("midnight"), true);
   assert.equal(isLegacyTypeOnlyTemplate("paper"), true);
   assert.equal(isLegacyTypeOnlyTemplate("cinematic"), false);

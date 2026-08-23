@@ -42,7 +42,15 @@ function relativeDate(iso: string) {
  * cqw against the slide itself, so rendering one in a narrow box is an exact
  * miniature — no separate preview styling to drift out of step with the editor.
  */
-function CardPreview({ carousel, background }: { carousel: CarouselSummary; background?: string }) {
+function CardPreview({
+  carousel,
+  background,
+  scaleOverride,
+}: {
+  carousel: CarouselSummary;
+  background?: string;
+  scaleOverride?: ReturnType<typeof deckTypeScale>;
+}) {
   const { slide, scale, mark } = useMemo(() => {
     const stored = readCover(carousel.cover);
     const parsed = stored.slide ?? {};
@@ -62,10 +70,10 @@ function CardPreview({ carousel, background }: { carousel: CarouselSummary; back
     };
     return {
       slide: cover,
-      scale: stored.scaleVersion === 2 && stored.scale ? stored.scale : deckTypeScale([cover]),
+      scale: scaleOverride ?? (stored.scaleVersion === 2 && stored.scale ? stored.scale : deckTypeScale([cover])),
       mark: stored.mark ?? "",
     };
-  }, [carousel, background]);
+  }, [carousel, background, scaleOverride]);
 
   // The footer counter reads off the deck length, so the card needs the real count.
   const config = useMemo<CarouselConfig>(
@@ -106,6 +114,7 @@ export default function Dashboard({
   // Cover backgrounds live in the browser's image store, so the cards resolve them
   // separately once the list arrives.
   const [covers, setCovers] = useState<Record<string, string>>({});
+  const [legacyScales, setLegacyScales] = useState<Record<string, ReturnType<typeof deckTypeScale>>>({});
 
   useEffect(() => {
     let live = true;
@@ -125,6 +134,30 @@ export default function Dashboard({
       if (!live) return;
       setCovers(Object.fromEntries(keys.filter(([, key]) => images[key]).map(([id, key]) => [id, images[key]])));
     });
+    return () => { live = false; };
+  }, [carousels]);
+
+  useEffect(() => {
+    const legacyRows = (carousels ?? []).filter((row) => readCover(row.cover).scaleVersion !== 2);
+    if (!legacyRows.length) return;
+
+    let live = true;
+    Promise.all(
+      legacyRows.map(async (row) => {
+        try {
+          const { config } = await loadCarousel(row.id);
+          return [row.id, deckTypeScale(config.slides)] as const;
+        } catch {
+          // Keep the cover-only fallback if an old row cannot be loaded. The list
+          // remains usable, and a fresh save will receive the versioned scale.
+          return null;
+        }
+      }),
+    ).then((entries) => {
+      if (!live) return;
+      setLegacyScales(Object.fromEntries(entries.filter((entry): entry is readonly [string, ReturnType<typeof deckTypeScale>] => entry !== null)));
+    });
+
     return () => { live = false; };
   }, [carousels]);
 
@@ -199,7 +232,11 @@ export default function Dashboard({
           {(carousels ?? []).map((carousel) => (
             <li className="gallery-card" key={carousel.id}>
               <button className="card-open" type="button" onClick={() => onOpen(carousel.id)} aria-label={`Open ${carousel.title}`}>
-                <CardPreview carousel={carousel} background={covers[carousel.id]} />
+                <CardPreview
+                  carousel={carousel}
+                  background={covers[carousel.id]}
+                  scaleOverride={readCover(carousel.cover).scaleVersion !== 2 ? legacyScales[carousel.id] : undefined}
+                />
               </button>
               <div className="card-overlay">
                 <span className="card-meta">
