@@ -45,7 +45,9 @@ async function hash(value: string) {
 export async function putImage(dataUrl: string) {
   const key = `${IMAGE_PREFIX}${await hash(dataUrl)}`;
   if (persistedKeys.has(key)) return key;
-  await run("readwrite", (store) => store.put(dataUrl, key));
+  // IndexedDB is only a cache. Private browsing and restrictive browser policies
+  // can disable it, but durable R2 storage must still remain usable.
+  await run("readwrite", (store) => store.put(dataUrl, key)).catch(() => undefined);
 
   const response = await fetch(`/api/media/${encodeURIComponent(key)}`, {
     method: "PUT",
@@ -96,7 +98,7 @@ export async function loadImages(keys: string[]): Promise<Record<string, string>
 
   const entries = await Promise.all(
     unique.map(async (key) => {
-      const local = await run<string | undefined>("readonly", (store) => store.get(key));
+      const local = await run<string | undefined>("readonly", (store) => store.get(key)).catch(() => undefined);
       if (local) return [key, local] as const;
 
       const value = await loadRemoteImage(key);

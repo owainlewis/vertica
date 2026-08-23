@@ -15,6 +15,7 @@ export type R2ObjectBody = {
 export type R2Bucket = {
   get(key: string): Promise<R2ObjectBody | null>;
   put(key: string, value: ArrayBuffer, options?: { httpMetadata?: MediaHttpMetadata }): Promise<void>;
+  delete(key: string): Promise<void>;
 };
 
 export class InvalidMediaInput extends Error {
@@ -97,4 +98,9 @@ export async function putMedia(bucket: R2Bucket, key: string, dataUrl: string) {
 export function getMedia(bucket: R2Bucket, key: string) {
   if (!isMediaKey(key)) return Promise.resolve(null);
   return bucket.get(objectKey(key));
+}
+
+export function deleteMedia(bucket: R2Bucket, key: string) {
+  if (!isMediaKey(key)) return Promise.resolve();
+  return bucket.delete(objectKey(key));
 }

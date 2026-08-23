@@ -84,12 +84,21 @@ CREATE TABLE IF NOT EXISTS carousels (
   updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS carousels_updated_at ON carousels (updated_at DESC);
+CREATE TABLE IF NOT EXISTS media_gc (
+  key TEXT PRIMARY KEY,
+  not_before TEXT NOT NULL,
+  claim TEXT,
+  claim_until TEXT
+);
+CREATE INDEX IF NOT EXISTS media_gc_not_before ON media_gc (not_before);
 `;
 
 /** Columns added after the first release. SQLite has no "add column if not exists". */
 const ADDED_COLUMNS = [
   "ALTER TABLE carousels ADD COLUMN cover TEXT NOT NULL DEFAULT ''",
   "ALTER TABLE carousels ADD COLUMN version INTEGER NOT NULL DEFAULT 1",
+  "ALTER TABLE media_gc ADD COLUMN claim TEXT",
+  "ALTER TABLE media_gc ADD COLUMN claim_until TEXT",
 ];
 
 /** Populate the compact gallery payload for rows saved before `cover` existed. */
@@ -237,4 +246,95 @@ function changes(result: D1RunResult) {
 export async function deleteCarousel(db: D1Database, id: string) {
   await ensureSchema(db);
   await db.prepare("DELETE FROM carousels WHERE id = ?").bind(id).run();
+}
+
+/**
+ * Queue possible orphans instead of deleting immediately. The delay prevents a
+ * concurrent save that has just uploaded the same content hash from losing it.
+ */
+export async function queueMediaCleanup(db: D1Database, keys: string[]) {
+  if (!keys.length) return;
+  await ensureSchema(db);
+  const notBefore = new Date(Date.now() + 10 * 60_000).toISOString();
+  const now = new Date().toISOString();
+  await db.batch(keys.map((key) => db.prepare(
+    `INSERT INTO media_gc (key, not_before, claim, claim_until) VALUES (?, ?, NULL, NULL)
+     ON CONFLICT(key) DO UPDATE SET not_before = excluded.not_before, claim = NULL, claim_until = NULL
+     WHERE media_gc.claim IS NULL OR media_gc.claim_until <= ?`,
+  ).bind(key, notBefore, now)));
+}
+
+/** Waits for an active deletion lease, then gives the key a fresh grace period. */
+export async function protectMedia(db: D1Database, keys: string[]) {
+  const waited: string[] = [];
+  if (!keys.length) return waited;
+  await ensureSchema(db);
+  for (const key of keys) {
+    const deadline = Date.now() + 2_000;
+    let didWait = false;
+    while (true) {
+      const notBefore = new Date(Date.now() + 10 * 60_000).toISOString();
+      const now = new Date().toISOString();
+      const result = await db.prepare(
+        `INSERT INTO media_gc (key, not_before, claim, claim_until) VALUES (?, ?, NULL, NULL)
+         ON CONFLICT(key) DO UPDATE SET not_before = excluded.not_before, claim = NULL, claim_until = NULL
+         WHERE media_gc.claim IS NULL OR media_gc.claim_until <= ?`,
+      ).bind(key, notBefore, now).run();
+      if (changes(result) > 0) break;
+      didWait = true;
+      if (Date.now() >= deadline) throw new Error("That image is busy. Try saving again.");
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    if (didWait) waited.push(key);
+  }
+  return waited;
+}
+
+export async function listMediaCleanup(db: D1Database) {
+  await ensureSchema(db);
+  const { results } = await db
+    .prepare("SELECT key, not_before AS notBefore FROM media_gc WHERE not_before <= ? AND (claim IS NULL OR claim_until <= ?) ORDER BY not_before LIMIT 25")
+    .bind(new Date().toISOString(), new Date().toISOString())
+    .all<{ key: string; notBefore: string }>();
+  return results;
+}
+
+export async function claimMediaCleanup(db: D1Database, key: string, notBefore: string, claim: string) {
+  await ensureSchema(db);
+  const now = new Date().toISOString();
+  const claimUntil = new Date(Date.now() + 60_000).toISOString();
+  const result = await db.prepare(
+    `UPDATE media_gc SET claim = ?, claim_until = ?
+     WHERE key = ? AND not_before = ? AND not_before <= ?
+       AND (claim IS NULL OR claim_until <= ?)`,
+  ).bind(claim, claimUntil, key, notBefore, now, now).run();
+  return changes(result) > 0;
+}
+
+export async function isMediaReferenced(db: D1Database, key: string) {
+  await ensureSchema(db);
+  const row = await db
+    .prepare("SELECT 1 AS found FROM carousels WHERE instr(config, ?) > 0 LIMIT 1")
+    .bind(key)
+    .first<{ found: number }>();
+  return Boolean(row);
+}
+
+export async function finishMediaCleanup(db: D1Database, key: string, notBefore: string, claim: string) {
+  await ensureSchema(db);
+  await db.prepare("DELETE FROM media_gc WHERE key = ? AND not_before = ? AND claim = ?").bind(key, notBefore, claim).run();
+}
+
+export async function releaseMediaCleanup(db: D1Database, key: string, claim: string) {
+  await ensureSchema(db);
+  await db.prepare("UPDATE media_gc SET claim = NULL, claim_until = NULL WHERE key = ? AND claim = ?").bind(key, claim).run();
+}
+
+/** Keep referenced entries as future work so a concurrent removal cannot be lost. */
+export async function postponeMediaCleanup(db: D1Database, key: string, claim: string) {
+  await ensureSchema(db);
+  const notBefore = new Date(Date.now() + 10 * 60_000).toISOString();
+  await db.prepare(
+    "UPDATE media_gc SET not_before = ?, claim = NULL, claim_until = NULL WHERE key = ? AND claim = ?",
+  ).bind(notBefore, key, claim).run();
 }

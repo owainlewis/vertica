@@ -6,6 +6,8 @@ import { createSessionCookie, isAuthorised } from "../worker/auth.ts";
 /** Enough of D1 to exercise the handlers without a real database. */
 function fakeDb() {
   const rows = new Map();
+  const gc = new Map();
+  const hooks = {};
   const queries = [];
   const statement = (query) => {
     queries.push(query);
@@ -13,12 +15,27 @@ function fakeDb() {
     _values: [],
     bind(...values) { this._values = values; return this; },
     async all() {
+      if (/SELECT key, not_before AS notBefore FROM media_gc/.test(query)) {
+        const [now, claimNow] = this._values;
+        return {
+          results: [...gc]
+            .filter(([, item]) => item.notBefore <= now && (!item.claim || item.claimUntil <= claimNow))
+            .slice(0, 25)
+            .map(([key, item]) => ({ key, notBefore: item.notBefore })),
+        };
+      }
       if (/FROM carousels/.test(query)) {
         return { results: [...rows.values()].sort((a, b) => b.updated_at.localeCompare(a.updated_at)) };
       }
       return { results: [] };
     },
     async first() {
+      if (/SELECT 1 AS found FROM carousels/.test(query)) {
+        const key = this._values[0];
+        const found = [...rows.values()].some((row) => row.config.includes(key));
+        await hooks.afterReferenceCheck?.(key, found);
+        return found ? { found: 1 } : null;
+      }
       return rows.get(this._values[0]) ?? null;
     },
     async run() {
@@ -40,6 +57,42 @@ function fakeDb() {
             // Mirrors the json_valid guard in the D1 migration.
           }
         }
+        return { meta: { changes: 1 } };
+      }
+      if (/^INSERT INTO media_gc/.test(query)) {
+        const [key, notBefore, now] = this._values;
+        const item = gc.get(key);
+        if (!item || !item.claim || item.claimUntil <= now) {
+          gc.set(key, { notBefore, claim: null, claimUntil: null });
+          return { meta: { changes: 1 } };
+        }
+        return { meta: { changes: 0 } };
+      }
+      if (/^\s*UPDATE media_gc SET claim = \?, claim_until = \?/.test(query)) {
+        const [claim, claimUntil, key, notBefore, now, claimNow] = this._values;
+        const item = gc.get(key);
+        if (item?.notBefore === notBefore && notBefore <= now && (!item.claim || item.claimUntil <= claimNow)) {
+          gc.set(key, { ...item, claim, claimUntil });
+          return { meta: { changes: 1 } };
+        }
+        return { meta: { changes: 0 } };
+      }
+      if (/^UPDATE media_gc SET claim = NULL/.test(query)) {
+        const [key, claim] = this._values;
+        const item = gc.get(key);
+        if (item?.claim === claim) gc.set(key, { ...item, claim: null, claimUntil: null });
+        return { meta: { changes: 1 } };
+      }
+      if (/^UPDATE media_gc SET not_before = \?/.test(query)) {
+        const [notBefore, key, claim] = this._values;
+        const item = gc.get(key);
+        if (item?.claim === claim) gc.set(key, { notBefore, claim: null, claimUntil: null });
+        return { meta: { changes: 1 } };
+      }
+      if (/^DELETE FROM media_gc/.test(query)) {
+        const [key, notBefore, claim] = this._values;
+        const item = gc.get(key);
+        if (item?.notBefore === notBefore && item.claim === claim) gc.delete(key);
         return { meta: { changes: 1 } };
       }
       if (/^INSERT INTO carousels/.test(query)) {
@@ -70,7 +123,15 @@ function fakeDb() {
     });
   };
 
-  return { rows, queries, prepare: statement, batch: async () => {}, exec: async () => {} };
+  return {
+    rows,
+    gc,
+    hooks,
+    queries,
+    prepare: statement,
+    batch: async (statements) => Promise.all(statements.map((item) => item.run())),
+    exec: async () => {},
+  };
 }
 
 function fakeMedia() {
@@ -85,7 +146,15 @@ function fakeMedia() {
       if (!object) return null;
       return { body: new Response(object.bytes).body, httpMetadata: object.metadata };
     },
+    async delete(key) {
+      objects.delete(key);
+    },
   };
+}
+
+function matureGc(db, key) {
+  const item = db.gc.get(key) ?? { claim: null, claimUntil: null };
+  db.gc.set(key, { ...item, notBefore: "2000-01-01T00:00:00.000Z" });
 }
 
 const config = JSON.stringify({
@@ -189,6 +258,174 @@ test("persists image bytes through the media API", async () => {
 
   const notConfigured = await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(key)}`), { DB: fakeDb() });
   assert.equal(notConfigured.status, 503);
+});
+
+test("reclaims unreferenced media without deleting shared images", async () => {
+  const media = fakeMedia();
+  const env = { DB: fakeDb(), MEDIA: media };
+  const key = "img:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(key)}`, {
+    method: "PUT",
+    body: "data:image/png;base64,AQID",
+  }), env);
+  assert.ok(env.DB.gc.get(key).notBefore > new Date().toISOString(), "every upload starts an abandonment grace period");
+  matureGc(env.DB, key);
+  await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(key)}`, {
+    method: "PUT",
+    body: "data:image/png;base64,AQID",
+  }), env);
+  await handleApi(new Request("http://localhost/api/carousels"), env);
+  assert.equal(media.objects.size, 1, "re-uploading a matured hash refreshes it before collection");
+
+  const withImage = JSON.stringify({
+    ...JSON.parse(config),
+    slides: [{ layout: "cover", title: "Shared", background: key }],
+  });
+  const first = (await (await handleApi(post({ config: withImage }), env)).json()).carousel;
+  const second = (await (await handleApi(post({ config: withImage }), env)).json()).carousel;
+
+  const withoutImage = JSON.stringify({
+    ...JSON.parse(config),
+    slides: [{ layout: "cover", title: "No image" }],
+  });
+  await handleApi(post({ config: withoutImage, version: first.version }, `/api/carousels/${first.id}`, "PUT"), env);
+  matureGc(env.DB, key);
+  await handleApi(new Request("http://localhost/api/carousels"), env);
+  assert.equal(media.objects.size, 1, "another carousel still references the content hash");
+
+  await handleApi(new Request(`http://localhost/api/carousels/${second.id}`, { method: "DELETE" }), env);
+  matureGc(env.DB, key);
+  await handleApi(new Request("http://localhost/api/carousels"), env);
+  assert.equal(media.objects.size, 0, "the last removed reference lets the queued object be reclaimed");
+
+  const failedKey = "img:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+  await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(failedKey)}`, {
+    method: "PUT",
+    body: "data:image/png;base64,BAUG",
+  }), env);
+  const failedConfig = JSON.stringify({
+    ...JSON.parse(config),
+    slides: [{ layout: "cover", title: "Stale save", background: failedKey }],
+  });
+  const stale = await handleApi(post({ config: failedConfig, version: 999 }, `/api/carousels/${first.id}`, "PUT"), env);
+  assert.equal(stale.status, 409);
+  matureGc(env.DB, failedKey);
+  await handleApi(new Request("http://localhost/api/carousels"), env);
+  assert.equal(media.objects.size, 0, "a failed save cannot strand its newly uploaded image");
+
+  const abandonedKey = "img:cccccccccccccccccccccccccccccccc";
+  await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(abandonedKey)}`, {
+    method: "PUT",
+    body: "data:image/png;base64,BwgJ",
+  }), env);
+  matureGc(env.DB, abandonedKey);
+  await handleApi(new Request("http://localhost/api/carousels"), env);
+  assert.equal(media.objects.size, 0, "an upload abandoned before any config save is eventually reclaimed");
+
+  const racingKey = "img:dddddddddddddddddddddddddddddddd";
+  await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(racingKey)}`, {
+    method: "PUT",
+    body: "data:image/png;base64,CgsM",
+  }), env);
+  matureGc(env.DB, racingKey);
+
+  let releaseDelete;
+  let reportDeleteStarted;
+  const deleteStarted = new Promise((resolve) => { reportDeleteStarted = resolve; });
+  const deleteGate = new Promise((resolve) => { releaseDelete = resolve; });
+  const realDelete = media.delete.bind(media);
+  media.delete = async (objectKey) => {
+    if (objectKey.endsWith(racingKey.slice(4))) {
+      reportDeleteStarted();
+      await deleteGate;
+    }
+    await realDelete(objectKey);
+  };
+
+  const collecting = handleApi(new Request("http://localhost/api/carousels"), env);
+  await deleteStarted;
+  let uploadFinished = false;
+  const reuploading = handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(racingKey)}`, {
+    method: "PUT",
+    body: "data:image/png;base64,CgsM",
+  }), env).then((response) => { uploadFinished = true; return response; });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(uploadFinished, false, "an upload waits while the collector owns the deletion lease");
+  releaseDelete();
+  await Promise.all([collecting, reuploading]);
+  assert.ok(media.objects.has(`images/${racingKey.slice(4)}`), "the waiting upload writes after deletion completes");
+
+  const adoptionKey = "img:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+  await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(adoptionKey)}`, {
+    method: "PUT",
+    body: "data:image/png;base64,DQ4P",
+  }), env);
+  matureGc(env.DB, adoptionKey);
+
+  let releaseAdoptionDelete;
+  let reportAdoptionDelete;
+  const adoptionDeleteStarted = new Promise((resolve) => { reportAdoptionDelete = resolve; });
+  const adoptionDeleteGate = new Promise((resolve) => { releaseAdoptionDelete = resolve; });
+  media.delete = async (objectKey) => {
+    if (objectKey.endsWith(adoptionKey.slice(4))) {
+      reportAdoptionDelete();
+      await adoptionDeleteGate;
+    }
+    await realDelete(objectKey);
+  };
+
+  const adoptionCollection = handleApi(new Request("http://localhost/api/carousels"), env);
+  await adoptionDeleteStarted;
+  const adoptionConfig = JSON.stringify({
+    ...JSON.parse(config),
+    slides: [{ layout: "cover", title: "Adopt while deleting", background: adoptionKey }],
+  });
+  let adoptionFinished = false;
+  const adopting = handleApi(post({ config: adoptionConfig }), env)
+    .then((response) => { adoptionFinished = true; return response; });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(adoptionFinished, false, "a config cannot adopt a key during its deletion lease");
+  releaseAdoptionDelete();
+  const [, adoptionResponse] = await Promise.all([adoptionCollection, adopting]);
+  assert.equal(adoptionResponse.status, 400);
+  assert.match((await adoptionResponse.json()).error, /image was removed/i);
+
+  const removalKey = "img:ffffffffffffffffffffffffffffffff";
+  await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(removalKey)}`, {
+    method: "PUT",
+    body: "data:image/png;base64,EBES",
+  }), env);
+  const removalConfig = JSON.stringify({
+    ...JSON.parse(config),
+    slides: [{ layout: "cover", title: "Remove during check", background: removalKey }],
+  });
+  const removalCarousel = (await (await handleApi(post({ config: removalConfig }), env)).json()).carousel;
+  matureGc(env.DB, removalKey);
+
+  let releaseReferenceCheck;
+  let reportReferenceCheck;
+  const referenceChecked = new Promise((resolve) => { reportReferenceCheck = resolve; });
+  const referenceGate = new Promise((resolve) => { releaseReferenceCheck = resolve; });
+  env.DB.hooks.afterReferenceCheck = async (key, found) => {
+    if (key === removalKey && found) {
+      reportReferenceCheck();
+      await referenceGate;
+    }
+  };
+  const referenceCollection = handleApi(new Request("http://localhost/api/carousels"), env);
+  await referenceChecked;
+  const removedDuringClaim = await handleApi(post({
+    config: withoutImage,
+    version: removalCarousel.version,
+  }, `/api/carousels/${removalCarousel.id}`, "PUT"), env);
+  assert.equal(removedDuringClaim.status, 200);
+  releaseReferenceCheck();
+  await referenceCollection;
+  delete env.DB.hooks.afterReferenceCheck;
+  assert.ok(env.DB.gc.has(removalKey), "a referenced claim is postponed when concurrent removal cannot queue");
+  matureGc(env.DB, removalKey);
+  await handleApi(new Request("http://localhost/api/carousels"), env);
+  assert.equal(media.objects.has(`images/${removalKey.slice(4)}`), false);
 });
 
 test("updating keeps the original creation time and bumps the version", async () => {
