@@ -117,8 +117,7 @@ export default function Dashboard({
   // Downloading needs the slides on the page, so the chosen deck is mounted
   // offscreen and rasterised once React has painted it.
   const [pending, setPending] = useState<{ config: CarouselConfig; title: string; kind: "pdf" | "zip" } | null>(null);
-  // Cover backgrounds live in the browser's image store, so the cards resolve them
-  // separately once the list arrives.
+  // Cover backgrounds are loaded from the durable media store once the list arrives.
   const [covers, setCovers] = useState<Record<string, string>>({});
   const [legacyScales, setLegacyScales] = useState<Record<string, ReturnType<typeof deckTypeScale> | null>>({});
 

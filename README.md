@@ -31,15 +31,16 @@ Carousels live in Cloudflare D1. The binding name is set by `"d1"` in
 503 instead of failing quietly.
 
 Background images do **not** go in the database. D1 caps a single value at 1MB, which
-a photograph exceeds, so images are held in the browser's IndexedDB keyed by content
-hash and the carousel row stores only those keys. `app/image-store.ts` is the seam to
-replace when the images move to cloud storage: reimplement `putImage` and
-`loadImages` and nothing else changes, because the rest of the app deals in keys.
+a photograph exceeds, so R2 stores the bytes and the carousel row stores only a
+content-hash key. IndexedDB is a local cache, and `app/image-store.ts` uploads and
+resolves the same key through `/api/media`, so a saved carousel can load its images in
+another browser. Existing browser-local images migrate to R2 the next time that
+browser opens and saves the carousel. The logical R2 binding is `MEDIA` in
+`.openai/hosting.json`. Uploads accept PNG, JPEG, GIF, AVIF, and WebP images.
 
-The practical limit today is that images are per-browser. Open a carousel on another
-machine and the text and layout arrive but the backgrounds do not. A key that cannot
-be resolved is kept rather than dropped, so editing a deck in a second browser hides
-the images there without erasing them from the saved carousel.
+If an image cannot be resolved, the key is kept rather than dropped. This protects the
+saved carousel while making the missing media visible instead of silently overwriting
+the deck without its background.
 
 Every write carries the version the client last read, and the server refuses one built
 on a stale version with a 409 rather than overwriting. Two tabs open on the same deck

@@ -150,6 +150,10 @@ test("rejects unsafe background URLs and oversized carousels", () => {
     /unsupported background/,
   );
   assert.throws(
+    () => parseCarouselConfig(JSON.stringify({ slides: [{ title: "Slide", background: "data:image/svg+xml;base64,PHN2Zz4=" }] })),
+    /unsupported background/,
+  );
+  assert.throws(
     () => parseCarouselConfig(JSON.stringify({ slides: Array.from({ length: 21 }, (_, index) => ({ title: `Slide ${index}` })) })),
     /20 slides or fewer/,
   );

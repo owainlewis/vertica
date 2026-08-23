@@ -49,6 +49,21 @@ function fakeDb() {
   return { rows, prepare: statement, batch: async () => {}, exec: async () => {} };
 }
 
+function fakeMedia() {
+  const objects = new Map();
+  return {
+    objects,
+    async put(key, bytes, options) {
+      objects.set(key, { bytes: new Uint8Array(bytes), metadata: options?.httpMetadata ?? {} });
+    },
+    async get(key) {
+      const object = objects.get(key);
+      if (!object) return null;
+      return { body: new Response(object.bytes).body, httpMetadata: object.metadata };
+    },
+  };
+}
+
 const config = JSON.stringify({
   title: "AI code review",
   author: "OWAIN LEWIS",
@@ -78,6 +93,41 @@ test("saves a carousel and lists it back with a summary", async () => {
   assert.equal(carousels[0].id, carousel.id);
   // The list view must not ship every slide of every deck to the dashboard.
   assert.equal(carousels[0].config, undefined);
+});
+
+test("persists image bytes through the media API", async () => {
+  const media = fakeMedia();
+  const env = { DB: fakeDb(), MEDIA: media };
+  const key = "img:0123456789abcdef0123456789abcdef";
+  const upload = await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(key)}`, {
+    method: "PUT",
+    body: "data:image/png;base64,AQID",
+    headers: { "content-type": "text/plain" },
+  }), env);
+
+  assert.equal(upload.status, 200);
+  assert.equal(media.objects.size, 1);
+
+  const download = await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(key)}`), env);
+  assert.equal(download.status, 200);
+  assert.equal(download.headers.get("content-type"), "image/png");
+  assert.deepEqual([...new Uint8Array(await download.arrayBuffer())], [1, 2, 3]);
+
+  const invalid = await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(key)}`, {
+    method: "PUT",
+    body: "data:text/plain;base64,AQID",
+  }), env);
+  assert.equal(invalid.status, 400);
+
+  const oversized = await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(key)}`, {
+    method: "PUT",
+    body: "data:image/png;base64,AQID",
+    headers: { "content-length": "20000000" },
+  }), env);
+  assert.equal(oversized.status, 400);
+
+  const notConfigured = await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(key)}`), { DB: fakeDb() });
+  assert.equal(notConfigured.status, 503);
 });
 
 test("updating keeps the original creation time and bumps the version", async () => {

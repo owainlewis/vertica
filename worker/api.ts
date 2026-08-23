@@ -2,6 +2,7 @@
 import { deckTypeScale, type CarouselSlide } from "../app/carousel.ts";
 import { clearSessionCookie, createSessionCookie, isAuthorised, isSecureRequest, passwordMatches } from "./auth.ts";
 import { ConflictError, deleteCarousel, getCarousel, listCarousels, MissingError, saveCarousel, type D1Database } from "./db.ts";
+import { getMedia, InvalidMediaInput, isMediaKey, putMedia, readMediaRequest, type R2Bucket } from "./media.ts";
 
 /** Thrown for input the caller can fix. Anything else is ours and stays generic. */
 class InvalidInput extends Error {}
@@ -9,6 +10,7 @@ class InvalidInput extends Error {}
 export interface ApiEnv {
   DB?: D1Database;
   APP_SECRET?: string;
+  MEDIA?: R2Bucket;
 }
 
 function json(body: unknown, init: ResponseInit = {}) {
@@ -112,6 +114,34 @@ export async function handleApi(request: Request, env: ApiEnv): Promise<Response
   }
 
   try {
+    const mediaMatch = path.match(/^\/media\/(.+)$/);
+    if (mediaMatch) {
+      let key = "";
+      try {
+        key = decodeURIComponent(mediaMatch[1]);
+      } catch {
+        return json({ error: "That image key is invalid." }, { status: 400 });
+      }
+      if (!isMediaKey(key)) return json({ error: "That image key is invalid." }, { status: 400 });
+      if (!env.MEDIA) return json({ error: "Media persistence is not configured." }, { status: 503 });
+
+      if (request.method === "PUT") {
+        await putMedia(env.MEDIA, key, await readMediaRequest(request));
+        return json({ ok: true, key });
+      }
+      if (request.method === "GET") {
+        const object = await getMedia(env.MEDIA, key);
+        if (!object) return json({ error: "That image is gone." }, { status: 404 });
+        return new Response(object.body, {
+          headers: {
+            "cache-control": object.httpMetadata?.cacheControl ?? "public, max-age=31536000, immutable",
+            "content-type": object.httpMetadata?.contentType ?? "application/octet-stream",
+          },
+        });
+      }
+      return json({ error: "Method not allowed." }, { status: 405 });
+    }
+
     if (path === "/carousels" && request.method === "GET") {
       return json({ carousels: await listCarousels(db) });
     }
@@ -148,6 +178,7 @@ export async function handleApi(request: Request, env: ApiEnv): Promise<Response
     // and the only fix is to reload rather than to correct the payload.
     if (error instanceof ConflictError) return json({ error: error.message }, { status: 409 });
     if (error instanceof MissingError) return json({ error: error.message }, { status: 404 });
+    if (error instanceof InvalidMediaInput) return json({ error: error.message }, { status: 400 });
     if (error instanceof InvalidInput) return json({ error: error.message }, { status: 400 });
     // Anything else is a fault on our side. Its message can carry database internals,
     // so it is logged rather than returned.

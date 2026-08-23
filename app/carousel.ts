@@ -1,3 +1,5 @@
+import { isSupportedImageDataUrl } from "./image-formats.ts";
+
 /** Colour and ground only. It says nothing about where the text sits. */
 export type TemplateId = "dark" | "light";
 type LegacyTemplateId = "cinematic" | "midnight" | "paper";
@@ -208,7 +210,7 @@ export function parseCarouselConfig(input: string): CarouselConfig {
     // A background is either freshly uploaded bytes or a key into the image store.
     // Remote URLs stay rejected so export never depends on a third-party fetch.
     const background = cleanText(slide.background);
-    if (background && !background.startsWith("data:image/") && !background.startsWith("img:")) {
+    if (background && !isSupportedImageDataUrl(background) && !background.startsWith("img:")) {
       throw new Error(`Slide ${index + 1} has an unsupported background.`);
     }
     const luma = readLuma(slide.luma);

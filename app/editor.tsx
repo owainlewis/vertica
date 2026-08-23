@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { saveCarousel, StaleSaveError, type CarouselSummary } from "./api-client";
+import { SUPPORTED_IMAGE_ACCEPT, SUPPORTED_IMAGE_MIME_TYPES } from "./image-formats";
 import { isImageKey } from "./image-store";
 import { measureDataUrl } from "./scrim";
 import {
@@ -60,9 +61,10 @@ const templateNames: Record<TemplateId, { name: string; note: string }> = {
 };
 
 function readImages(files: FileList) {
+  const supportedTypes = new Set<string>(SUPPORTED_IMAGE_MIME_TYPES);
   return Promise.all(
     Array.from(files)
-      .filter((file) => file.type.startsWith("image/"))
+      .filter((file) => supportedTypes.has(file.type.toLowerCase()))
       .map(
         (file) =>
           new Promise<string>((resolve, reject) => {
@@ -448,7 +450,7 @@ export default function Editor({
           </div>
           <div className="rail-import">
             <span>Backgrounds</span>
-            <label className="upload-tile"><ImagePlus size={16} /><span>Upload images</span><input type="file" accept="image/*" multiple onChange={uploadBackgrounds} /></label>
+            <label className="upload-tile"><ImagePlus size={16} /><span>Upload images</span><input type="file" accept={SUPPORTED_IMAGE_ACCEPT} multiple onChange={uploadBackgrounds} /></label>
             {backgrounds.length > 0 && (
               <div className="asset-grid">
                 {backgrounds.map((background, index) => (
@@ -561,11 +563,11 @@ export default function Editor({
               <label className="field-label" htmlFor="author">Footer name</label>
               <input id="author" maxLength={40} value={config.author} onChange={(event) => commit({ ...config, author: event.target.value.toUpperCase() }, "author")} />
               <span className="field-label">Slide background</span>
-              <label className="wide-upload"><Upload size={15} /> {selectedSlide.background ? "Replace image" : "Upload an image"}<input type="file" accept="image/*" onChange={(event) => uploadBackgrounds(event, true)} /></label>
+              <label className="wide-upload"><Upload size={15} /> {selectedSlide.background ? "Replace image" : "Upload an image"}<input type="file" accept={SUPPORTED_IMAGE_ACCEPT} onChange={(event) => uploadBackgrounds(event, true)} /></label>
               {isImageKey(selectedSlide.background) && (
                 <p className="field-hint warning">
-                  This slide has an image that was uploaded in a different browser, so it cannot be shown or exported here.
-                  It is kept in the saved carousel, so opening the deck in the original browser will bring it back. Uploading a replacement here is safe.
+                  This slide has an image that is not available in this browser, so it cannot be shown or exported here.
+                  It is kept in the saved carousel. If it predates media persistence, open the deck in the original browser and save once to migrate it, or upload a replacement here.
                 </p>
               )}
               {selectedSlide.background && <button type="button" className="text-button" onClick={() => updateSlide({ background: undefined, luma: undefined })}>Remove image</button>}

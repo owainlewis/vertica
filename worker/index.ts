@@ -3,10 +3,12 @@ import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } fr
 import handler from "vinext/server/app-router-entry";
 import { handleApi, type ApiEnv } from "./api.ts";
 import type { D1Database } from "./db.ts";
+import type { R2Bucket } from "./media.ts";
 
 interface Env extends ApiEnv {
   DB?: D1Database;
   APP_SECRET?: string;
+  MEDIA?: R2Bucket;
   ASSETS: {
     fetch(request: Request): Promise<Response>;
   };
