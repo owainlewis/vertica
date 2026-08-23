@@ -227,6 +227,15 @@ test("sets the whole deck at one size, chosen so the longest copy fits", () => {
   assert.ok(uniform.title > scale.title, "a deck of short titles should still be set large");
 });
 
+test("does not size visible body copy from a hidden cover body", () => {
+  const scale = deckTypeScale([
+    { layout: "cover", title: "Cover", body: "x".repeat(250) },
+    { layout: "content", title: "Visible copy", body: "Brief." },
+  ]);
+
+  assert.equal(scale.body, bodySize("Brief."));
+});
+
 test("a long cover title sets one uniform title scale for the whole deck", () => {
   const content = [
     { layout: "content", title: "CodeRabbit", body: "Short." },

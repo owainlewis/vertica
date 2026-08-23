@@ -445,6 +445,9 @@ export function deckTypeScale(slides: CarouselSlide[]) {
   const lines = Math.max(...measured.map((slide) => estimateLines(slide.title, title)));
   const tracking = titleTracking(title);
   const leading = titleLeading(title, lines);
+  const bodyMeasured = measured.some((slide) => slide.layout !== "cover")
+    ? measured.filter((slide) => slide.layout !== "cover")
+    : measured;
 
   return {
     title,
@@ -453,7 +456,7 @@ export function deckTypeScale(slides: CarouselSlide[]) {
     cover: title,
     coverTracking: tracking,
     coverLeading: leading,
-    body: Math.min(...measured.map((slide) => bodySize(slide.body))),
+    body: Math.min(...bodyMeasured.map((slide) => bodySize(slide.body))),
   };
 }
 
