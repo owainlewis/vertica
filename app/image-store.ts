@@ -9,6 +9,10 @@
 const DB_NAME = "vertica-images";
 const STORE = "images";
 export const IMAGE_PREFIX = "img:";
+// A data URL can re-enter putImage on every autosave because the editor resolves
+// stored keys for painting. One successful PUT per key is enough for this session;
+// cache-only legacy images still get that first PUT so they migrate to durable media.
+const persistedKeys = new Set<string>();
 
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -40,6 +44,7 @@ async function hash(value: string) {
 /** Stores a data URL and returns the key to keep in the carousel config. */
 export async function putImage(dataUrl: string) {
   const key = `${IMAGE_PREFIX}${await hash(dataUrl)}`;
+  if (persistedKeys.has(key)) return key;
   await run("readwrite", (store) => store.put(dataUrl, key));
 
   const response = await fetch(`/api/media/${encodeURIComponent(key)}`, {
@@ -54,6 +59,7 @@ export async function putImage(dataUrl: string) {
     const body = await response.json().catch(() => ({}));
     throw new Error((body as { error?: string }).error ?? "Could not persist that image.");
   }
+  persistedKeys.add(key);
   return key;
 }
 
@@ -74,6 +80,7 @@ async function loadRemoteImage(key: string) {
   try {
     const response = await fetch(`/api/media/${encodeURIComponent(key)}`);
     if (!response.ok) return undefined;
+    persistedKeys.add(key);
     return await blobToDataUrl(await response.blob());
   } catch {
     // A missing optional R2 binding or a temporarily unavailable media request

@@ -428,7 +428,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .topbar { position: sticky; top: 0; grid-template-columns: 1fr auto; height: 60px; padding: 0 13px; }
   .brand-back > span:last-child { display: none; }
   .brand-back { gap: 6px; }
-  .project-name, .generate-button { display: none; }
+  .project-name { display: none; }
   .workspace { display: flex; flex-direction: column; overflow: visible; }
   .canvas-area { order: 1; min-height: calc(100vh - 60px); padding: 18px 14px; }
   .canvas-toolbar, .preview-frame { width: min(88vw, 480px); }
@@ -437,10 +437,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .slide-list { grid-template-columns: repeat(4, minmax(125px, 1fr)); overflow-x: auto; padding-bottom: 6px; }
   .rail-import { margin-top: 14px; }
   .slide-actions { flex-wrap: wrap; justify-content: center; }
-  .generate-button { display: inline-flex; }
   .topbar-actions { gap: 4px; }
   .topbar-actions button { padding-inline: 9px; }
-  .topbar-actions .save-state, .topbar-actions .generate-button, .topbar-actions .export-images-button { display: none; }
+  .topbar-actions .save-state, .topbar-actions .export-images-button { display: none; }
+  .topbar-actions .generate-button { display: inline-flex; }
+  .topbar-actions .generate-button span { display: none; }
   .dialog-backdrop { align-items: end; padding: 0; }
   .composer-dialog { border-radius: 14px 14px 0 0; }
 }

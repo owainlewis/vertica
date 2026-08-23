@@ -451,7 +451,7 @@ export default function Editor({
           <span className="save-state">{SAVE_LABEL[saveState]}</span>
           <button className="secondary-button icon-button" type="button" onClick={() => step("past")} disabled={depth.past === 0} title="Undo (⌘Z)" aria-label="Undo"><Undo2 size={15} /></button>
           <button className="secondary-button icon-button" type="button" onClick={() => step("future")} disabled={depth.future === 0} title="Redo (⇧⌘Z)" aria-label="Redo"><Redo2 size={15} /></button>
-          <button className="secondary-button generate-button" type="button" onClick={() => openComposer("text")}><Sparkles size={15} /> Generate</button>
+          <button className="secondary-button generate-button" type="button" onClick={() => openComposer("text")} aria-label="Generate carousel"><Sparkles size={15} /> <span>Generate</span></button>
           <button className="secondary-button export-images-button" type="button" onClick={() => runExport("zip")} disabled={Boolean(exporting)} title="Numbered JPEGs, zipped, for Instagram">
             {exporting === "zip" ? <LoaderCircle className="spin" size={15} /> : <Images size={15} />}
             {exporting === "zip" ? "Zipping…" : "Images"}

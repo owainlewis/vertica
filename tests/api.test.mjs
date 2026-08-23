@@ -114,6 +114,18 @@ test("persists image bytes through the media API", async () => {
   assert.equal(download.headers.get("cache-control"), "private, max-age=31536000, immutable");
   assert.deepEqual([...new Uint8Array(await download.arrayBuffer())], [1, 2, 3]);
 
+  // New pickers exclude SVG, but an older carousel may still need to persist one
+  // during migration. Keeping that storage path open prevents its next edit failing.
+  const legacySvgKey = "img:fedcba9876543210fedcba9876543210";
+  const legacySvg = await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(legacySvgKey)}`, {
+    method: "PUT",
+    body: "data:image/svg+xml;base64,PHN2Zy8+",
+    headers: { "content-type": "text/plain" },
+  }), env);
+  assert.equal(legacySvg.status, 200);
+  const legacySvgDownload = await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(legacySvgKey)}`), env);
+  assert.equal(legacySvgDownload.headers.get("content-type"), "image/svg+xml");
+
   const invalid = await handleApi(new Request(`http://localhost/api/media/${encodeURIComponent(key)}`, {
     method: "PUT",
     body: "data:text/plain;base64,AQID",

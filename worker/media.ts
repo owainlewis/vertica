@@ -27,8 +27,12 @@ export class InvalidMediaInput extends Error {
 const MAX_MEDIA_BYTES = 12 * 1024 * 1024;
 const MAX_DATA_URL_BYTES = 4 * Math.ceil(MAX_MEDIA_BYTES / 3) + 64;
 const MEDIA_KEY = /^img:[a-f0-9]{32}$/;
+// SVG is accepted only at this storage boundary so carousels created before the
+// upload picker was tightened remain saveable. New uploads still use the raster-only
+// list in image-formats.ts.
+const STORED_MEDIA_MIME_TYPES = [...SUPPORTED_IMAGE_MIME_TYPES, "image/svg+xml"];
 const DATA_URL = new RegExp(
-  `^data:(${SUPPORTED_IMAGE_MIME_TYPES.map((type) => type.replace("/", "\\/")).join("|")});base64,([a-z0-9+/=\\s]+)$`,
+  `^data:(${STORED_MEDIA_MIME_TYPES.map((type) => type.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")});base64,([a-z0-9+/=\\s]+)$`,
   "i",
 );
 
@@ -71,7 +75,7 @@ function objectKey(key: string) {
 export async function putMedia(bucket: R2Bucket, key: string, dataUrl: string) {
   if (!isMediaKey(key)) throw new InvalidMediaInput("That image key is invalid.");
   const match = dataUrl.match(DATA_URL);
-  if (!match) throw new InvalidMediaInput("Only PNG, JPEG, GIF, AVIF, and WebP images can be stored.");
+  if (!match) throw new InvalidMediaInput("Only PNG, JPEG, GIF, AVIF, WebP, and legacy SVG images can be stored.");
 
   let binary: string;
   try {
