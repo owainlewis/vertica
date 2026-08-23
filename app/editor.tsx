@@ -546,7 +546,7 @@ export default function Editor({
                   </button>
                 ))}
               </div>
-              {config.slides.some((slide) => slide.template && slide.template !== activeTemplate) ? (
+              {config.slides.some((slide) => slideTemplate(slide, config) !== activeTemplate) ? (
                 <p className="field-hint">
                   Other slides use a different style.{" "}
                   <button type="button" className="text-button subtle inline" onClick={() => commit({ ...config, template: activeTemplate, slides: config.slides.map((slide) => ({ ...slide, template: undefined })) })}>
