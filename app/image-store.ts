@@ -13,6 +13,7 @@ export const IMAGE_PREFIX = "img:";
 // stored keys for painting. One successful PUT per key is enough for this session;
 // cache-only legacy images still get that first PUT so they migrate to durable media.
 const persistedKeys = new Set<string>();
+const pendingPuts = new Map<string, Promise<string>>();
 
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -45,24 +46,36 @@ async function hash(value: string) {
 export async function putImage(dataUrl: string) {
   const key = `${IMAGE_PREFIX}${await hash(dataUrl)}`;
   if (persistedKeys.has(key)) return key;
-  // IndexedDB is only a cache. Private browsing and restrictive browser policies
-  // can disable it, but durable R2 storage must still remain usable.
-  await run("readwrite", (store) => store.put(dataUrl, key)).catch(() => undefined);
+  const existing = pendingPuts.get(key);
+  if (existing) return existing;
 
-  const response = await fetch(`/api/media/${encodeURIComponent(key)}`, {
-    method: "PUT",
-    headers: { "content-type": "text/plain" },
-    body: dataUrl,
-  });
-  // Do not report a carousel as saved when its bytes never reached durable storage.
-  // A missing R2 binding is a configuration error, not permission to fall back to
-  // browser-only media again.
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    throw new Error((body as { error?: string }).error ?? "Could not persist that image.");
+  const pending = (async () => {
+    // IndexedDB is only a cache. Private browsing and restrictive browser policies
+    // can disable it, but durable R2 storage must still remain usable.
+    await run("readwrite", (store) => store.put(dataUrl, key)).catch(() => undefined);
+
+    const response = await fetch(`/api/media/${encodeURIComponent(key)}`, {
+      method: "PUT",
+      headers: { "content-type": "text/plain" },
+      body: dataUrl,
+    });
+    // Do not report a carousel as saved when its bytes never reached durable storage.
+    // A missing R2 binding is a configuration error, not permission to fall back to
+    // browser-only media again.
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error((body as { error?: string }).error ?? "Could not persist that image.");
+    }
+    persistedKeys.add(key);
+    return key;
+  })();
+
+  pendingPuts.set(key, pending);
+  try {
+    return await pending;
+  } finally {
+    if (pendingPuts.get(key) === pending) pendingPuts.delete(key);
   }
-  persistedKeys.add(key);
-  return key;
 }
 
 export function isImageKey(value: string | undefined): value is string {

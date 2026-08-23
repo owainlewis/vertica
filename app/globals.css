@@ -214,7 +214,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .slide-plate p { max-width: 100%; color: rgb(20 20 15 / .78); }
 /* Cream on dark needed a shadow to survive bright patches. Ink on cream does not, and
    leaving it on would smear the type. */
-.has-plate .slide-content { justify-content: center; }
+.has-plate .slide-content { justify-content: center; padding: 9% 5.5% 8%; }
 
 .slide-meta { position: relative; z-index: 1; display: flex; justify-content: space-between; gap: 8%; padding: 0 9.5% 7%; color: rgb(246 241 231 / .42); font-family: var(--font-sans); font-size: 1.4cqw; font-weight: 500; line-height: 1; letter-spacing: .14em; text-transform: uppercase; }
 .slide-meta span { min-width: 0; overflow-wrap: anywhere; }
@@ -309,8 +309,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .slide-callout p { max-width: 100%; margin: .15em 0 0; color: var(--slide-fg); }
 .slide-callout p + p { margin-top: .85em; }
 .carousel-slide .slide-plate {
-  max-width: 82%;
-  padding: 7.5% 7%;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  padding: 4.5% 5%;
   border: 1px solid var(--slide-line);
   border-radius: .65cqw;
   background: var(--slide-surface);
