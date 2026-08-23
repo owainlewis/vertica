@@ -175,7 +175,8 @@ FROM carousels,
   ) AS slide
 WHERE json_type(slide.value, '$.background') = 'text'
   AND length(json_extract(slide.value, '$.background')) = 36
-  AND json_extract(slide.value, '$.background') GLOB 'img:[0-9a-f]*'
+  AND substr(json_extract(slide.value, '$.background'), 1, 4) = 'img:'
+  AND substr(json_extract(slide.value, '$.background'), 5) NOT GLOB '*[^0-9a-f]*'
 GROUP BY background
 `;
 

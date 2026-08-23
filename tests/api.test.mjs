@@ -231,6 +231,7 @@ function post(body, path = "/api/carousels", method = "POST") {
 test("saves a carousel and lists it back with a summary", async () => {
   const env = { DB: fakeDb() };
   const legacyImage = "img:1234567890abcdef1234567890abcdef";
+  const malformedLegacyImage = "img:0zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz";
   env.DB.rows.set("legacy", {
     id: "legacy",
     title: "Legacy carousel",
@@ -242,7 +243,10 @@ test("saves a carousel and lists it back with a summary", async () => {
     config: JSON.stringify({
       title: "Legacy carousel",
       mark: "AI ENGINEER",
-      slides: [{ layout: "cover", title: "Legacy cover", body: "Preserve this copy", plate: true, background: legacyImage }],
+      slides: [
+        { layout: "cover", title: "Legacy cover", body: "Preserve this copy", plate: true, background: legacyImage },
+        { layout: "content", title: "Broken legacy key", background: malformedLegacyImage },
+      ],
     }),
     version: 1,
     created_at: "2025-01-01T00:00:00.000Z",
@@ -267,6 +271,7 @@ test("saves a carousel and lists it back with a summary", async () => {
   assert.equal(legacyCover.slide.plate, true);
   assert.equal(legacyCover.mark, "AI ENGINEER");
   assert.equal(env.DB.assets.get(legacyImage)?.name, "Imported image", "saved backgrounds are backfilled into the library");
+  assert.equal(env.DB.assets.has(malformedLegacyImage), false, "malformed legacy keys are not exposed as broken media items");
   // The list view must not ship every slide of every deck to the dashboard.
   assert.equal(carousels[0].config, undefined);
   const listQuery = env.DB.queries.find((query) => /^SELECT id,/.test(query));
