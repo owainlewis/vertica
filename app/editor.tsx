@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { saveCarousel, StaleSaveError, type CarouselSummary } from "./api-client";
+import { SUPPORTED_IMAGE_ACCEPT, SUPPORTED_IMAGE_MIME_TYPES } from "./image-formats";
 import { isImageKey } from "./image-store";
 import { measureDataUrl } from "./scrim";
 import {
@@ -55,24 +56,51 @@ const SAVE_LABEL = {
 } as const;
 
 const templateNames: Record<TemplateId, { name: string; note: string }> = {
-  cinematic: { name: "Cinematic", note: "Your shot, dimmed" },
-  midnight: { name: "Midnight", note: "Deep green, no photo" },
-  paper: { name: "Paper", note: "Ink on off-white" },
+  dark: { name: "Dark", note: "Near-black with blue-grey type" },
+  light: { name: "Light", note: "Soft white with blue-grey ink" },
 };
 
+const MAX_BACKGROUND_EDGE = 2160;
+const BACKGROUND_QUALITY = 0.86;
+
+function blobToDataUrl(blob: Blob, fileName: string) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error(`Could not read ${fileName}.`));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function prepareImage(file: File) {
+  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  try {
+    const scale = Math.min(1, MAX_BACKGROUND_EDGE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error(`Could not prepare ${file.name}.`);
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (result) => result ? resolve(result) : reject(new Error(`Could not prepare ${file.name}.`)),
+        "image/webp",
+        BACKGROUND_QUALITY,
+      );
+    });
+    return blobToDataUrl(blob, file.name);
+  } finally {
+    bitmap.close();
+  }
+}
+
 function readImages(files: FileList) {
+  const supportedTypes = new Set<string>(SUPPORTED_IMAGE_MIME_TYPES);
   return Promise.all(
     Array.from(files)
-      .filter((file) => file.type.startsWith("image/"))
-      .map(
-        (file) =>
-          new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(String(reader.result));
-            reader.onerror = () => reject(new Error(`Could not read ${file.name}.`));
-            reader.readAsDataURL(file);
-          }),
-      ),
+      .filter((file) => supportedTypes.has(file.type.toLowerCase()))
+      .map(prepareImage),
   );
 }
 
@@ -423,8 +451,8 @@ export default function Editor({
           <span className="save-state">{SAVE_LABEL[saveState]}</span>
           <button className="secondary-button icon-button" type="button" onClick={() => step("past")} disabled={depth.past === 0} title="Undo (⌘Z)" aria-label="Undo"><Undo2 size={15} /></button>
           <button className="secondary-button icon-button" type="button" onClick={() => step("future")} disabled={depth.future === 0} title="Redo (⇧⌘Z)" aria-label="Redo"><Redo2 size={15} /></button>
-          <button className="secondary-button generate-button" type="button" onClick={() => openComposer("text")}><Sparkles size={15} /> Generate</button>
-          <button className="secondary-button" type="button" onClick={() => runExport("zip")} disabled={Boolean(exporting)} title="Numbered JPEGs, zipped, for Instagram">
+          <button className="secondary-button generate-button" type="button" onClick={() => openComposer("text")} aria-label="Generate carousel"><Sparkles size={15} /> <span>Generate</span></button>
+          <button className="secondary-button export-images-button" type="button" onClick={() => runExport("zip")} disabled={Boolean(exporting)} title="Numbered JPEGs, zipped, for Instagram">
             {exporting === "zip" ? <LoaderCircle className="spin" size={15} /> : <Images size={15} />}
             {exporting === "zip" ? "Zipping…" : "Images"}
           </button>
@@ -449,7 +477,7 @@ export default function Editor({
           </div>
           <div className="rail-import">
             <span>Backgrounds</span>
-            <label className="upload-tile"><ImagePlus size={16} /><span>Upload images</span><input type="file" accept="image/*" multiple onChange={uploadBackgrounds} /></label>
+            <label className="upload-tile"><ImagePlus size={16} /><span>Upload images</span><input type="file" accept={SUPPORTED_IMAGE_ACCEPT} multiple onChange={uploadBackgrounds} /></label>
             {backgrounds.length > 0 && (
               <div className="asset-grid">
                 {backgrounds.map((background, index) => (
@@ -519,7 +547,7 @@ export default function Editor({
               </button>
 
               {selectedSlide.layout === "cover" && (
-                <p className="field-hint">A cover shows the headline on its own, set larger. Position and alignment still apply.</p>
+                <p className="field-hint">A cover shows the headline on its own. Position and alignment still apply.</p>
               )}
             </div>
           ) : inspectorTab === "content" ? (
@@ -530,7 +558,7 @@ export default function Editor({
               <p className="field-hint">Put a <em>|</em> where the headline should break. Without one the lines are evened automatically, which rarely breaks where the sense does.</p>
               <label className="field-label" htmlFor="body">Supporting copy</label>
               <textarea id="body" maxLength={280} rows={6} value={selectedSlide.body} onChange={(event) => updateSlide({ body: event.target.value }, "body")} />
-              <p className="field-hint"><em>*word*</em> sets a phrase in italic. <em>**word**</em> tints it gold. Leave a blank line to start a new paragraph.</p>
+              <p className="field-hint"><em>*word*</em> sets a phrase in italic. <em>**word**</em> tints it with the accent colour. Leave a blank line to start a new paragraph.</p>
               {selectedSlide.layout === "cover" && (
                 <p className="field-hint">This slide is a Cover, so only the headline is drawn. The supporting copy is kept — change the slide type under Layout to show it.</p>
               )}
@@ -547,7 +575,7 @@ export default function Editor({
                   </button>
                 ))}
               </div>
-              {config.slides.some((slide) => slide.template && slide.template !== activeTemplate) ? (
+              {config.slides.some((slide) => slideTemplate(slide, config) !== activeTemplate) ? (
                 <p className="field-hint">
                   Other slides use a different style.{" "}
                   <button type="button" className="text-button subtle inline" onClick={() => commit({ ...config, template: activeTemplate, slides: config.slides.map((slide) => ({ ...slide, template: undefined })) })}>
@@ -562,11 +590,11 @@ export default function Editor({
               <label className="field-label" htmlFor="author">Footer name</label>
               <input id="author" maxLength={40} value={config.author} onChange={(event) => commit({ ...config, author: event.target.value.toUpperCase() }, "author")} />
               <span className="field-label">Slide background</span>
-              <label className="wide-upload"><Upload size={15} /> {selectedSlide.background ? "Replace image" : "Upload an image"}<input type="file" accept="image/*" onChange={(event) => uploadBackgrounds(event, true)} /></label>
+              <label className="wide-upload"><Upload size={15} /> {selectedSlide.background ? "Replace image" : "Upload an image"}<input type="file" accept={SUPPORTED_IMAGE_ACCEPT} onChange={(event) => uploadBackgrounds(event, true)} /></label>
               {isImageKey(selectedSlide.background) && (
                 <p className="field-hint warning">
-                  This slide has an image that was uploaded in a different browser, so it cannot be shown or exported here.
-                  It is kept in the saved carousel, so opening the deck in the original browser will bring it back. Uploading a replacement here is safe.
+                  This slide has an image that is not available in this browser, so it cannot be shown or exported here.
+                  It is kept in the saved carousel. If it predates media persistence, open the deck in the original browser and save once to migrate it, or upload a replacement here.
                 </p>
               )}
               {selectedSlide.background && <button type="button" className="text-button" onClick={() => updateSlide({ background: undefined, luma: undefined })}>Remove image</button>}

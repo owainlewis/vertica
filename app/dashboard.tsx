@@ -19,7 +19,6 @@ function readCover(cover: string) {
   try {
     return JSON.parse(cover || "{}") as {
       slide?: Partial<CarouselSlide>;
-      scale?: ReturnType<typeof deckTypeScale>;
       mark?: string;
     };
   } catch {
@@ -41,7 +40,13 @@ function relativeDate(iso: string) {
  * cqw against the slide itself, so rendering one in a narrow box is an exact
  * miniature — no separate preview styling to drift out of step with the editor.
  */
-function CardPreview({ carousel, background }: { carousel: CarouselSummary; background?: string }) {
+function CardPreview({
+  carousel,
+  background,
+}: {
+  carousel: CarouselSummary;
+  background?: string;
+}) {
   const { slide, scale, mark } = useMemo(() => {
     const stored = readCover(carousel.cover);
     const parsed = stored.slide ?? {};
@@ -59,7 +64,9 @@ function CardPreview({ carousel, background }: { carousel: CarouselSummary; back
       ...(parsed.plate ? { plate: true } : {}),
       ...(background ? { background } : {}),
     };
-    return { slide: cover, scale: stored.scale ?? deckTypeScale([cover]), mark: stored.mark ?? "" };
+    // The type scale is a design-system value now, not saved carousel data. Recompute
+    // it so old rows cannot bring their adaptive title sizes back into the gallery.
+    return { slide: cover, scale: deckTypeScale([cover]), mark: stored.mark ?? "" };
   }, [carousel, background]);
 
   // The footer counter reads off the deck length, so the card needs the real count.
@@ -68,7 +75,7 @@ function CardPreview({ carousel, background }: { carousel: CarouselSummary; back
       version: 1,
       title: carousel.title,
       author: carousel.author,
-      template: (carousel.template as CarouselConfig["template"]) ?? "cinematic",
+      template: (carousel.template as CarouselConfig["template"]) ?? "dark",
       ...(mark ? { mark } : {}),
       slides: Array.from({ length: Math.max(carousel.slideCount, 1) }, () => slide),
     }),
@@ -98,8 +105,7 @@ export default function Dashboard({
   // Downloading needs the slides on the page, so the chosen deck is mounted
   // offscreen and rasterised once React has painted it.
   const [pending, setPending] = useState<{ config: CarouselConfig; title: string; kind: "pdf" | "zip" } | null>(null);
-  // Cover backgrounds live in the browser's image store, so the cards resolve them
-  // separately once the list arrives.
+  // Cover backgrounds are loaded from the durable media store once the list arrives.
   const [covers, setCovers] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -194,7 +200,10 @@ export default function Dashboard({
           {(carousels ?? []).map((carousel) => (
             <li className="gallery-card" key={carousel.id}>
               <button className="card-open" type="button" onClick={() => onOpen(carousel.id)} aria-label={`Open ${carousel.title}`}>
-                <CardPreview carousel={carousel} background={covers[carousel.id]} />
+                <CardPreview
+                  carousel={carousel}
+                  background={covers[carousel.id]}
+                />
               </button>
               <div className="card-overlay">
                 <span className="card-meta">

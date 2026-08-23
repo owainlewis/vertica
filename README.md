@@ -7,14 +7,14 @@ A minimal studio for creating LinkedIn document carousels.
 - saves every carousel to a database and lists them on a home gallery
 - turns pasted text into an editable slide sequence
 - imports and exports a small JSON format that Claude or Codex can generate
-- sets titles in Playfair at weight 300 and text in Inter, with Cinematic, Midnight and Paper colours per slide
+- pairs Helvetica Bold titles with Helvetica text and Castoro italics, with two consistent dark and light colour modes
 - keeps colour, placement and slide type separate, so any text position works with any colour
 - accepts local background images per slide, and darkens each one to suit its own brightness
 - exports one PDF for LinkedIn, or numbered JPEGs zipped for Instagram, both at 2×
 - blocks an export rather than silently omitting a background that only exists in another browser
 - undo and redo across the whole deck, with ⌘Z and ⇧⌘Z
 - serializes autosaves and flushes queued edits before leaving the editor
-- a deck wordmark, progress line, editorial frames, distinct quote and closing treatments, and a text plate for copy that has to sit on a busy photograph
+- a deck wordmark, understated quote callouts, and a text plate for copy that has to sit on a busy photograph
 
 ## The gallery
 
@@ -31,15 +31,16 @@ Carousels live in Cloudflare D1. The binding name is set by `"d1"` in
 503 instead of failing quietly.
 
 Background images do **not** go in the database. D1 caps a single value at 1MB, which
-a photograph exceeds, so images are held in the browser's IndexedDB keyed by content
-hash and the carousel row stores only those keys. `app/image-store.ts` is the seam to
-replace when the images move to cloud storage: reimplement `putImage` and
-`loadImages` and nothing else changes, because the rest of the app deals in keys.
+a photograph exceeds, so R2 stores the bytes and the carousel row stores only a
+content-hash key. IndexedDB is a local cache, and `app/image-store.ts` uploads and
+resolves the same key through `/api/media`, so a saved carousel can load its images in
+another browser. Existing browser-local images migrate to R2 the next time that
+browser opens and saves the carousel. The logical R2 binding is `MEDIA` in
+`.openai/hosting.json`. Uploads accept PNG, JPEG, GIF, AVIF, and WebP images.
 
-The practical limit today is that images are per-browser. Open a carousel on another
-machine and the text and layout arrive but the backgrounds do not. A key that cannot
-be resolved is kept rather than dropped, so editing a deck in a second browser hides
-the images there without erasing them from the saved carousel.
+If an image cannot be resolved, the key is kept rather than dropped. This protects the
+saved carousel while making the missing media visible instead of silently overwriting
+the deck without its background.
 
 Every write carries the version the client last read, and the server refuses one built
 on a stale version with a 409 rather than overwriting. Two tabs open on the same deck
@@ -71,11 +72,13 @@ without anyone typing them in.
 ## Typography
 
 Sizes are set in container-width units against the slide itself, so the preview and the
-export are the same drawing at different scales. The deck is set at one title size,
-chosen so the longest headline fits, on a continuous curve rather than fixed steps: one
-extra character never resizes the deck, and the cover boost backs off rather than push a
-headline past three lines. Leading opens as a headline takes more lines. Put a `|` in a
-headline to break the line where the sense breaks; the words after it are still balanced.
+export are the same drawing at different scales. Every carousel uses the same title and
+body sizes. Put a `|` in a headline to break the line where the sense breaks; the words
+after it are still balanced.
+
+Titles use Helvetica Bold and body copy, labels and controls use Helvetica. Castoro is
+bundled for italic emphasis, so marked phrases keep their contrast without a network
+font request.
 
 Quotes, apostrophes, ellipses and number ranges are made typographic at render time,
 never in the stored text, so what you typed is what the editor and the exported config

@@ -1,56 +1,28 @@
 @import "tailwindcss";
 
-/* Playfair carries the headlines: the newer family, not Playfair Display. Display
-   bottoms out at weight 400, so it could not be taken any lighter. This one starts at
-   300 and adds an optical size axis, which is the part that matters. Winding opsz up
-   is what thins the hairlines and narrows the letterfit, and that is where a Didone
-   gets its elegance from. */
 @font-face {
-  font-family: "Playfair";
-  font-style: normal;
-  font-weight: 300 900;
-  font-display: block;
-  src: url("/fonts/playfair-latin.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "Playfair";
+  font-family: "Castoro";
   font-style: italic;
-  font-weight: 300 900;
-  font-display: block;
-  src: url("/fonts/playfair-latin-italic.woff2") format("woff2");
-}
-
-/* Inter carries the text: body and footer on the slides, and the whole
-   interface. Variable across 400–700, so one file covers every weight in use. */
-@font-face {
-  font-family: "Inter";
-  font-style: normal;
-  font-weight: 400 700;
-  font-display: block;
-  src: url("/fonts/inter-latin.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "Inter";
-  font-style: italic;
-  font-weight: 400 700;
-  font-display: block;
-  src: url("/fonts/inter-latin-italic.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/castoro-latin-italic.woff2") format("woff2");
 }
 
 :root {
-  --ink: #20211e;
-  --muted: #77766f;
-  --paper: #f3f1eb;
-  --panel: #faf9f5;
-  --line: #dedbd2;
-  --accent: #ff5a36;
+  --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-title: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-italic: Castoro, Georgia, serif;
+  --ink: #202a31;
+  --muted: #5d6b73;
+  --paper: #e8edf0;
+  --panel: #fbfcfd;
+  --line: #c7d2d9;
+  --accent: #3f6575;
 }
 
 * { box-sizing: border-box; }
 html, body { min-height: 100%; margin: 0; }
-body { background: var(--paper); color: var(--ink); font-family: Inter, system-ui, -apple-system, sans-serif; }
+body { background: var(--paper); color: var(--ink); font-family: var(--font-sans); }
 button, input, textarea, select { color: inherit; font: inherit; }
 button, label { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid #706d63; outline-offset: 2px; }
@@ -60,11 +32,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .dashboard-bar { position: sticky; top: 0; z-index: 4; display: flex; align-items: center; justify-content: space-between; height: 64px; padding: 0 24px; background: var(--panel); border-bottom: 1px solid var(--line); }
 .dashboard-body { max-width: 935px; margin: 0 auto; padding: 40px 20px 80px; }
 .dashboard-heading { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 26px; }
-.dashboard-heading h1 { margin: 0; font-size: 22px; font-weight: 750; letter-spacing: -.03em; }
+.dashboard-heading h1 { margin: 0; font-family: var(--font-title); font-size: 32px; font-weight: 700; line-height: 1; letter-spacing: -.035em; }
 .dashboard-heading p { margin: 0; color: var(--muted); font-size: 12px; }
 .dashboard-error { margin: 0 0 18px; padding: 11px 14px; border: 1px solid #d9b3ad; border-radius: 9px; background: #f9eeec; color: #8d2f24; font-size: 12px; }
 .empty-state { padding: 64px 24px; border: 1px dashed #cbc7bb; border-radius: 14px; text-align: center; }
-.empty-state h2 { margin: 0 0 7px; font-size: 16px; letter-spacing: -.02em; }
+.empty-state h2 { margin: 0 0 7px; font-family: var(--font-title); font-size: 24px; font-weight: 700; line-height: 1.1; letter-spacing: -.025em; }
 .empty-state p { margin: 0 0 20px; color: var(--muted); font-size: 12px; }
 .empty-state button { display: inline-flex; }
 
@@ -106,7 +78,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 
 .signin-shell { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: var(--paper); }
 .signin-card { display: grid; justify-items: center; gap: 9px; width: min(340px, 100%); padding: 30px 26px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); text-align: center; }
-.signin-card h1 { margin: 4px 0 0; font-size: 19px; letter-spacing: -.03em; }
+.signin-card h1 { margin: 4px 0 0; font-family: var(--font-title); font-size: 27px; font-weight: 700; line-height: 1.05; letter-spacing: -.035em; }
 .signin-card p { margin: 0 0 6px; color: var(--muted); font-size: 12px; }
 .signin-card input { width: 100%; padding: 10px 11px; border: 1px solid var(--line); border-radius: 8px; background: white; font-size: 13px; }
 .signin-card button { width: 100%; }
@@ -141,19 +113,19 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .rail-heading button { display: grid; place-items: center; width: 25px; height: 25px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: white; cursor: pointer; }
 .slide-list { display: grid; gap: 7px; }
 .slide-thumb { width: 100%; display: grid; grid-template-columns: 20px 48px minmax(0, 1fr); align-items: center; gap: 9px; padding: 7px; border: 1px solid transparent; border-radius: 9px; background: transparent; text-align: left; cursor: pointer; }
-.slide-thumb:hover { background: #f0eee8; }
-.slide-thumb.selected { background: #eae7de; border-color: #d4cfc2; }
+.slide-thumb:hover { background: #f1f5f7; }
+.slide-thumb.selected { background: #e3edf1; border-color: #b9cbd3; }
 .thumb-number { color: #99978f; font: 10px/1 monospace; text-align: center; }
 .thumb-card { aspect-ratio: 4/5; display: flex; align-items: center; overflow: hidden; padding: 5px; color: #f6f1e7; background: #14140f; }
-.thumb-card.template-midnight { background: #0e1f17; }
-.thumb-card.template-paper { color: #14140f; background: #fbfaf7; }
-.thumb-card span { font-family: Playfair, Georgia, serif; font-size: 5.5px; line-height: 1.1; }
+.thumb-card.template-dark { color: #e7eef2; background: #0c1013; }
+.thumb-card.template-light { color: #202a31; background: #fbfcfd; }
+.thumb-card span { font-family: var(--font-title); font-size: 5.5px; font-weight: 700; line-height: 1.1; }
 .thumb-label { overflow: hidden; font-size: 11px; font-weight: 650; text-overflow: ellipsis; text-transform: capitalize; white-space: nowrap; }
 .rail-import { margin-top: auto; padding: 22px 4px 3px; }
 .rail-import > span { display: block; margin-bottom: 9px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.upload-tile, .wide-upload { position: relative; display: flex; align-items: center; justify-content: center; gap: 7px; border: 1px dashed #cbc7bb; border-radius: 8px; background: #f7f5f0; color: #68675f; font-size: 11px; font-weight: 700; cursor: pointer; }
+.upload-tile, .wide-upload { position: relative; display: flex; align-items: center; justify-content: center; gap: 7px; border: 1px dashed #c4d1d7; border-radius: 8px; background: #f5f8f9; color: var(--muted); font-size: 11px; font-weight: 700; cursor: pointer; }
 .upload-tile { padding: 12px 8px; }
-.upload-tile:hover, .wide-upload:hover { border-color: #8f8c82; background: white; }
+.upload-tile:hover, .wide-upload:hover { border-color: #7d9aaa; background: white; }
 .upload-tile input, .wide-upload input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .asset-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 8px; }
 .asset-grid button { position: relative; aspect-ratio: 1; overflow: hidden; padding: 0; border: 2px solid transparent; border-radius: 5px; background: #ddd; cursor: pointer; }
@@ -161,26 +133,26 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .asset-grid img { width: 100%; height: 100%; object-fit: cover; }
 .asset-grid svg { position: absolute; right: 2px; bottom: 2px; padding: 2px; border-radius: 50%; color: white; background: var(--ink); }
 
-.canvas-area { min-width: 0; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 22px 40px 28px; background: #e8e5dd; }
-.canvas-toolbar { width: min(52vh, 520px); display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 10px; color: #77766f; font: 10px/1 monospace; text-transform: uppercase; letter-spacing: .03em; }
-.preview-frame { position: relative; flex: 0 0 auto; width: min(52vh, 520px); min-height: 0; aspect-ratio: 4/5; overflow: hidden; box-shadow: 0 18px 50px rgb(49 45 35 / .18); }
+.canvas-area { min-width: 0; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 22px 40px 28px; background: #e8edf0; }
+.canvas-toolbar { width: min(52vh, 520px); display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 10px; color: var(--muted); font: 10px/1 monospace; text-transform: uppercase; letter-spacing: .03em; }
+.preview-frame { position: relative; flex: 0 0 auto; width: min(52vh, 520px); min-height: 0; aspect-ratio: 4/5; overflow: hidden; box-shadow: 0 18px 50px rgb(32 42 49 / .15); }
 .preview-frame > .carousel-slide { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; }
 /* Instagram centre-crops a 4:5 post to a square on the profile grid, so 12.5% off the
    top and bottom of a cover is cut. Preview only: it is a sibling of the slide, never
    inside it, so it cannot reach the export stage. */
 .crop-guide { position: absolute; inset: 12.5% 0; z-index: 2; border-top: 1px dashed rgb(246 241 231 / .5); border-bottom: 1px dashed rgb(246 241 231 / .5); pointer-events: none; }
-.crop-guide::after { content: "Instagram grid crop"; position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%); padding: 2px 6px; border-radius: 4px; background: rgb(9 9 7 / .55); color: rgb(246 241 231 / .8); font: 500 9px/1.4 Inter, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+.crop-guide::after { content: "Instagram grid crop"; position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%); padding: 2px 6px; border-radius: 4px; background: rgb(9 9 7 / .55); color: rgb(246 241 231 / .8); font: 500 9px/1.4 "Helvetica Neue", Helvetica, Arial, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
 .crop-toggle { display: inline-flex; align-items: center; gap: 5px; border: 0; padding: 0; background: transparent; color: inherit; font: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; }
 .crop-toggle[aria-pressed="true"] { color: var(--ink); }
 
-.slide-actions { display: flex; gap: 5px; margin-top: 12px; padding: 4px; border: 1px solid #d5d1c7; border-radius: 9px; background: rgb(250 249 245 / .8); box-shadow: 0 5px 18px rgb(40 39 34 / .05); }
-.slide-actions button { display: inline-flex; align-items: center; gap: 6px; height: 29px; padding: 0 8px; border: 0; border-radius: 5px; background: transparent; color: #65645d; font-size: 10px; font-weight: 700; cursor: pointer; }
-.slide-actions button:hover:not(:disabled) { color: var(--ink); background: white; }
+.slide-actions { display: flex; gap: 5px; margin-top: 12px; padding: 4px; border: 1px solid var(--line); border-radius: 9px; background: rgb(251 252 253 / .86); box-shadow: 0 5px 18px rgb(32 42 49 / .05); }
+.slide-actions button { display: inline-flex; align-items: center; gap: 6px; height: 29px; padding: 0 8px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font-size: 10px; font-weight: 700; cursor: pointer; }
+.slide-actions button:hover:not(:disabled) { color: var(--ink); background: #f1f5f7; }
 .slide-actions button:disabled { opacity: .28; cursor: default; }
 .slide-actions .danger-action:hover { color: #a32d20; }
 
-/* Slides. Editorial details create rhythm across a deck while every size remains in
-   cqw, so the 520px preview and the 1080px export render identically. */
+/* Slides use one fixed type scale across every carousel. Sizes remain in cqw, so the
+   520px preview and the 1080px export render identically. */
 .carousel-slide {
   --slide-background: none;
   --cream: #f6f1e7;
@@ -193,50 +165,23 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   position: relative; width: 100%; height: 100%; overflow: hidden; isolation: isolate;
   display: flex; flex-direction: column;
   color: var(--cream); background: #14140f;
-  font-family: Playfair, Georgia, "Times New Roman", serif;
+  font-family: var(--font-title);
 }
-.slide-image, .slide-overlay, .slide-texture, .slide-frame { position: absolute; inset: 0; }
-/* Paper grain, as fractal noise rather than a photograph of paper, so it costs one
-   inline SVG and no request. A flat fill reads as a browser default; the same colour
-   with a tooth reads as stock. Multiplied so it darkens the ground slightly rather
-   than fogging it, and kept faint enough to survive JPEG export without banding. */
-.slide-texture { display: none; z-index: 0; opacity: .5; mix-blend-mode: multiply; background-repeat: repeat; background-size: 180px 180px; background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.34'/%3E%3C/svg%3E"); }
-.template-paper .slide-texture { display: block; }
-/* One grade across every photograph. Shots taken in different light read as a folder
-   of images without it; pulled to a common saturation and contrast they read as one
-   deck. Kept gentle: this is a correction, not a look. */
+.slide-image, .slide-overlay { position: absolute; inset: 0; }
+/* One gentle grade across every photograph. */
 .slide-image { background-image: var(--slide-background); background-position: center; background-size: cover; filter: saturate(.88) contrast(1.04); }
 /* Built per slide from the measured brightness under the text. See scrim.ts. The
    value here is only the fallback for a slide that renders before its variable. */
 .slide-overlay { background: var(--slide-scrim, linear-gradient(180deg, rgb(9 9 7 / .46) 0%, rgb(9 9 7 / .16) 22%, rgb(9 9 7 / .42) 52%, rgb(7 7 5 / .8) 80%, rgb(6 6 4 / .9) 100%)); }
 
-/* A fine inset frame and a quiet deck-progress line make separate slides feel like
-   one collectible set. Both stay behind the copy and require no authoring controls. */
-.slide-frame { inset: 3.2%; z-index: 1; border: 1px solid rgb(246 241 231 / .16); pointer-events: none; }
-.template-paper .slide-frame { border-color: rgb(20 20 15 / .16); }
-.slide-progress { position: absolute; z-index: 3; left: 0; right: 0; bottom: 0; height: .52%; background: rgb(246 241 231 / .12); }
-.slide-progress span { display: block; width: var(--slide-progress); height: 100%; background: var(--gold); }
-.template-paper .slide-progress { background: rgb(20 20 15 / .1); }
-.template-paper .slide-progress span { background: #9b8036; }
-
-/* The oversized folio is visible only on text-led slides. It gives the eye a second
-   scale to land on without competing with a photograph or a cover headline. */
-.slide-ordinal { display: none; position: absolute; z-index: 0; top: 12%; right: 6%; color: currentColor; font-family: Inter, system-ui, sans-serif; font-size: 17cqw; font-weight: 700; line-height: 1; letter-spacing: -.09em; opacity: .045; }
-.template-midnight.layout-content .slide-ordinal,
-.template-midnight.layout-quote .slide-ordinal,
-.template-paper.layout-content .slide-ordinal,
-.template-paper.layout-quote .slide-ordinal { display: block; }
-
 /* Vertical rhythm is set in em against each element's own size, so the gaps stay
    proportional whichever step of the scale the title and body land on. */
 .slide-content { position: relative; z-index: 1; min-height: 0; display: flex; flex: 1; flex-direction: column; align-items: flex-start; justify-content: flex-end; padding: 14% 9.5% 13%; }
-/* Serif display, sans text. The footer is a label, so it goes with the text face. */
-/* Tracking is paired with the size step in titleTracking(). Kerning and ligatures
-   are switched on explicitly: browsers drop kerning at display sizes, and the export
+/* Helvetica Bold carries every title. Kerning is explicit because the export
    rasteriser only honours what the computed style states outright. */
 /* text-wrap: balance evens the line lengths instead of filling each line to the
    edge, which is the ragging the reference covers have. */
-.slide-content h2 { max-width: 100%; margin: 0; font-size: var(--title-size); font-weight: 300; font-optical-sizing: none; font-variation-settings: "opsz" 96, "wght" 300; line-height: var(--title-leading); letter-spacing: var(--title-tracking); word-spacing: -.03em; font-kerning: normal; font-variant-ligatures: common-ligatures contextual; overflow-wrap: anywhere; }
+.slide-content h2 { max-width: 100%; margin: 0; font-size: var(--title-size); font-weight: 700; line-height: var(--title-leading); letter-spacing: var(--title-tracking); word-spacing: -.02em; font-kerning: normal; font-variant-ligatures: common-ligatures contextual; overflow-wrap: anywhere; }
 /* Each `|` segment is its own block, so the author's break is the break. Balancing
    still runs inside a segment that is long enough to wrap on its own. */
 .title-line { display: block; text-wrap: balance; }
@@ -250,35 +195,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
    The paper template prints dark on light and needs none. */
 /* Paragraph gap is set so baselines land ~2.1em apart: clearly more than the 1.38em
    inside a paragraph, but short of the double-spacing that reads as a bullet list. */
-/* Inter carries far more x-height than the serif at the same size, so the body is set
-   a step smaller and led a little looser than the serif wanted. */
-.slide-content p { max-width: 96%; margin: .85em 0 0; color: rgb(246 241 231 / .88); font-family: Inter, system-ui, sans-serif; font-size: var(--body-size); font-weight: 400; line-height: 1.5; letter-spacing: -.004em; font-kerning: normal; text-wrap: pretty; overflow-wrap: anywhere; }
+.slide-content p { max-width: 96%; margin: .85em 0 0; color: rgb(246 241 231 / .88); font-family: var(--font-sans); font-size: var(--body-size); font-weight: 400; line-height: 1.5; letter-spacing: -.004em; font-kerning: normal; text-wrap: pretty; overflow-wrap: anywhere; }
 .slide-content h2 + p { margin-top: 1.45em; }
 
-/* Content slides get a compact gold lead-in. It is a repeatable visual beat that
-   helps a reader recognise a new point while swiping through the deck. */
-.layout-content .slide-content h2::before { content: ""; display: block; width: 1.05em; height: .08em; margin: 0 0 .38em; background: var(--gold); }
-.layout-content.align-center .slide-content h2::before { margin-right: auto; margin-left: auto; }
-.template-paper.layout-content .slide-content h2::before { background: #9b8036; }
-/* Drawn on the paragraph rather than as an element, so it needs no markup and cannot
-   appear on a slide that has no copy to separate. Centred layouts only: against a
-   left-aligned lower third the title and body already read as two things. */
-.align-center .slide-content h2 + p { position: relative; margin-top: 2.5em; }
-.align-center .slide-content h2 + p::before { content: ""; position: absolute; top: -1.35em; left: 50%; width: 13%; height: 1px; transform: translateX(-50%); background: currentColor; opacity: .32; }
-/* A wide, soft shadow only where there is a photograph under the type. It buys back
-   the legibility that a bright patch takes away without darkening the whole frame the
-   way a heavier scrim would, so the image stays an image. Sized in cqw so it scales
-   with the slide rather than breaking between the preview and the export. */
-.template-cinematic .slide-content h2 { text-shadow: 0 .12cqw 2.4cqw rgb(6 6 4 / .45); }
-.template-cinematic .slide-content p { text-shadow: 0 .1cqw 1.7cqw rgb(6 6 4 / .5); }
-.template-cinematic .slide-meta { text-shadow: 0 .1cqw 1.2cqw rgb(6 6 4 / .5); }
-.mark-italic { font-style: italic; }
+.mark-italic { font-family: var(--font-italic); font-style: italic; font-weight: 400; }
 .mark-accent { color: var(--gold); }
 /* Same words, same place, every slide. Set small and widely tracked so it reads as a
    signature rather than as a heading competing with the title. */
-.slide-mark { position: absolute; z-index: 1; top: 7.5%; left: 0; right: 0; padding: 0 9.5%; color: rgb(246 241 231 / .74); font-family: Inter, system-ui, sans-serif; font-size: 1.45cqw; font-weight: 500; letter-spacing: .26em; line-height: 1; text-align: center; text-transform: uppercase; }
-.template-paper .slide-mark { color: rgb(20 20 15 / .5); }
-.template-cinematic .slide-mark { text-shadow: 0 .1cqw 1.2cqw rgb(6 6 4 / .5); }
+.slide-mark { position: absolute; z-index: 1; top: 7.5%; left: 0; right: 0; padding: 0 9.5%; color: rgb(246 241 231 / .74); font-family: var(--font-sans); font-size: 1.45cqw; font-weight: 500; letter-spacing: .26em; line-height: 1; text-align: center; text-transform: uppercase; }
 /* Text sitting at the top needs to clear the wordmark rather than collide with it. */
 .has-mark.pos-top .slide-content { padding-top: 18%; }
 
@@ -290,16 +214,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .slide-plate p { max-width: 100%; color: rgb(20 20 15 / .78); }
 /* Cream on dark needed a shadow to survive bright patches. Ink on cream does not, and
    leaving it on would smear the type. */
-.template-cinematic .slide-plate h2, .template-cinematic .slide-plate p { text-shadow: none; }
-.slide-plate .mark-accent { color: #8a7434; }
-/* The plate is the frame now, so the type inside is set a step down. At full display
-   size it would run into the panel edges, and the panel is doing the work of drawing
-   attention that the size used to do. */
-.slide-plate h2 { font-size: calc(var(--title-size) * .74); }
-.has-plate .slide-content { justify-content: center; }
-.has-plate .slide-frame { border-color: rgb(246 241 231 / .28); }
+.has-plate .slide-content { justify-content: center; padding: 9% 5.5% 8%; }
 
-.slide-meta { position: relative; z-index: 1; display: flex; justify-content: space-between; gap: 8%; padding: 0 9.5% 7%; color: rgb(246 241 231 / .42); font-family: Inter, system-ui, sans-serif; font-size: 1.4cqw; font-weight: 500; line-height: 1; letter-spacing: .14em; text-transform: uppercase; }
+.slide-meta { position: relative; z-index: 1; display: flex; justify-content: space-between; gap: 8%; padding: 0 9.5% 7%; color: rgb(246 241 231 / .42); font-family: var(--font-sans); font-size: 1.4cqw; font-weight: 500; line-height: 1; letter-spacing: .14em; text-transform: uppercase; }
 .slide-meta span { min-width: 0; overflow-wrap: anywhere; }
 .align-center .slide-meta { justify-content: center; gap: 3%; }
 /* The footer carries the offer, so it stays on every slide even when a wordmark is
@@ -307,8 +224,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
    footer is where to go. */
 .slide-meta .meta-author { letter-spacing: .2em; }
 
-/* Centred layouts sit on the lower golden section rather than the middle, which is
-   where the reference covers put their type. */
+/* Position is independent of colour and type scale. */
 .pos-top .slide-content { justify-content: flex-start; padding-top: 13%; padding-bottom: 8%; }
 .pos-middle .slide-content { justify-content: center; padding-top: 22%; padding-bottom: 14%; }
 .pos-bottom .slide-content { justify-content: flex-end; }
@@ -318,47 +234,119 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .align-center .slide-content h2 { max-width: 87%; }
 .align-center .slide-content p { max-width: 82%; }
 
-/* The cover carries the headline alone. With nothing else competing for the frame it
-   can be set half again as large, which is what gives a display cover its authority. */
 .layout-cover .slide-content p, .layout-cover .slide-meta { display: none; }
-/* The cover's radial scrim, and the way every scrim follows the text position, are
-   both built in scrim.ts now and arrive as --slide-scrim. */
 .layout-cover .slide-content { padding-left: 6%; padding-right: 6%; }
-/* A near-full measure. Narrower than this and a display-size headline shatters into
-   four or five stacked fragments instead of two or three full lines. */
 .layout-cover .slide-content h2 { max-width: 100%; }
-.layout-cover .slide-content::after { content: ""; flex: 0 0 auto; width: 12%; height: .2cqw; margin-top: 5%; background: var(--gold); }
-.layout-cover.align-center .slide-content::after { align-self: center; }
-.template-paper.layout-cover .slide-content::after { background: #9b8036; }
-
-/* Quotes behave like a deliberate change of pace instead of another content slide. */
-.layout-quote .slide-content::before { content: "“"; height: .45em; margin: 0 0 .24em -.08em; color: var(--gold); font-size: calc(var(--title-size) * 1.7); font-style: normal; line-height: .65; }
-.layout-quote.align-center .slide-content::before { margin-right: auto; margin-left: auto; }
-.layout-quote .slide-content h2 { max-width: 92%; font-size: calc(var(--title-size) * 1.04); font-style: italic; }
-.layout-quote .slide-content p { max-width: 78%; font-size: calc(var(--body-size) * .82); font-weight: 650; letter-spacing: .1em; text-transform: uppercase; }
-.template-paper.layout-quote .slide-content::before { color: #9b8036; }
-
-/* A closing slide resolves the sequence with a tighter measure and a clear CTA chip. */
+/* Closing slides keep the same body scale and finish without a pill-shaped CTA. */
 .layout-closing .slide-content h2 { max-width: 88%; }
-.layout-closing .slide-content p { width: max-content; max-width: 82%; padding: .72em 1.1em; border: 1px solid rgb(246 241 231 / .3); border-radius: 999px; font-size: calc(var(--body-size) * .84); font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
-.template-paper.layout-closing .slide-content p { border-color: rgb(20 20 15 / .22); }
 
-.template-midnight { background: radial-gradient(circle at 82% 12%, rgb(218 190 115 / .12), transparent 34%), linear-gradient(145deg, #132b20 0%, #0a1b14 100%); }
-.template-paper { color: #14140f; background: radial-gradient(circle at 12% 8%, #fff 0%, transparent 32%), linear-gradient(145deg, #fbfaf7 0%, #eee8dc 100%); }
-.template-midnight .slide-image, .template-midnight .slide-overlay,
-.template-paper .slide-image, .template-paper .slide-overlay { display: none; }
-.template-paper .slide-content p { color: rgb(20 20 15 / .82); letter-spacing: 0; }
-.template-paper .slide-content h2 { letter-spacing: calc(var(--title-tracking) - .002em); }
-.template-paper .slide-meta { color: rgb(20 20 15 / .38); }
-.template-paper .mark-accent { color: #8a7434; }
+/* Carousel themes. These are the only two visual modes: a near-black dark mode and
+   the blue-grey light mode from the reference course. Layouts change placement only,
+   so every slide in a deck keeps the same type, contrast, and surface language. */
+.carousel-slide {
+  --slide-fg: #e7eef2;
+  --slide-muted: rgb(231 238 242 / .72);
+  --slide-bg: #0c1013;
+  --slide-surface: #11161a;
+  --slide-line: #1c242a;
+  --slide-accent: #a8c6d6;
+  --cream: var(--slide-fg);
+  --gold: var(--slide-accent);
+  color: var(--slide-fg);
+  background: var(--slide-bg);
+  font-family: var(--font-title);
+}
+.template-light {
+  --slide-fg: #202a31;
+  --slide-muted: rgb(32 42 49 / .72);
+  --slide-bg: #fbfcfd;
+  --slide-surface: #eff3f5;
+  --slide-line: #c7d2d9;
+  --slide-accent: #3f6575;
+  color: var(--slide-fg);
+  background: var(--slide-bg);
+}
+.carousel-slide .slide-image { filter: saturate(.78) contrast(1.02); }
+.template-dark:not(.has-background) .slide-overlay,
+.template-light .slide-overlay { display: none; }
+.template-dark.has-background .slide-overlay { display: block; background: var(--slide-scrim); }
+.template-light.has-background .slide-image { filter: saturate(.65) contrast(1.02); }
+.template-light.has-background .slide-overlay {
+  display: block;
+  background: linear-gradient(180deg, rgb(251 252 253 / .86), rgb(251 252 253 / .68));
+}
+.carousel-slide.legacy-type-only .slide-image,
+.carousel-slide.legacy-type-only .slide-overlay { display: none; }
+.carousel-slide .slide-content h2 {
+  font-weight: 700;
+}
+.carousel-slide .slide-content p {
+  color: var(--slide-muted);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.carousel-slide .slide-content h2::before,
+.carousel-slide.layout-cover .slide-content::after,
+.carousel-slide.layout-quote .slide-content::before { display: none; content: none; }
+.carousel-slide .slide-content h2 + p::before { display: none; content: none; }
+.carousel-slide.align-center .slide-content h2 + p { margin-top: 1.45em; }
+.carousel-slide .slide-content h2,
+.carousel-slide.layout-quote .slide-content h2,
+.carousel-slide.layout-quote .slide-content p,
+.carousel-slide.layout-closing .slide-content p,
+.carousel-slide .slide-plate h2 { font-size: var(--title-size); }
+.carousel-slide.layout-quote .slide-content h2 { font-style: normal; }
+.carousel-slide.layout-quote .slide-content p { font-size: var(--body-size); font-weight: 400; letter-spacing: 0; text-transform: none; }
+.slide-callout {
+  max-width: 96%;
+  margin-top: 1.45em;
+  padding: .8em 1em;
+  border: 1px solid var(--slide-line);
+  border-left: .28cqw solid var(--slide-accent);
+  border-radius: .65cqw;
+  background: var(--slide-surface);
+}
+.slide-callout p { max-width: 100%; margin: .15em 0 0; color: var(--slide-fg); }
+.slide-callout p + p { margin-top: .85em; }
+.carousel-slide .slide-plate {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  padding: 4.5% 5%;
+  border: 1px solid var(--slide-line);
+  border-radius: .65cqw;
+  background: var(--slide-surface);
+  color: var(--slide-fg);
+}
+.carousel-slide .slide-plate h2,
+.carousel-slide .slide-plate p { max-width: 100%; color: inherit; text-shadow: none; }
+.carousel-slide .slide-plate p { color: var(--slide-muted); }
+.carousel-slide .mark-accent { color: var(--slide-accent); }
+.carousel-slide .slide-mark { color: var(--slide-muted); }
+.carousel-slide .slide-meta { color: rgb(231 238 242 / .48); }
+.template-light .slide-meta { color: rgb(32 42 49 / .48); }
+.template-light .slide-mark { color: rgb(32 42 49 / .54); }
+.template-light .slide-content p { color: var(--slide-muted); }
+.template-light .slide-plate { background: #eff3f5; }
+.carousel-slide.layout-closing .slide-content p {
+  width: auto;
+  max-width: 82%;
+  font-size: var(--body-size);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
 
 .inspector { border-left: 1px solid var(--line); padding: 18px; }
 .inspector-tabs { display: grid; grid-template-columns: repeat(3, 1fr); margin-bottom: 22px; border-bottom: 1px solid var(--line); }
-.inspector-tabs button { padding: 7px 0 11px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: #85837c; font-size: 11px; font-weight: 700; cursor: pointer; }
+.inspector-tabs button { padding: 7px 0 11px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font-size: 11px; font-weight: 700; cursor: pointer; }
 .inspector-tabs button.active { color: var(--ink); border-color: var(--ink); }
-.field-label { display: block; margin: 16px 0 7px; color: #77756e; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+.field-label { display: block; margin: 16px 0 7px; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
 .inspector input, .inspector textarea, .inspector select { width: 100%; padding: 10px 11px; border: 1px solid var(--line); border-radius: 8px; outline: none; background: white; color: var(--ink); font-size: 12px; resize: vertical; }
-.inspector input:focus, .inspector textarea:focus, .inspector select:focus { border-color: #9d998e; box-shadow: 0 0 0 3px rgb(78 76 70 / .08); }
+.inspector input:focus, .inspector textarea:focus, .inspector select:focus { border-color: #7d9aaa; box-shadow: 0 0 0 3px rgb(63 101 117 / .12); }
 .select-wrap { position: relative; }
 .select-wrap select { appearance: none; padding-right: 30px; }
 .select-wrap svg { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #77756e; pointer-events: none; }
@@ -370,23 +358,25 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .segmented { display: grid; grid-auto-flow: column; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: white; }
 .segmented button { padding: 7px 6px; border: 0; border-radius: 6px; background: transparent; color: #6f6d65; font-size: 11px; font-weight: 700; cursor: pointer; }
 .segmented button:hover { color: var(--ink); }
-.segmented button.active { color: var(--ink); background: #eae7de; }
+.segmented button.active { color: var(--ink); background: #e3edf1; }
 .template-options { display: grid; gap: 7px; }
-.template-options > button { display: grid; grid-template-columns: 54px 1fr 16px; align-items: center; gap: 10px; width: 100%; padding: 7px; border: 1px solid var(--line); border-radius: 8px; background: white; text-align: left; cursor: pointer; }
-.template-options > button.active { border-color: #99958a; box-shadow: 0 0 0 2px rgb(80 78 71 / .06); }
+.template-options > button { display: grid; grid-template-columns: 54px 1fr 16px; align-items: center; gap: 10px; width: 100%; padding: 7px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); text-align: left; cursor: pointer; }
+.template-options > button.active { border-color: #7d9aaa; box-shadow: 0 0 0 2px rgb(63 101 117 / .09); }
 .template-options strong, .template-options small { display: block; }
 .template-options strong { margin-bottom: 3px; font-size: 11px; }
 .template-options small { color: var(--muted); font-size: 9px; }
 .template-swatch { aspect-ratio: 4/3; display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 7px; overflow: hidden; border-radius: 4px; background: #14140f; }
 .template-swatch i { display: block; width: 75%; height: 2px; background: #f6f1e7; }
 .template-swatch i:first-child { width: 35%; background: #e2ce96; }
-.template-swatch.midnight { background: #0e1f17; }
-.template-swatch.paper { background: #fbfaf7; }
-.template-swatch.paper i { background: #14140f; }
-.template-swatch.paper i:first-child { background: #8a7434; }
+.template-swatch.dark { background: #0c1013; }
+.template-swatch.dark i { background: #e7eef2; }
+.template-swatch.dark i:first-child { background: #a8c6d6; }
+.template-swatch.light { background: #fbfcfd; border: 1px solid #c7d2d9; }
+.template-swatch.light i { background: #202a31; }
+.template-swatch.light i:first-child { background: #3f6575; }
 .wide-upload { padding: 12px; background: white; }
 .text-button { margin-top: 8px; padding: 0; border: 0; background: transparent; color: #9f3529; font-size: 10px; font-weight: 700; cursor: pointer; }
-.text-button.subtle { color: #6f6d65; text-decoration: underline; text-underline-offset: 3px; }
+.text-button.subtle { color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
 .config-tools { margin-top: 24px; padding-top: 5px; border-top: 1px solid var(--line); }
 .config-tools button { display: flex; align-items: center; gap: 8px; width: 100%; margin-bottom: 6px; padding: 9px; border: 1px solid var(--line); border-radius: 7px; background: white; font-size: 10px; font-weight: 700; cursor: pointer; }
 
@@ -398,7 +388,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .dialog-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 20px 20px 17px; border-bottom: 1px solid var(--line); }
 .dialog-header > div { display: flex; gap: 11px; }
 .dialog-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; color: white; background: var(--ink); }
-.dialog-header h2 { margin: 0 0 4px; font-size: 16px; letter-spacing: -.02em; }
+.dialog-header h2 { margin: 0 0 4px; font-family: var(--font-title); font-size: 22px; font-weight: 700; line-height: 1.05; letter-spacing: -.025em; }
 .dialog-header p { margin: 0; color: var(--muted); font-size: 11px; }
 .dialog-header > button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 6px; background: transparent; cursor: pointer; }
 .dialog-header > button:hover { background: #ece9e2; }
@@ -438,7 +428,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 @media (max-width: 640px) {
   .studio-shell { display: block; min-height: 100vh; overflow: auto; }
   .topbar { position: sticky; top: 0; grid-template-columns: 1fr auto; height: 60px; padding: 0 13px; }
-  .project-name, .generate-button { display: none; }
+  .brand-back > span:last-child { display: none; }
+  .brand-back { gap: 6px; }
+  .project-name { display: none; }
   .workspace { display: flex; flex-direction: column; overflow: visible; }
   .canvas-area { order: 1; min-height: calc(100vh - 60px); padding: 18px 14px; }
   .canvas-toolbar, .preview-frame { width: min(88vw, 480px); }
@@ -447,9 +439,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .slide-list { grid-template-columns: repeat(4, minmax(125px, 1fr)); overflow-x: auto; padding-bottom: 6px; }
   .rail-import { margin-top: 14px; }
   .slide-actions { flex-wrap: wrap; justify-content: center; }
-  .generate-button { display: inline-flex; }
   .topbar-actions { gap: 4px; }
   .topbar-actions button { padding-inline: 9px; }
+  .topbar-actions .save-state, .topbar-actions .export-images-button { display: none; }
+  .topbar-actions .generate-button { display: inline-flex; }
+  .topbar-actions .generate-button span { display: none; }
   .dialog-backdrop { align-items: end; padding: 0; }
   .composer-dialog { border-radius: 14px 14px 0 0; }
 }

@@ -1,5 +1,9 @@
+import { isSupportedImageDataUrl } from "./image-formats.ts";
+
 /** Colour and ground only. It says nothing about where the text sits. */
-export type TemplateId = "cinematic" | "midnight" | "paper";
+export type TemplateId = "dark" | "light";
+type LegacyTemplateId = "cinematic" | "midnight" | "paper";
+type TemplateInput = TemplateId | LegacyTemplateId;
 export type SlideLayout = "cover" | "content" | "quote" | "closing";
 /** Where the text block sits in the frame, independent of colour. */
 export type SlidePosition = "top" | "middle" | "bottom";
@@ -24,8 +28,8 @@ export type CarouselSlide = {
    * keeps the picture legible around it.
    */
   plate?: boolean;
-  /** Overrides the carousel template, so one deck can mix photo and type-only slides. */
-  template?: TemplateId;
+  /** Overrides the carousel colour mode for one slide when a contrast is deliberate. */
+  template?: TemplateInput;
   /** Both default from the slide type, so decks written before these existed are unchanged. */
   position?: SlidePosition;
   align?: SlideAlign;
@@ -35,10 +39,9 @@ export type CarouselSlide = {
 export type LumaBands = [number, number, number];
 
 /**
- * Colour and placement used to travel together: choosing Midnight also centred the
- * text. They are separate now, and these are only the starting points a slide type
- * suggests. A cover or a closing line reads centred; a content slide reads as a
- * lower third over a photograph.
+ * Colour and placement stay separate: choosing dark or light never moves the text.
+ * These are only the starting points a slide type suggests. A cover or a closing line
+ * reads centred; a content slide reads as a lower third over a photograph.
  */
 export function slidePosition(slide: CarouselSlide): SlidePosition {
   return slide.position ?? (slide.layout === "content" ? "bottom" : "middle");
@@ -53,7 +56,7 @@ export type CarouselConfig = {
   title: string;
   author: string;
   /** The template a slide falls back to when it does not set its own. */
-  template: TemplateId;
+  template: TemplateInput;
   /**
    * A short wordmark set at the top of every slide. This is what makes a deck
    * recognisable mid-scroll: same words, same place, every slide. Deck-level on
@@ -64,7 +67,21 @@ export type CarouselConfig = {
 };
 
 export function slideTemplate(slide: CarouselSlide, config: CarouselConfig) {
-  return slide.template ?? config.template;
+  return normalizeTemplate(slide.template ?? config.template);
+}
+
+/**
+ * Keep old saved decks readable while making dark and light the only styles the
+ * editor can create. Cinematic and midnight were both dark surfaces; paper maps to
+ * light. Unknown values always fall back to dark instead of reaching a CSS class.
+ */
+export function normalizeTemplate(value: unknown): TemplateId {
+  return value === "light" || value === "paper" ? "light" : "dark";
+}
+
+/** Midnight and Paper were type-only styles. Keep their no-photo behavior for old decks. */
+export function isLegacyTypeOnlyTemplate(value: unknown) {
+  return value === "midnight" || value === "paper";
 }
 
 /** Stops an export that would silently paint an unresolved local image as blank. */
@@ -89,7 +106,7 @@ export const starterConfig: CarouselConfig = {
   title: "Directing AI",
   author: BRAND_FOOTER,
   mark: BRAND_MARK,
-  template: "cinematic",
+  template: "dark",
   slides: [
     {
       id: "starter-cover",
@@ -100,14 +117,12 @@ export const starterConfig: CarouselConfig = {
     {
       id: "starter-context",
       layout: "content",
-      template: "midnight",
       title: "The bottleneck moved",
       body: "Writing code is getting cheaper by the month.\n\nDeciding what to build, giving clear context, and judging the result are what still cost you something.",
     },
     {
       id: "starter-method",
       layout: "content",
-      template: "paper",
       title: "Direct. Inspect. Refine.",
       body: "Give the model one concrete outcome.\n\nReview the work against evidence, not vibes.\n\nTighten the brief, then run it again.",
     },
@@ -121,7 +136,7 @@ export const starterConfig: CarouselConfig = {
 };
 
 const layouts: SlideLayout[] = ["cover", "content", "quote", "closing"];
-const templates: TemplateId[] = ["cinematic", "midnight", "paper"];
+const templateInputs: TemplateInput[] = ["dark", "light", "cinematic", "midnight", "paper"];
 const positions: SlidePosition[] = ["top", "middle", "bottom"];
 const aligns: SlideAlign[] = ["left", "center"];
 
@@ -177,9 +192,12 @@ export function parseCarouselConfig(input: string): CarouselConfig {
     throw new Error("Keep the carousel to 20 slides or fewer.");
   }
 
-  const template = templates.includes(record.template as TemplateId)
-    ? (record.template as TemplateId)
-    : "cinematic";
+  // Preserve a recognised legacy value through import. Rendering still normalises
+  // it to dark or light, but Slide needs to see midnight/paper so old type-only
+  // decks do not unexpectedly reveal a retained background image.
+  const template = templateInputs.includes(record.template as TemplateInput)
+    ? (record.template as TemplateInput)
+    : "dark";
 
   const slides = record.slides.map((item, index) => {
     if (!item || typeof item !== "object" || Array.isArray(item)) {
@@ -192,7 +210,7 @@ export function parseCarouselConfig(input: string): CarouselConfig {
     // A background is either freshly uploaded bytes or a key into the image store.
     // Remote URLs stay rejected so export never depends on a third-party fetch.
     const background = cleanText(slide.background);
-    if (background && !background.startsWith("data:image/") && !background.startsWith("img:")) {
+    if (background && !isSupportedImageDataUrl(background) && !background.startsWith("img:")) {
       throw new Error(`Slide ${index + 1} has an unsupported background.`);
     }
     const luma = readLuma(slide.luma);
@@ -209,8 +227,8 @@ export function parseCarouselConfig(input: string): CarouselConfig {
       ...(background ? { background } : {}),
       ...(luma ? { luma } : {}),
       ...(slide.plate === true ? { plate: true } : {}),
-      ...(templates.includes(slide.template as TemplateId)
-        ? { template: slide.template as TemplateId }
+      ...(templateInputs.includes(slide.template as TemplateInput)
+        ? { template: slide.template as TemplateInput }
         : {}),
       ...(positions.includes(slide.position as SlidePosition)
         ? { position: slide.position as SlidePosition }
@@ -283,7 +301,7 @@ export function generateCarouselFromText(
   source: string,
   options: Pick<CarouselConfig, "author" | "template"> = {
     author: BRAND_FOOTER,
-    template: "cinematic",
+    template: "dark",
   },
 ): CarouselConfig {
   const chunks = sentenceChunks(source);
@@ -382,164 +400,57 @@ function clamp(value: number, low: number, high: number) {
   return Math.min(high, Math.max(low, value));
 }
 
-/**
- * Type sizes are in container width, so the 520px preview and the 1080px export
- * agree exactly.
- *
- * Sizing is continuous rather than banded. Set type fills an area of roughly
- * length × size², and the text block it has to fill is a fixed share of the frame, so
- * size ≈ √(area / length) holds the block at a constant fullness however long the
- * copy runs. AREA is fitted to the golden-ratio steps this replaced: it reproduces
- * them to within a few percent at 24, 44 and 66 characters.
- *
- * Bands were the problem. deckTypeScale sizes the whole deck off its longest title,
- * so one headline crossing a band edge dropped every title by a full √φ step, 21%,
- * for one extra character. The curve moves by a fraction of a percent instead.
- */
+/** Type sizes are in container width, so preview and export agree exactly. */
+const TITLE = 8;
 const BODY = 3.1;
-/**
- * These are font-size numbers, and font size is not what a reader sees: cap height is.
- * Playfair draws a 0.571em cap where Playfair Display drew 0.708em, so the same
- * font-size renders about a fifth smaller. AREA and the clamps are scaled by the
- * inverse of that ratio, which keeps every headline at the cap height it had before
- * the face changed while the numbers below stay honest font sizes.
- *
- * Scale these together if the face changes again. AREA moves by the square of the
- * ratio because size varies with the square root of it.
- */
-const TITLE_MAX = 13.1;
-const TITLE_MIN = 5.95;
-const AREA = 4150;
+const TITLE_TRACKING = -0.035;
+const TITLE_LEADING = 0.96;
 
 export function titleSize(title: string | undefined) {
-  const length = Math.max(visibleLength(title), 1);
-  return round(clamp(Math.sqrt(AREA / length), TITLE_MIN, TITLE_MAX));
+  void title;
+  return TITLE;
 }
 
 export function bodySize(body: string | undefined) {
-  const length = visibleLength(body);
-  if (length <= 110) return round(BODY * 1.128); // 3.5 — ⁴√φ
-  if (length <= 200) return BODY;
-  return round(BODY / 1.128); // 2.75
+  void body;
+  return BODY;
 }
 
 /**
- * The deck is set at one title size and one body size throughout, because a carousel
- * that changes size slide to slide reads as inconsistent even when each slide is
- * individually well fitted. The size is the one that suits the longest copy, so the
- * whole deck matches and nothing overflows.
+ * Every carousel shares the same title and body scale. Copy can wrap to more lines,
+ * but it cannot make one cover look louder than the next in the gallery.
  */
-const COVER_SCALE = 1.45;
-/** Past three lines a headline stops reading as a statement and starts reading as a paragraph. */
-const COVER_MAX_LINES = 3;
-/**
- * The cover is always the largest type in its deck, and never more than half again
- * larger than the slides behind it.
- *
- * Cover and content sizes are measured from different text, so left to themselves
- * their relationship is accidental: decks ranged from a cover 1.89x the body slides
- * to one 0.73x, which is a cover set smaller than the slides it introduces. Tying
- * the cover to the deck's own body size is what makes a shelf of decks look related.
- */
-const COVER_MIN_RATIO = 1.15;
-const COVER_MAX_RATIO = 1.6;
-
-/**
- * The cover boost is a ceiling, not a promise. Applied flat, 1.45x pushed any headline
- * over about forty characters into four or five lines, which is the opposite of what
- * setting a cover large is for. So it backs off toward the base size until the longest
- * cover fits in three.
- */
-function fitCoverSize(base: number, titles: (string | undefined)[]) {
-  let size = round(base * COVER_SCALE);
-  while (size > base && Math.max(...titles.map((title) => estimateLines(title, size))) > COVER_MAX_LINES) {
-    size = round(size - 0.2);
-  }
-  return size;
-}
-
 export function deckTypeScale(slides: CarouselSlide[]) {
-  // Covers are measured on their own. They carry the headline alone, at their own
-  // multiple and their own measure, so letting a long cover title shrink every
-  // content slide behind it drags the whole deck down for no reason.
-  const covers = slides.filter((slide) => slide.layout === "cover");
-  const content = slides.filter((slide) => slide.layout !== "cover");
-  const measured = content.length ? content : slides;
-
-  const title = Math.min(...measured.map((slide) => titleSize(slide.title)));
-  const coverSlides = covers.length ? covers : measured;
-  // Fit for three lines first, then hold the result inside the ratio band. The band
-  // wins: a cover that has to take a fourth line is a smaller problem than a cover
-  // that is not obviously the cover.
-  const cover = round(clamp(
-    fitCoverSize(Math.min(...coverSlides.map((slide) => titleSize(slide.title))), coverSlides.map((slide) => slide.title)),
-    title * COVER_MIN_RATIO,
-    title * COVER_MAX_RATIO,
-  ));
-
-  // Leading is chosen for the longest-setting slide in each group, so one four line
-  // headline does not leave the rest of the deck led as if every title were two.
-  const contentLines = Math.max(...measured.map((slide) => estimateLines(slide.title, title)));
-  const coverLines = Math.max(...coverSlides.map((slide) => estimateLines(slide.title, cover)));
-
+  void slides;
   return {
-    title,
-    tracking: titleTracking(title),
-    leading: titleLeading(title, contentLines),
-    cover,
-    coverTracking: round3(titleTracking(cover) - 0.004),
-    coverLeading: titleLeading(cover, coverLines),
-    body: Math.min(...measured.map((slide) => bodySize(slide.body))),
+    title: TITLE,
+    tracking: TITLE_TRACKING,
+    leading: TITLE_LEADING,
+    cover: TITLE,
+    coverTracking: TITLE_TRACKING,
+    coverLeading: TITLE_LEADING,
+    body: BODY,
   };
 }
 
-/**
- * Tracking has to move against size or the title reads like default web text.
- * A serif set at 110px needs the counters pulled in; the same face at 54px does
- * not, and tightening it there would just look cramped. These are the classic
- * display values: about -2% at the top of the scale easing to -1% at the bottom,
- * now interpolated rather than stepped so it tracks the continuous size curve.
- */
 export function titleTracking(size: number) {
-  // Tighter than it was, and tighter than a text face would take. A Didone set large
-  // wants its letters close: the hairlines already separate the shapes, so the default
-  // fit reads gappy. Roughly -2% at the bottom of the scale down to -4% at the top.
-  return round3(clamp(-0.020 - (size - 6) * 0.0018, -0.042, -0.016));
+  void size;
+  return TITLE_TRACKING;
 }
 
-/**
- * Leading moves against size for the same reason tracking does. Big display type
- * wants near-solid setting: the line gap a serif needs at reading size becomes a
- * gutter at 110px. Anything above 1.1 on a two-line title is the stock-HTML look.
- */
 export function titleLeading(size: number, lines = 2) {
-  // Leading tightens as type grows, but it has to level off rather than keep falling.
-  // A straight line did keep falling: at cover sizes it returned 0.66 and even 0.44,
-  // so every cover in the app was pinned to the clamp floor and the line count below
-  // stopped having any effect at all. A curve flattens toward a sane display leading
-  // instead of running off the bottom.
-  const base = 0.88 + 1.36 / Math.max(size, 1);
-  // Every line past the second opens it a little. A four line headline set as tight as
-  // a two line one reads as a solid block, and descenders start colliding with the
-  // caps beneath them.
-  const opened = base + Math.max(0, lines - 2) * 0.035;
-  // The floor sits at 0.9 rather than 0.86 because Playfair Display has a tall
-  // x-height (0.514em against a 0.708em cap). Lines of a large-x face read closer
-  // together than their leading says, so solid setting closes up faster.
-  return round3(clamp(opened, 0.9, 1.18));
+  void size;
+  void lines;
+  return TITLE_LEADING;
 }
 
 /**
- * How many lines a title will take at a given size, near enough to choose leading by.
- * Assumes a serif at roughly 0.46em average advance across the measure it is given.
+ * How many lines a title will take at a given size.
+ *
+ * Helvetica's mean advance across ordinary English display copy is about 0.46em.
+ * This estimate is used for tests and line-count guidance, not for resizing type.
  */
-/**
- * Mean advance width of the display face over a realistic headline, in em, measured
- * from the font file rather than guessed: Playfair at opsz 96 comes out at 0.394 across
- * a sample of the copy these decks actually carry. Change this if the face changes,
- * or every line estimate drifts and the cover sizing drifts with it.
- */
-const AVG_ADVANCE = 0.394;
+const AVG_ADVANCE = 0.46;
 
 export function estimateLines(title: string | undefined, size: number, measure = 0.88) {
   const segments = titleLines(title ?? "");
@@ -547,23 +458,10 @@ export function estimateLines(title: string | undefined, size: number, measure =
   return segments.reduce((total, segment) => total + Math.max(1, Math.ceil(visibleLength(segment) / perLine)), 0);
 }
 
-/* The footer (1.4cqw) is fixed in CSS so it holds steady across the deck while the
-   title and body flex with their copy. */
-
-function round(value: number) {
-  return Math.round(value * 100) / 100;
-}
-
-/**
- * Tracking and leading are rounded finer than the sizes. At two decimals a 0.004em
- * nudge quantises away, and can even round back out to looser than it started.
- */
-function round3(value: number) {
-  return Math.round(value * 1000) / 1000;
-}
+/* The footer (1.4cqw) is fixed in CSS so it holds steady across every deck. */
 
 export function aiPrompt(config: CarouselConfig) {
-  return `Create a cinematic, minimal LinkedIn carousel from the source text below. Return JSON only, with no markdown fences.
+  return `Create a minimal LinkedIn carousel from the source text below. Return JSON only, with no markdown fences.
 
 Rules:
 - 5 to 8 slides. One idea per slide.
@@ -571,7 +469,7 @@ Rules:
 - Put a "|" in a title to force a line break where the sense breaks. Use it on the cover and on any title of five words or more.
 - Bodies: 45 words or fewer. Separate paragraphs with a blank line.
 - Wrap one phrase per slide in *asterisks* for italic, or **double asterisks** for the accent colour. Use it sparingly.
-- "template" is per slide and optional. Omit it to inherit the carousel default. Set it to "cinematic" for a photo slide, "midnight" or "paper" for a type-only slide. Mixing a couple of type-only slides into a photo deck reads well.
+- "template" is per slide and optional. Omit it to inherit the carousel default. Use only "dark" or "light". Keep the same value across the deck unless a deliberate contrast is needed.
 
 Use this exact shape:
 ${JSON.stringify(
@@ -583,7 +481,7 @@ ${JSON.stringify(
       slides: [
         {
           layout: "cover | content | quote | closing",
-          template: "cinematic | midnight | paper",
+          template: "dark | light",
           title: "Slide headline",
           body: "Optional supporting copy",
         },

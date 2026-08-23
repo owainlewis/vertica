@@ -1,19 +1,19 @@
 "use client";
 
 /**
- * Background images live in the browser's IndexedDB, keyed by a content hash, and
- * the saved carousel stores only those keys. Two reasons: D1 caps a single value at
- * 1MB, which a real photograph blows straight through, and the same photo reused
- * across slides is then stored once.
- *
- * This is the seam to swap when the images move to Google Cloud. Reimplement
- * putImage and loadImages against a signed-upload endpoint and nothing else in the
- * app has to change: everywhere else already deals in keys, not bytes.
+ * Background images use a content hash as their stable key. IndexedDB remains a
+ * local cache, while the API stores the bytes in R2 so a saved carousel can resolve
+ * its images in another browser. The rest of the app still deals in keys, not bytes.
  */
 
 const DB_NAME = "vertica-images";
 const STORE = "images";
 export const IMAGE_PREFIX = "img:";
+// A data URL can re-enter putImage on every autosave because the editor resolves
+// stored keys for painting. One successful PUT per key is enough for this session;
+// cache-only legacy images still get that first PUT so they migrate to durable media.
+const persistedKeys = new Set<string>();
+const pendingPuts = new Map<string, Promise<string>>();
 
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -45,22 +45,81 @@ async function hash(value: string) {
 /** Stores a data URL and returns the key to keep in the carousel config. */
 export async function putImage(dataUrl: string) {
   const key = `${IMAGE_PREFIX}${await hash(dataUrl)}`;
-  await run("readwrite", (store) => store.put(dataUrl, key));
-  return key;
+  if (persistedKeys.has(key)) return key;
+  const existing = pendingPuts.get(key);
+  if (existing) return existing;
+
+  const pending = (async () => {
+    // IndexedDB is only a cache. Private browsing and restrictive browser policies
+    // can disable it, but durable R2 storage must still remain usable.
+    await run("readwrite", (store) => store.put(dataUrl, key)).catch(() => undefined);
+
+    const response = await fetch(`/api/media/${encodeURIComponent(key)}`, {
+      method: "PUT",
+      headers: { "content-type": "text/plain" },
+      body: dataUrl,
+    });
+    // Do not report a carousel as saved when its bytes never reached durable storage.
+    // A missing R2 binding is a configuration error, not permission to fall back to
+    // browser-only media again.
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error((body as { error?: string }).error ?? "Could not persist that image.");
+    }
+    persistedKeys.add(key);
+    return key;
+  })();
+
+  pendingPuts.set(key, pending);
+  try {
+    return await pending;
+  } finally {
+    if (pendingPuts.get(key) === pending) pendingPuts.delete(key);
+  }
 }
 
 export function isImageKey(value: string | undefined): value is string {
   return typeof value === "string" && value.startsWith(IMAGE_PREFIX);
 }
 
-/** Resolves keys back to data URLs. Missing keys are simply absent from the map. */
+function blobToDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error("Could not read the stored image."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function loadRemoteImage(key: string) {
+  try {
+    const response = await fetch(`/api/media/${encodeURIComponent(key)}`);
+    if (!response.ok) return undefined;
+    persistedKeys.add(key);
+    return await blobToDataUrl(await response.blob());
+  } catch {
+    // A missing optional R2 binding or a temporarily unavailable media request
+    // should leave the key intact and let the existing missing-image warning win.
+    return undefined;
+  }
+}
+
+/** Resolves keys back to data URLs, checking the local cache before R2. */
 export async function loadImages(keys: string[]): Promise<Record<string, string>> {
   const unique = [...new Set(keys.filter(isImageKey))];
   if (!unique.length) return {};
 
   const entries = await Promise.all(
     unique.map(async (key) => {
-      const value = await run<string | undefined>("readonly", (store) => store.get(key));
+      const local = await run<string | undefined>("readonly", (store) => store.get(key)).catch(() => undefined);
+      if (local) return [key, local] as const;
+
+      const value = await loadRemoteImage(key);
+      if (value) {
+        // Warm the local cache after a cross-browser load so subsequent previews
+        // do not need another media request.
+        await run("readwrite", (store) => store.put(value, key)).catch(() => undefined);
+      }
       return [key, value] as const;
     }),
   );

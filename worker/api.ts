@@ -1,7 +1,23 @@
 /** JSON API for saved carousels. Mounted under /api by the worker entry point. */
-import { deckTypeScale, type CarouselSlide } from "../app/carousel.ts";
 import { clearSessionCookie, createSessionCookie, isAuthorised, isSecureRequest, passwordMatches } from "./auth.ts";
-import { ConflictError, deleteCarousel, getCarousel, listCarousels, MissingError, saveCarousel, type D1Database } from "./db.ts";
+import {
+  ConflictError,
+  claimMediaCleanup,
+  deleteCarousel,
+  finishMediaCleanup,
+  getCarousel,
+  isMediaReferenced,
+  listCarousels,
+  listMediaCleanup,
+  MissingError,
+  postponeMediaCleanup,
+  protectMedia,
+  queueMediaCleanup,
+  releaseMediaCleanup,
+  saveCarousel,
+  type D1Database,
+} from "./db.ts";
+import { deleteMedia, getMedia, InvalidMediaInput, isMediaKey, putMedia, readMediaRequest, type R2Bucket } from "./media.ts";
 
 /** Thrown for input the caller can fix. Anything else is ours and stays generic. */
 class InvalidInput extends Error {}
@@ -9,6 +25,7 @@ class InvalidInput extends Error {}
 export interface ApiEnv {
   DB?: D1Database;
   APP_SECRET?: string;
+  MEDIA?: R2Bucket;
 }
 
 function json(body: unknown, init: ResponseInit = {}) {
@@ -19,6 +36,64 @@ function json(body: unknown, init: ResponseInit = {}) {
 }
 
 const MAX_CONFIG_BYTES = 400_000;
+
+function mediaKeys(config: string) {
+  try {
+    const parsed = JSON.parse(config) as { slides?: Array<{ background?: unknown }> };
+    return [...new Set((parsed.slides ?? [])
+      .map((slide) => slide?.background)
+      .filter((value): value is string => typeof value === "string" && isMediaKey(value)))];
+  } catch {
+    return [];
+  }
+}
+
+async function collectMediaGarbage(db: D1Database, bucket: R2Bucket, candidates: string[] = []) {
+  await queueMediaCleanup(db, candidates);
+  for (const { key, notBefore } of await listMediaCleanup(db)) {
+    const claim = crypto.randomUUID();
+    if (!(await claimMediaCleanup(db, key, notBefore, claim))) continue;
+    try {
+      if (await isMediaReferenced(db, key)) {
+        await postponeMediaCleanup(db, key, claim);
+      } else {
+        await deleteMedia(bucket, key);
+        await finishMediaCleanup(db, key, notBefore, claim);
+      }
+    } catch (error) {
+      await releaseMediaCleanup(db, key, claim).catch(() => undefined);
+      throw error;
+    }
+  }
+}
+
+async function protectMediaForSave(
+  db: D1Database,
+  bucket: R2Bucket | undefined,
+  keys: string[],
+  adoptedKeys: string[] = [],
+) {
+  const waited = await protectMedia(db, keys);
+  const verify = [...new Set([...waited, ...adoptedKeys])];
+  if (!verify.length) return;
+  if (!bucket) throw new InvalidInput("Media persistence is not configured.");
+  for (const key of verify) {
+    const object = await getMedia(bucket, key);
+    if (!object) {
+      throw new InvalidInput("An image was removed while this carousel was saving. Add it again and retry.");
+    }
+    await object.body.cancel().catch(() => undefined);
+  }
+}
+
+async function tryCollectMediaGarbage(db: D1Database, bucket: R2Bucket | undefined, candidates: string[] = []) {
+  if (!bucket) return;
+  try {
+    await collectMediaGarbage(db, bucket, candidates);
+  } catch (error) {
+    console.error("media cleanup failed", error);
+  }
+}
 
 /** Mirrors the client's parser closely enough to keep junk out of the table. */
 function readInput(body: unknown) {
@@ -55,16 +130,13 @@ function readInput(body: unknown) {
     id: text(record.id, ""),
     title: text(parsed.title, "Untitled carousel"),
     author: text(parsed.author, ""),
-    template: text(parsed.template, "cinematic"),
+    template: text(parsed.template, "dark"),
     slideCount: slides.length,
     coverTitle: text(cover?.title, ""),
-    // The gallery renders the real first slide rather than an approximation of it, so
-    // it needs that slide verbatim plus the deck-wide type scale. Without the scale it
-    // would size the title from one slide, and a deck whose first slide is not its
-    // longest would render larger on the card than in the editor.
+    // The gallery renders the real first slide rather than an approximation of it.
+    // Typography is a fixed design-system value, so no deck-wide scale is persisted.
     cover: JSON.stringify({
       slide: cover ?? {},
-      scale: deckTypeScale(slides as CarouselSlide[]),
       mark: typeof parsed.mark === "string" ? parsed.mark.slice(0, 30) : "",
     }),
     config,
@@ -111,13 +183,56 @@ export async function handleApi(request: Request, env: ApiEnv): Promise<Response
   }
 
   try {
+    const mediaMatch = path.match(/^\/media\/(.+)$/);
+    if (mediaMatch) {
+      let key = "";
+      try {
+        key = decodeURIComponent(mediaMatch[1]);
+      } catch {
+        return json({ error: "That image key is invalid." }, { status: 400 });
+      }
+      if (!isMediaKey(key)) return json({ error: "That image key is invalid." }, { status: 400 });
+      if (!env.MEDIA) return json({ error: "Media persistence is not configured." }, { status: 503 });
+
+      if (request.method === "PUT") {
+        // Refresh before and after the R2 write. The first refresh protects a reused
+        // content hash from a matured collector; the second starts a full grace period
+        // for abandoned uploads after the bytes are durable.
+        await protectMedia(db, [key]);
+        await putMedia(env.MEDIA, key, await readMediaRequest(request));
+        await protectMedia(db, [key]);
+        return json({ ok: true, key });
+      }
+      if (request.method === "GET") {
+        const object = await getMedia(env.MEDIA, key);
+        if (!object) return json({ error: "That image is gone." }, { status: 404 });
+        return new Response(object.body, {
+          headers: {
+            "cache-control": object.httpMetadata?.cacheControl ?? "private, max-age=31536000, immutable",
+            "content-type": object.httpMetadata?.contentType ?? "application/octet-stream",
+          },
+        });
+      }
+      return json({ error: "Method not allowed." }, { status: 405 });
+    }
+
     if (path === "/carousels" && request.method === "GET") {
+      await tryCollectMediaGarbage(db, env.MEDIA);
       return json({ carousels: await listCarousels(db) });
     }
 
     if (path === "/carousels" && request.method === "POST") {
       const { input } = readInput(await request.json().catch(() => null));
-      return json({ carousel: await saveCarousel(db, { ...input, id: input.id || newId() }, null) }, { status: 201 });
+      const keys = mediaKeys(input.config);
+      await protectMediaForSave(db, env.MEDIA, keys, keys);
+      try {
+        const carousel = await saveCarousel(db, { ...input, id: input.id || newId() }, null);
+        await tryCollectMediaGarbage(db, env.MEDIA);
+        return json({ carousel }, { status: 201 });
+      } catch (error) {
+        await tryCollectMediaGarbage(db, env.MEDIA, mediaKeys(input.config));
+        throw error;
+      }
     }
 
     const match = path.match(/^\/carousels\/([\w-]+)$/);
@@ -131,12 +246,33 @@ export async function handleApi(request: Request, env: ApiEnv): Promise<Response
       if (request.method === "PUT") {
         const { input, version } = readInput(await request.json().catch(() => null));
         if (version === null) {
+          await tryCollectMediaGarbage(db, env.MEDIA, mediaKeys(input.config));
           return json({ error: "This save is missing its version. Reload the page." }, { status: 409 });
         }
-        return json({ carousel: await saveCarousel(db, { ...input, id }, version) });
+        const previous = await getCarousel(db, id);
+        const keys = mediaKeys(input.config);
+        const previousKeys = new Set(mediaKeys(previous?.config ?? ""));
+        const adopted = keys.filter((key) => !previousKeys.has(key));
+        // Refresh before the config write and verify newly adopted keys. Existing
+        // keys avoid an R2 read on every text-only autosave.
+        await protectMediaForSave(db, env.MEDIA, keys, adopted);
+        try {
+          const carousel = await saveCarousel(db, { ...input, id }, version);
+          const retained = new Set(keys);
+          const removed = mediaKeys(previous?.config ?? "").filter((key) => !retained.has(key));
+          await tryCollectMediaGarbage(db, env.MEDIA, removed);
+          return json({ carousel });
+        } catch (error) {
+          // Media is uploaded before the config write. A conflict or failed save can
+          // therefore leave new keys unreferenced; queue them for a safe later sweep.
+          await tryCollectMediaGarbage(db, env.MEDIA, mediaKeys(input.config));
+          throw error;
+        }
       }
       if (request.method === "DELETE") {
+        const previous = await getCarousel(db, id);
         await deleteCarousel(db, id);
+        await tryCollectMediaGarbage(db, env.MEDIA, mediaKeys(previous?.config ?? ""));
         return json({ ok: true });
       }
     }
@@ -147,6 +283,7 @@ export async function handleApi(request: Request, env: ApiEnv): Promise<Response
     // and the only fix is to reload rather than to correct the payload.
     if (error instanceof ConflictError) return json({ error: error.message }, { status: 409 });
     if (error instanceof MissingError) return json({ error: error.message }, { status: 404 });
+    if (error instanceof InvalidMediaInput) return json({ error: error.message }, { status: 400 });
     if (error instanceof InvalidInput) return json({ error: error.message }, { status: 400 });
     // Anything else is a fault on our side. Its message can carry database internals,
     // so it is logged rather than returned.

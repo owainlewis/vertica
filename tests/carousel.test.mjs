@@ -9,6 +9,7 @@ import {
   bodySize,
   deckTypeScale,
   generateCarouselFromText,
+  isLegacyTypeOnlyTemplate,
   parseCarouselConfig,
   parseInlineMarks,
   slideAlign,
@@ -46,14 +47,14 @@ import { bandFor, scrimGradient, scrimPeak } from "../app/scrim.ts";
 test("generates a readable slide sequence from paragraphs", () => {
   const config = generateCarouselFromText(
     "A clear opening idea.\n\nThe first supporting point explains why it matters.\n\nEnd with one action the reader can take.",
-    { author: "Owain Lewis", template: "midnight" },
+    { author: "Owain Lewis", template: "dark" },
   );
 
   assert.equal(config.slides.length, 3);
   assert.equal(config.slides[0].layout, "cover");
   assert.equal(config.slides[2].layout, "closing");
   assert.equal(config.author, "OWAIN LEWIS");
-  assert.equal(config.template, "midnight");
+  assert.equal(config.template, "dark");
   assert.match(config.slides[1].title, /first supporting point/i);
 });
 
@@ -90,7 +91,7 @@ test("parses AI-generated JSON and applies safe defaults", () => {
   }));
 
   assert.equal(config.version, 1);
-  assert.equal(config.template, "cinematic");
+  assert.equal(config.template, "dark");
   assert.equal(config.author, "JANE DOE");
   assert.equal(config.slides[0].layout, "cover");
   assert.equal(config.slides[1].layout, "quote");
@@ -109,8 +110,8 @@ test("lets a slide override the carousel template and ignores unknown ones", () 
   assert.equal(config.slides[0].template, undefined);
   assert.equal(config.slides[1].template, "paper");
   assert.equal(config.slides[2].template, undefined);
-  assert.equal(slideTemplate(config.slides[0], config), "cinematic");
-  assert.equal(slideTemplate(config.slides[1], config), "paper");
+  assert.equal(slideTemplate(config.slides[0], config), "dark");
+  assert.equal(slideTemplate(config.slides[1], config), "light");
 });
 
 test("placement is independent of colour, and defaults from the slide type", () => {
@@ -146,6 +147,10 @@ test("placement is independent of colour, and defaults from the slide type", () 
 test("rejects unsafe background URLs and oversized carousels", () => {
   assert.throws(
     () => parseCarouselConfig(JSON.stringify({ slides: [{ title: "Slide", background: "https://example.com/a.jpg" }] })),
+    /unsupported background/,
+  );
+  assert.throws(
+    () => parseCarouselConfig(JSON.stringify({ slides: [{ title: "Slide", background: "data:image/svg+xml;base64,PHN2Zz4=" }] })),
     /unsupported background/,
   );
   assert.throws(
@@ -185,29 +190,20 @@ test("splits body copy on blank lines only", () => {
   assert.deepEqual(bodyParagraphs("   "), []);
 });
 
-test("shrinks type as copy grows, ignoring the mark characters", () => {
-  assert.ok(titleSize("Short headline") > titleSize("A considerably longer headline that keeps going and going"));
+test("keeps title and body sizes fixed as copy changes", () => {
+  assert.equal(titleSize("Short headline"), titleSize("A considerably longer headline that keeps going and going"));
   assert.equal(titleSize("*Short headline*"), titleSize("Short headline"));
-  assert.ok(bodySize("Brief.") > bodySize("x".repeat(250)));
+  assert.equal(bodySize("Brief."), bodySize("x".repeat(250)));
 });
 
-test("tightens tracking and leading as the title gets bigger", () => {
-  const titles = ["Short headline", "A headline of middling length here", "x".repeat(50), "x".repeat(80)];
-  const sizes = titles.map(titleSize);
-  const tracking = sizes.map(titleTracking);
-  const leading = sizes.map(titleLeading);
-
-  for (const value of tracking) assert.ok(value < 0 && value > -0.05, `${value} is not display tracking`);
-  for (const value of leading) assert.ok(value >= 0.9 && value <= 1.2, `${value} is not display leading`);
-
-  for (let i = 1; i < titles.length; i += 1) {
-    assert.ok(sizes[i] < sizes[i - 1], "sizes should step down");
-    assert.ok(tracking[i] > tracking[i - 1], "smaller type should be tracked looser");
-    assert.ok(leading[i] > leading[i - 1], "smaller type should be led looser");
-  }
+test("keeps title tracking and leading fixed", () => {
+  assert.equal(titleTracking(6), titleTracking(13));
+  assert.equal(titleLeading(6, 2), titleLeading(13, 5));
+  assert.ok(titleTracking(8) < 0, "Helvetica titles should be set tightly");
+  assert.ok(titleLeading(8) > 0.9 && titleLeading(8) < 1, "Helvetica titles should use compact leading");
 });
 
-test("sets the whole deck at one size, chosen so the longest copy fits", () => {
+test("sets every carousel at one fixed title and body scale", () => {
   const slides = [
     { layout: "content", title: "Short", body: "Brief." },
     { layout: "content", title: "A headline that runs a good deal longer than the first one", body: "x".repeat(250) },
@@ -215,18 +211,25 @@ test("sets the whole deck at one size, chosen so the longest copy fits", () => {
   ];
   const scale = deckTypeScale(slides);
 
-  assert.equal(scale.title, titleSize(slides[1].title), "title size should suit the longest title");
-  assert.equal(scale.body, bodySize(slides[1].body), "body size should suit the longest body");
+  assert.equal(scale.title, titleSize(slides[0].title));
+  assert.equal(scale.body, bodySize(slides[0].body));
   assert.equal(scale.tracking, titleTracking(scale.title));
-  // Leading follows the tallest stack of lines in the deck, not the title size alone.
-  const lines = Math.max(...slides.map((slide) => estimateLines(slide.title, scale.title)));
-  assert.equal(scale.leading, titleLeading(scale.title, lines));
+  assert.equal(scale.leading, titleLeading(scale.title));
 
   const uniform = deckTypeScale([{ layout: "content", title: "Short", body: "Brief." }]);
-  assert.ok(uniform.title > scale.title, "a deck of short titles should still be set large");
+  assert.deepEqual(uniform, scale, "copy length must not change the type scale");
 });
 
-test("a long cover title does not shrink the content slides behind it", () => {
+test("does not size visible body copy from a hidden cover body", () => {
+  const scale = deckTypeScale([
+    { layout: "cover", title: "Cover", body: "x".repeat(250) },
+    { layout: "content", title: "Visible copy", body: "Brief." },
+  ]);
+
+  assert.equal(scale.body, bodySize("Brief."));
+});
+
+test("a long cover title sets one uniform title scale for the whole deck", () => {
   const content = [
     { layout: "content", title: "CodeRabbit", body: "Short." },
     { layout: "content", title: "Greptile", body: "Short." },
@@ -236,31 +239,22 @@ test("a long cover title does not shrink the content slides behind it", () => {
     ...content,
   ]);
 
-  assert.equal(withCover.title, deckTypeScale(content).title, "content slides keep their own size");
-  assert.ok(withCover.cover > withCover.title, "the cover is still set larger than the content slides");
-  assert.equal(
-    withCover.coverLeading,
-    titleLeading(withCover.cover, estimateLines("Four AI reviewers worth your time", withCover.cover)),
-  );
-  assert.ok(withCover.coverTracking < withCover.tracking, "the bigger cover is tracked tighter");
+  assert.equal(withCover.cover, withCover.title, "cover and content use the same title size");
+  assert.equal(withCover.coverTracking, withCover.tracking, "cover and content use the same tracking");
+  assert.equal(withCover.coverLeading, withCover.leading, "cover and content use the same leading");
 
   const coversOnly = deckTypeScale([{ layout: "cover", title: "Only a cover", body: "" }]);
-  assert.ok(coversOnly.title > 0 && coversOnly.cover > coversOnly.title, "a deck of covers still resolves");
+  assert.ok(coversOnly.title > 0 && coversOnly.cover === coversOnly.title, "a deck of covers still resolves");
+  const coverWithHiddenCopy = deckTypeScale([{ layout: "cover", title: "Only a cover", body: "x".repeat(250) }]);
+  assert.equal(coverWithHiddenCopy.body, bodySize(""), "hidden cover copy does not affect the unused body scale");
 });
 
-test("sizing is continuous, so one extra character cannot resize the deck", () => {
-  // The old banded scale stepped at 24, 44 and 66 characters. Because deckTypeScale
-  // sizes the whole deck off its longest title, crossing an edge dropped every title
-  // by a full 21% for one character. Nothing may move by more than a few percent now.
+test("headline length cannot resize the carousel", () => {
   for (let length = 6; length < 90; length += 1) {
     const before = titleSize("x".repeat(length));
     const after = titleSize("x".repeat(length + 1));
-    assert.ok(after <= before, `size must not grow as copy does (at ${length})`);
-    assert.ok(before - after < before * 0.05, `a single character moved the size ${before} to ${after}`);
+    assert.equal(after, before, `character ${length + 1} changed the fixed title size`);
   }
-
-  // It still has to actually shrink across the range, not just move smoothly.
-  assert.ok(titleSize("x".repeat(80)) < titleSize("x".repeat(20)) * 0.7);
 });
 
 test("a hard break in a headline is honoured and does not count toward its length", () => {
@@ -404,15 +398,14 @@ test("sets typographic quotes, dashes and ellipses at render time", () => {
   assert.equal(smartQuotes("Build the *context*"), "Build the *context*");
 });
 
-test("leading opens as a headline takes more lines", () => {
+test("leading stays fixed as a headline takes more lines", () => {
   const size = 8;
-  assert.ok(titleLeading(size, 4) > titleLeading(size, 2), "four lines need more air than two");
-  assert.ok(titleLeading(size, 2) === titleLeading(size, 1), "one and two lines set the same");
+  assert.equal(titleLeading(size, 4), titleLeading(size, 2));
+  assert.equal(titleLeading(size, 2), titleLeading(size, 1));
   for (const lines of [1, 2, 3, 4, 6]) {
     const value = titleLeading(size, lines);
-    assert.ok(value >= 0.9 && value <= 1.18, `${value} is not display leading`);
+    assert.ok(value > 0.9 && value < 1, `${value} is not compact display leading`);
   }
-  // The default has to match the old two-line behaviour, or every deck reflows.
   assert.equal(titleLeading(size), titleLeading(size, 2));
 });
 
@@ -430,36 +423,30 @@ test("estimates line count from the copy, the size and the hard breaks", () => {
   );
 });
 
-test("a deck of four-line covers is led looser than a deck of two-line ones", () => {
+test("short and long covers share one leading", () => {
   const long = deckTypeScale([{ layout: "cover", title: "The skill that decides who ships. Nobody lists it.", body: "" }]);
   const short = deckTypeScale([{ layout: "cover", title: "Taste is the moat", body: "" }]);
-  assert.ok(long.coverLeading > short.coverLeading, "the taller stack of lines needs more leading");
+  assert.equal(long.coverLeading, short.coverLeading);
 });
 
-test("the cover is always the largest type in its deck, and never wildly so", () => {
-  // Covers and content are measured from different text, so their relationship used
-  // to be accidental: a long cover title over short body titles produced a cover set
-  // smaller than the slides it was introducing.
-  const cases = [
-    { name: "long cover, short body titles", slides: [
-      { layout: "cover", title: "You don't have a model problem. | You have an eval problem", body: "" },
-      { layout: "content", title: "Vibes do not survive users", body: "Short." },
-      { layout: "content", title: "Ship the harness first", body: "Short." },
-    ] },
-    { name: "short cover, long body titles", slides: [
-      { layout: "cover", title: "Taste", body: "" },
-      { layout: "content", title: "A considerably longer headline that keeps going", body: "x".repeat(200) },
-    ] },
-    { name: "everything short", slides: [
-      { layout: "cover", title: "Ship it", body: "" },
-      { layout: "content", title: "Do less", body: "Short." },
-    ] },
-  ];
+test("legacy template names remain readable and normalize at render time", () => {
+  const config = parseCarouselConfig(JSON.stringify({
+    template: "midnight",
+    slides: [
+      { title: "Dark", template: "cinematic" },
+      { title: "Light", template: "paper" },
+    ],
+  }));
 
-  for (const { name, slides } of cases) {
-    const scale = deckTypeScale(slides);
-    assert.ok(scale.cover > scale.title, `${name}: cover must be larger than the body slides`);
-    const ratio = scale.cover / scale.title;
-    assert.ok(ratio >= 1.14 && ratio <= 1.61, `${name}: ratio ${ratio.toFixed(2)} is outside the band`);
-  }
+  // Keep the source value in the parsed config so old type-only backgrounds can
+  // still be suppressed by Slide. slideTemplate is the canonical visual mode.
+  assert.equal(config.template, "midnight");
+  assert.equal(config.slides[0].template, "cinematic");
+  assert.equal(config.slides[1].template, "paper");
+  assert.equal(slideTemplate(config.slides[0], config), "dark");
+  assert.equal(slideTemplate(config.slides[1], config), "light");
+  assert.equal(isLegacyTypeOnlyTemplate("midnight"), true);
+  assert.equal(isLegacyTypeOnlyTemplate("paper"), true);
+  assert.equal(isLegacyTypeOnlyTemplate("cinematic"), false);
+  assert.equal(isLegacyTypeOnlyTemplate("dark"), false);
 });

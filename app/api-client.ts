@@ -61,8 +61,8 @@ export function deleteCarousel(id: string) {
 }
 
 /**
- * Moves any freshly uploaded image bytes into the image store, so what reaches the
- * database is keys. Slides that already carry a key are left alone.
+ * Moves any freshly uploaded image bytes into the durable media store, so what
+ * reaches the database is keys. Slides that already carry a key are left alone.
  */
 async function externaliseBackgrounds(config: CarouselConfig): Promise<CarouselConfig> {
   const slides = await Promise.all(
@@ -77,13 +77,12 @@ async function externaliseBackgrounds(config: CarouselConfig): Promise<CarouselC
 /**
  * Resolves stored keys back into data URLs the slide renderer can paint.
  *
- * A key with no bytes behind it means the image lives in another browser, or that
- * this one has evicted its store. The key is kept exactly as it was. Replacing it
+ * A key with no bytes behind it means the media is missing, or that this browser
+ * cannot reach the durable store. The key is kept exactly as it was. Replacing it
  * with undefined is what used to destroy data: the editor would hold the stripped
  * config, autosave on the next keystroke, and write a deck with no image references
- * at all over the one in the database, leaving the bytes in the original browser with
- * nothing pointing at them. The renderer paints data URLs only, so an unresolved key
- * shows nothing and saves back unharmed.
+ * at all over the one in the database. The renderer paints data URLs only, so an
+ * unresolved key shows nothing and saves back unharmed.
  */
 export async function inlineBackgrounds(config: CarouselConfig): Promise<CarouselConfig> {
   const images = await loadImages(config.slides.map((slide) => slide.background ?? ""));
