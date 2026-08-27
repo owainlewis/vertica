@@ -3,7 +3,7 @@
 import { Images, LayoutGrid, LoaderCircle, Lock } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getSession, inlineBackgrounds, loadCarousel, signIn, type CarouselSummary } from "./api-client";
-import { BRAND_FOOTER, BRAND_MARK, CarouselConfig } from "./carousel";
+import { BRAND_FOOTER, BRAND_MARK, CarouselConfig, technicalDemoConfig } from "./carousel";
 import Dashboard from "./dashboard";
 import Editor from "./editor";
 import MediaGallery from "./media-gallery";
@@ -112,6 +112,12 @@ export default function Home() {
     const id = params.get("id");
     if (!id) {
       let live = true;
+      if (params.get("demo") === "agent-system") {
+        queueMicrotask(() => {
+          if (live) setView({ kind: "editor", key: "demo-agent-system", id: null, config: technicalDemoConfig, version: null });
+        });
+        return () => { live = false; };
+      }
       if (params.get("view") === "media") {
         queueMicrotask(() => { if (live) setView({ kind: "media" }); });
       }

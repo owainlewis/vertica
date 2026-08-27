@@ -9,7 +9,7 @@ import {
   loadCarousel,
   type CarouselSummary,
 } from "./api-client";
-import { assertBackgroundsAvailableForExport, CarouselConfig, CarouselSlide, deckTypeScale } from "./carousel";
+import { assertBackgroundsAvailableForExport, CarouselConfig, CarouselSlide, deckTypeScale, isVisualId } from "./carousel";
 import { exportStageToPdf, exportStageToZip, fileNameFor } from "./export";
 import { loadImages } from "./image-store";
 import { ExportStage, Slide } from "./slide";
@@ -58,6 +58,7 @@ function CardPreview({
       ...(parsed.template ? { template: parsed.template } : {}),
       ...(parsed.position ? { position: parsed.position } : {}),
       ...(parsed.align ? { align: parsed.align } : {}),
+      ...(isVisualId(parsed.visual) ? { visual: parsed.visual } : {}),
       // Carried through so the card's scrim matches the editor's rather than
       // falling back to the fixed one, which would darken the tile differently.
       ...(parsed.luma ? { luma: parsed.luma } : {}),

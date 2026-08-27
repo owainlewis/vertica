@@ -38,6 +38,8 @@ import {
   SlidePosition,
   slideTemplate,
   TemplateId,
+  visualIds,
+  VisualId,
 } from "./carousel";
 import { downloadBlob, exportStageToPdf, exportStageToZip, fileNameFor } from "./export";
 import { SaveQueue } from "./save-queue";
@@ -56,6 +58,15 @@ const SAVE_LABEL = {
 const templateNames: Record<TemplateId, { name: string; note: string }> = {
   dark: { name: "Dark", note: "Near-black with blue-grey type" },
   light: { name: "Light", note: "Soft white with blue-grey ink" },
+};
+
+const visualNames: Record<VisualId, string> = {
+  "system-map": "System map",
+  "agent-loop": "Runtime loop",
+  "context-stack": "Context stack",
+  "decision-router": "Decision router",
+  "trust-boundary": "Trust boundary",
+  "execution-trace": "Execution trace",
 };
 
 /** Longest a burst of edits can be folded into one undo step. */
@@ -498,6 +509,15 @@ export default function Editor({
               <label className="field-label" htmlFor="body">Supporting copy</label>
               <textarea id="body" maxLength={280} rows={6} value={selectedSlide.body} onChange={(event) => updateSlide({ body: event.target.value }, "body")} />
               <p className="field-hint"><em>*word*</em> sets a phrase in italic. <em>**word**</em> tints it with the accent colour. Leave a blank line to start a new paragraph.</p>
+              <label className="field-label" htmlFor="slide-visual">Technical diagram</label>
+              <div className="select-wrap">
+                <select id="slide-visual" value={selectedSlide.visual ?? ""} onChange={(event) => updateSlide({ visual: (event.target.value || undefined) as VisualId | undefined })}>
+                  <option value="">None</option>
+                  {visualIds.map((visual) => <option key={visual} value={visual}>{visualNames[visual]}</option>)}
+                </select>
+                <ChevronDown size={14} />
+              </div>
+              <p className="field-hint">Diagrams are live SVG, so they stay sharp at any export size.</p>
               {selectedSlide.layout === "cover" && (
                 <p className="field-hint">This slide is a Cover, so only the headline is drawn. The supporting copy is kept — change the slide type under Layout to show it.</p>
               )}

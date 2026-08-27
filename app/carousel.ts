@@ -8,6 +8,19 @@ export type SlideLayout = "cover" | "content" | "quote" | "closing";
 /** Where the text block sits in the frame, independent of colour. */
 export type SlidePosition = "top" | "middle" | "bottom";
 export type SlideAlign = "left" | "center";
+export const visualIds = [
+  "system-map",
+  "agent-loop",
+  "context-stack",
+  "decision-router",
+  "trust-boundary",
+  "execution-trace",
+] as const;
+export type VisualId = (typeof visualIds)[number];
+
+export function isVisualId(value: unknown): value is VisualId {
+  return typeof value === "string" && visualIds.some((visual) => visual === value);
+}
 
 export type CarouselSlide = {
   id: string;
@@ -33,6 +46,8 @@ export type CarouselSlide = {
   /** Both default from the slide type, so decks written before these existed are unchanged. */
   position?: SlidePosition;
   align?: SlideAlign;
+  /** A structured, editable SVG composition rendered with the slide. */
+  visual?: VisualId;
 };
 
 /** Top, middle and bottom third of the image, each a mean brightness from 0 to 1. */
@@ -135,6 +150,80 @@ export const starterConfig: CarouselConfig = {
   ],
 };
 
+/** A deliberate first-run showcase, opened with `?demo=agent-system`. */
+export const technicalDemoConfig: CarouselConfig = {
+  version: 1,
+  title: "Inside an AI Agent",
+  author: BRAND_FOOTER,
+  mark: "AI SYSTEMS · 01",
+  template: "dark",
+  slides: [
+    {
+      id: "agent-cover",
+      layout: "cover",
+      title: "Inside an|**AI agent**",
+      body: "A visual field guide to the system behind the chat box.",
+      visual: "system-map",
+      position: "top",
+      align: "left",
+    },
+    {
+      id: "agent-loop",
+      layout: "content",
+      title: "An agent is a|**runtime loop**",
+      body: "It observes the current state, decides what should happen next, acts through a tool, then reads the result back into context.",
+      visual: "agent-loop",
+      position: "top",
+      align: "left",
+    },
+    {
+      id: "agent-context",
+      layout: "content",
+      title: "Context is|**assembled**",
+      body: "Instructions, memory, retrieved knowledge and live tool results are composed into one temporary working view.",
+      visual: "context-stack",
+      position: "top",
+      align: "left",
+    },
+    {
+      id: "agent-router",
+      layout: "content",
+      title: "The model chooses|the **next action**",
+      body: "A useful agent can answer, ask for clarification, or call a tool. The decision is constrained by what the system exposes.",
+      visual: "decision-router",
+      position: "top",
+      align: "left",
+    },
+    {
+      id: "agent-trust",
+      layout: "content",
+      title: "Every tool call crosses|a **trust boundary**",
+      body: "Read operations can be automatic. Expensive, external or destructive actions need policy checks and, sometimes, a human gate.",
+      visual: "trust-boundary",
+      position: "top",
+      align: "left",
+    },
+    {
+      id: "agent-trace",
+      layout: "content",
+      title: "A trace turns autonomy|into **engineering**",
+      body: "Capture the prompt, decision, tool input, result and latency. If you cannot inspect the loop, you cannot improve it.",
+      visual: "execution-trace",
+      position: "top",
+      align: "left",
+    },
+    {
+      id: "agent-close",
+      layout: "closing",
+      title: "Build loops you can|**explain**",
+      body: "The best agent is not the most autonomous. It is the one whose behaviour you can see, bound and improve.",
+      visual: "system-map",
+      position: "top",
+      align: "left",
+    },
+  ],
+};
+
 const layouts: SlideLayout[] = ["cover", "content", "quote", "closing"];
 const templateInputs: TemplateInput[] = ["dark", "light", "cinematic", "midnight", "paper"];
 const positions: SlidePosition[] = ["top", "middle", "bottom"];
@@ -172,7 +261,7 @@ export function titleLines(title: string) {
   return lines.length ? lines : [title.trim()];
 }
 
-export function parseCarouselConfig(input: string): CarouselConfig {
+export function parseCarouselConfig(input: string, options: { maximumSlides?: number | null } = {}): CarouselConfig {
   let value: unknown;
   try {
     value = JSON.parse(input);
@@ -188,8 +277,9 @@ export function parseCarouselConfig(input: string): CarouselConfig {
   if (!Array.isArray(record.slides) || record.slides.length === 0) {
     throw new Error("Add at least one slide.");
   }
-  if (record.slides.length > 20) {
-    throw new Error("Keep the carousel to 20 slides or fewer.");
+  const maximumSlides = options.maximumSlides === undefined ? 20 : options.maximumSlides;
+  if (maximumSlides !== null && record.slides.length > maximumSlides) {
+    throw new Error(`Keep the carousel to ${maximumSlides} slides or fewer.`);
   }
 
   // Preserve a recognised legacy value through import. Rendering still normalises
@@ -234,6 +324,7 @@ export function parseCarouselConfig(input: string): CarouselConfig {
         ? { position: slide.position as SlidePosition }
         : {}),
       ...(aligns.includes(slide.align as SlideAlign) ? { align: slide.align as SlideAlign } : {}),
+      ...(isVisualId(slide.visual) ? { visual: slide.visual } : {}),
     } satisfies CarouselSlide;
   });
 
@@ -484,6 +575,7 @@ ${JSON.stringify(
           template: "dark | light",
           title: "Slide headline",
           body: "Optional supporting copy",
+          visual: "system-map | agent-loop | context-stack | decision-router | trust-boundary | execution-trace",
         },
       ],
     },

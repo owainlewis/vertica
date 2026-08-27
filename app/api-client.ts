@@ -1,6 +1,6 @@
 "use client";
 
-import type { CarouselConfig } from "./carousel";
+import { parseCarouselConfig, type CarouselConfig } from "./carousel";
 import { isImageKey, loadImages, putImage } from "./image-store";
 
 export type CarouselSummary = {
@@ -129,5 +129,7 @@ export async function saveCarousel(id: string | null, config: CarouselConfig, ve
 
 export async function loadCarousel(id: string) {
   const { carousel } = await call<{ carousel: CarouselSummary & { config: string } }>(`/carousels/${id}`);
-  return { summary: carousel, config: JSON.parse(carousel.config) as CarouselConfig };
+  // Loading must preserve decks the editor already allowed people to create. The
+  // 20-slide guard belongs to imports, not to reading trusted app-owned records.
+  return { summary: carousel, config: parseCarouselConfig(carousel.config, { maximumSlides: null }) };
 }

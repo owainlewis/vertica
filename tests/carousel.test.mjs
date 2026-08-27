@@ -16,6 +16,7 @@ import {
   slidePosition,
   slideTemplate,
   starterConfig,
+  technicalDemoConfig,
   estimateLines,
   smartQuotes,
   titleLeading,
@@ -97,6 +98,21 @@ test("parses AI-generated JSON and applies safe defaults", () => {
   assert.equal(config.slides[1].layout, "quote");
 });
 
+test("keeps supported technical visuals and drops unknown ones", () => {
+  const config = parseCarouselConfig(JSON.stringify({
+    slides: [
+      { title: "Loop", visual: "agent-loop" },
+      { title: "Unknown", visual: "made-up-diagram" },
+    ],
+  }));
+
+  assert.equal(config.slides[0].visual, "agent-loop");
+  assert.equal(config.slides[1].visual, undefined);
+  assert.equal(technicalDemoConfig.slides.length, 7);
+  assert.ok(technicalDemoConfig.slides.every((slide) => slide.visual), "every demo slide should carry a visual");
+  assert.doesNotThrow(() => parseCarouselConfig(JSON.stringify(technicalDemoConfig)));
+});
+
 test("lets a slide override the carousel template and ignores unknown ones", () => {
   const config = parseCarouselConfig(JSON.stringify({
     template: "cinematic",
@@ -157,6 +173,14 @@ test("rejects unsafe background URLs and oversized carousels", () => {
     () => parseCarouselConfig(JSON.stringify({ slides: Array.from({ length: 21 }, (_, index) => ({ title: `Slide ${index}` })) })),
     /20 slides or fewer/,
   );
+  assert.equal(
+    parseCarouselConfig(
+      JSON.stringify({ slides: Array.from({ length: 21 }, (_, index) => ({ title: `Stored slide ${index}` })) }),
+      { maximumSlides: null },
+    ).slides.length,
+    21,
+    "app-owned decks that predate the import limit must remain loadable",
+  );
   assert.throws(
     () => parseCarouselConfig(JSON.stringify({ slides: [{ title: "Slide", body: "x".repeat(281) }] })),
     /body must be 280 characters or fewer/,
@@ -167,6 +191,7 @@ test("produces a copyable prompt with the supported config contract", () => {
   const prompt = aiPrompt(starterConfig);
   assert.match(prompt, /Return JSON only/);
   assert.match(prompt, /cover \| content \| quote \| closing/);
+  assert.match(prompt, /execution-trace/);
   assert.match(prompt, /SOURCE TEXT:/);
 });
 

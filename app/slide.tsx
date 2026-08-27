@@ -15,6 +15,7 @@ import {
   titleLines,
 } from "./carousel";
 import { scrimGradient } from "./scrim";
+import { TechnicalDiagram } from "./technical-diagram";
 
 export type TypeScale = ReturnType<typeof deckTypeScale>;
 
@@ -47,6 +48,14 @@ export function Slide({
   const position = slidePosition(slide);
   const lines = titleLines(slide.title);
   const paragraphs = bodyParagraphs(slide.body);
+  const visibleTitleLength = slide.title.replace(/[|*]/g, "").trim().length;
+  const visualTitleSize = lines.length > 3 || visibleTitleLength > 70
+    ? 5.2
+    : visibleTitleLength > 50
+      ? 5.8
+      : (isCover || slide.layout === "closing")
+        ? 8.2
+        : 6.7;
   const rawTemplate = slide.template ?? (config.template as unknown);
   const legacyTypeOnly = isLegacyTypeOnlyTemplate(rawTemplate);
 
@@ -60,6 +69,7 @@ export function Slide({
     "--title-tracking": `${isCover ? scale.coverTracking : scale.tracking}em`,
     "--title-leading": `${isCover ? scale.coverLeading : scale.leading}`,
     "--body-size": `${scale.body}cqw`,
+    "--visual-title-size": `${visualTitleSize}cqw`,
     "--slide-scrim": scrimGradient(slide.layout, position, slide.luma),
     ...(painted ? { "--slide-background": `url(${painted})` } : {}),
   } as CSSProperties;
@@ -98,6 +108,7 @@ export function Slide({
     painted ? "has-background" : "",
     slide.plate ? "has-plate" : "",
     config.mark ? "has-mark" : "",
+    slide.visual ? "has-visual" : "",
     exportMode ? "export-slide" : "",
   ].filter(Boolean).join(" ");
 
@@ -105,6 +116,7 @@ export function Slide({
     <article className={classes} style={style} data-export-slide={exportMode ? "true" : undefined}>
       <div className="slide-image" />
       <div className="slide-overlay" />
+      {slide.visual && <TechnicalDiagram visual={slide.visual} />}
       {config.mark && <div className="slide-mark">{config.mark}</div>}
       <div className="slide-content">
         {/* Only wrapped when there is a plate to draw, so every other slide keeps
