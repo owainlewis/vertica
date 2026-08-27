@@ -109,6 +109,7 @@ test("keeps supported technical visuals and drops unknown ones", () => {
   assert.equal(config.slides[0].visual, "agent-loop");
   assert.equal(config.slides[1].visual, undefined);
   assert.equal(technicalDemoConfig.slides.length, 7);
+  assert.equal(technicalDemoConfig.template, "light", "the direct demo should open in the course-style light theme");
   assert.ok(technicalDemoConfig.slides.every((slide) => slide.visual), "every demo slide should carry a visual");
   assert.doesNotThrow(() => parseCarouselConfig(JSON.stringify(technicalDemoConfig)));
 });

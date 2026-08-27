@@ -12,26 +12,19 @@ function Node({ x, y, width, label, detail, accent = false }: { x: number; y: nu
 
 function SystemMap() {
   return (
-    <svg viewBox="0 0 900 520" role="img" aria-label="Map of an AI agent system">
-      <defs>
-        <radialGradient id="core-glow"><stop stopColor="var(--diagram-accent)" stopOpacity=".28" /><stop offset="1" stopColor="var(--diagram-accent)" stopOpacity="0" /></radialGradient>
-        <filter id="soft-glow"><feGaussianBlur stdDeviation="12" /></filter>
-      </defs>
-      <circle cx="450" cy="264" r="172" className="diagram-orbit orbit-outer" />
-      <circle cx="450" cy="264" r="112" className="diagram-orbit" />
-      <circle cx="450" cy="264" r="90" fill="url(#core-glow)" filter="url(#soft-glow)" />
-      <path className="diagram-path" d="M286 209 C334 182 354 165 378 136 M614 209 C566 182 546 165 522 136 M286 319 C334 346 354 363 378 392 M614 319 C566 346 546 363 522 392" />
-      <g className="diagram-core">
-        <circle cx="450" cy="264" r="73" />
-        <text className="diagram-kicker" x="450" y="247" textAnchor="middle">AGENT</text>
-        <text className="diagram-core-title" x="450" y="280" textAnchor="middle">RUNTIME</text>
-      </g>
-      <Node x={89} y={176} width={196} label="CONTEXT" detail="what it can see" />
-      <Node x={615} y={176} width={196} label="REASON" detail="what happens next" />
-      <Node x={89} y={303} width={196} label="OBSERVE" detail="what changed" />
-      <Node x={615} y={303} width={196} label="ACT" detail="what it can do" accent />
-      <circle className="diagram-pulse" cx="329" cy="174" r="5" />
-      <circle className="diagram-pulse" cx="571" cy="349" r="5" />
+    <svg viewBox="0 0 900 520" role="img" aria-label="Flowchart of an AI agent system">
+      <defs><marker id="system-arrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0L9 4.5L0 9Z" fill="var(--diagram-line)" /></marker></defs>
+      <g className="flow-terminal"><ellipse cx="450" cy="72" rx="150" ry="42" /><text className="diagram-node-title" x="450" y="79" textAnchor="middle">Goal + context</text></g>
+      <path className="diagram-path" d="M450 114V148" markerEnd="url(#system-arrow)" />
+      <Node x={302} y={166} width={296} label="Model chooses next step" />
+      <path className="diagram-path" d="M450 220V252" markerEnd="url(#system-arrow)" />
+      <g className="flow-decision"><path d="M450 265L612 333L450 401L288 333Z" /><text className="diagram-node-title" x="450" y="340" textAnchor="middle">Next action?</text></g>
+      <path className="diagram-path" d="M288 333H224V420" markerEnd="url(#system-arrow)" />
+      <path className="diagram-path" d="M612 333H676V420" markerEnd="url(#system-arrow)" />
+      <text className="diagram-edge-label" x="230" y="318">tool</text>
+      <text className="diagram-edge-label" x="651" y="318">finish</text>
+      <Node x={114} y={438} width={220} label="Validate request" />
+      <g className="flow-terminal is-answer"><ellipse cx="690" cy="465" rx="142" ry="42" /><text className="diagram-node-title" x="690" y="472" textAnchor="middle">Answer / human</text></g>
     </svg>
   );
 }
@@ -39,25 +32,25 @@ function SystemMap() {
 function AgentLoop() {
   return (
     <svg viewBox="0 0 900 520" role="img" aria-label="AI agent runtime loop">
-      <defs><marker id="loop-arrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0L9 4.5L0 9Z" fill="var(--diagram-accent)" /></marker></defs>
+      <defs><marker id="loop-arrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0L9 4.5L0 9Z" fill="var(--diagram-line)" /></marker></defs>
       <path className="loop-track" d="M230 256C230 130 330 70 450 70S670 130 670 256 570 448 450 448 230 382 230 256Z" markerEnd="url(#loop-arrow)" />
       <circle className="loop-center" cx="450" cy="258" r="86" />
       <text className="diagram-kicker" x="450" y="245" textAnchor="middle">UNTIL DONE</text>
       <text className="diagram-core-title" x="450" y="282" textAnchor="middle">STATE Δ</text>
-      <Node x={106} y={88} width={178} label="01 · OBSERVE" detail="read state" />
-      <Node x={616} y={88} width={178} label="02 · DECIDE" detail="choose action" accent />
-      <Node x={616} y={357} width={178} label="03 · ACT" detail="call a tool" />
-      <Node x={106} y={357} width={178} label="04 · ABSORB" detail="append result" />
+      <Node x={106} y={88} width={178} label="01 · Observe" detail="read state" />
+      <Node x={616} y={88} width={178} label="02 · Decide" detail="choose action" accent />
+      <Node x={616} y={357} width={178} label="03 · Act" detail="call a tool" />
+      <Node x={106} y={357} width={178} label="04 · Absorb" detail="append result" />
     </svg>
   );
 }
 
 function ContextStack() {
   const layers = [
-    [98, 85, "SYSTEM", "rules + role"],
-    [126, 160, "MEMORY", "prior decisions"],
-    [154, 235, "RETRIEVAL", "relevant knowledge"],
-    [182, 310, "LIVE STATE", "the world right now"],
+    [98, 85, "System instructions", "rules + role"],
+    [126, 160, "Memory", "prior decisions"],
+    [154, 235, "Retrieval", "relevant knowledge"],
+    [182, 310, "Live state", "the world right now"],
   ] as const;
   return (
     <svg viewBox="0 0 900 520" role="img" aria-label="Sources assembled into an AI context window">
@@ -72,7 +65,7 @@ function ContextStack() {
       <path className="diagram-path" d="M500 126H582 M500 201H582 M500 276H582 M500 351H582" markerEnd="url(#context-arrow)" />
       <g className="context-window">
         <rect x="604" y="104" width="206" height="276" rx="24" />
-        <text className="diagram-kicker" x="707" y="150" textAnchor="middle">WORKING VIEW</text>
+        <text className="diagram-kicker" x="707" y="150" textAnchor="middle">Working view</text>
         <rect x="638" y="180" width="138" height="10" rx="5" />
         <rect x="638" y="208" width="102" height="10" rx="5" />
         <rect x="638" y="252" width="138" height="10" rx="5" />
@@ -88,20 +81,20 @@ function DecisionRouter() {
   return (
     <svg viewBox="0 0 900 520" role="img" aria-label="Model routing a request to possible next actions">
       <defs><marker id="route-arrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0L9 4.5L0 9Z" fill="var(--diagram-muted)" /></marker></defs>
-      <Node x={78} y={211} width={192} label="NEW STATE" detail="goal + context" />
+      <Node x={78} y={211} width={192} label="New state" detail="goal + context" />
       <path className="diagram-path" d="M270 247H354" markerEnd="url(#route-arrow)" />
       <g className="router-core">
         <path d="M450 160L542 247L450 334L358 247Z" />
-        <text className="diagram-kicker" x="450" y="238" textAnchor="middle">MODEL</text>
-        <text className="diagram-core-title" x="450" y="271" textAnchor="middle">ROUTE</text>
+        <text className="diagram-kicker" x="450" y="238" textAnchor="middle">Model</text>
+        <text className="diagram-core-title" x="450" y="271" textAnchor="middle">Route</text>
       </g>
       <path className="diagram-path" d="M542 247C585 247 584 112 628 112 M542 247H628 M542 247C585 247 584 382 628 382" markerEnd="url(#route-arrow)" />
-      <Node x={650} y={76} width={174} label="ANSWER" detail="return output" />
-      <Node x={650} y={211} width={174} label="ASK" detail="reduce ambiguity" />
-      <Node x={650} y={346} width={174} label="USE TOOL" detail="change the world" accent />
-      <text className="diagram-edge-label" x="566" y="103">ENOUGH</text>
-      <text className="diagram-edge-label" x="569" y="235">UNCLEAR</text>
-      <text className="diagram-edge-label is-accent" x="561" y="374">ACTION</text>
+      <Node x={650} y={76} width={174} label="Answer" detail="return output" />
+      <Node x={650} y={211} width={174} label="Ask" detail="reduce ambiguity" />
+      <Node x={650} y={346} width={174} label="Use tool" detail="change the world" accent />
+      <text className="diagram-edge-label" x="566" y="103">enough</text>
+      <text className="diagram-edge-label" x="569" y="235">unclear</text>
+      <text className="diagram-edge-label is-accent" x="561" y="374">action</text>
     </svg>
   );
 }
@@ -111,20 +104,20 @@ function TrustBoundary() {
     <svg viewBox="0 0 900 520" role="img" aria-label="Tool call crossing a guarded trust boundary">
       <defs><marker id="trust-arrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0L9 4.5L0 9Z" fill="var(--diagram-accent)" /></marker></defs>
       <rect className="trust-zone" x="470" y="50" width="365" height="408" rx="28" />
-      <text className="diagram-kicker" x="501" y="88">EXTERNAL SYSTEMS</text>
-      <Node x={74} y={194} width={216} label="AGENT" detail="proposes action" />
+      <text className="diagram-kicker" x="501" y="88">External systems</text>
+      <Node x={74} y={194} width={216} label="Agent" detail="proposes action" />
       <path className="trust-flow" d="M290 230H388" />
       <g className="trust-gate">
         <rect x="388" y="159" width="124" height="142" rx="20" />
         <circle cx="450" cy="207" r="19" />
         <path d="M440 207l7 7 14-17" />
-        <text className="diagram-node-title" x="450" y="260" textAnchor="middle">POLICY</text>
+        <text className="diagram-node-title" x="450" y="260" textAnchor="middle">Policy</text>
         <text className="diagram-node-detail" x="450" y="281" textAnchor="middle">allow · ask · deny</text>
       </g>
       <path className="trust-flow is-accent" d="M512 230H610" markerEnd="url(#trust-arrow)" />
-      <Node x={634} y={114} width={158} label="DATABASE" detail="write" accent />
-      <Node x={634} y={224} width={158} label="EMAIL" detail="send" />
-      <Node x={634} y={334} width={158} label="DEPLOY" detail="release" />
+      <Node x={634} y={114} width={158} label="Database" detail="write" accent />
+      <Node x={634} y={224} width={158} label="Email" detail="send" />
+      <Node x={634} y={334} width={158} label="Deploy" detail="release" />
       <text className="diagram-caption" x="74" y="402">Autonomy should expand only as evidence and reversibility improve.</text>
     </svg>
   );
@@ -132,11 +125,11 @@ function TrustBoundary() {
 
 function ExecutionTrace() {
   const events = [
-    [128, "PROMPT", "0ms"],
-    [290, "DECISION", "420ms"],
-    [452, "TOOL", "610ms"],
-    [614, "RESULT", "1.2s"],
-    [776, "ANSWER", "1.8s"],
+    [128, "Prompt", "0ms"],
+    [290, "Decision", "420ms"],
+    [452, "Tool", "610ms"],
+    [614, "Result", "1.2s"],
+    [776, "Answer", "1.8s"],
   ] as const;
   return (
     <svg viewBox="0 0 900 520" role="img" aria-label="Observable execution trace for an AI agent">
@@ -151,7 +144,7 @@ function ExecutionTrace() {
         </g>
       ))}
       <g className="trace-metric">
-        <text className="diagram-kicker" x="70" y="438">ONE RUN · FIVE EVENTS · FULLY INSPECTABLE</text>
+        <text className="diagram-kicker" x="70" y="438">One run · five events · fully inspectable</text>
         <rect x="70" y="458" width="758" height="8" rx="4" />
         <rect className="is-accent" x="70" y="458" width="468" height="8" rx="4" />
       </g>

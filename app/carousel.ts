@@ -156,7 +156,7 @@ export const technicalDemoConfig: CarouselConfig = {
   title: "Inside an AI Agent",
   author: BRAND_FOOTER,
   mark: "AI SYSTEMS · 01",
-  template: "dark",
+  template: "light",
   slides: [
     {
       id: "agent-cover",

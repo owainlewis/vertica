@@ -2,6 +2,14 @@
 
 @font-face {
   font-family: "Castoro";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/castoro-regular.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Castoro";
   font-style: italic;
   font-weight: 400;
   font-display: swap;
@@ -12,6 +20,7 @@
   --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-title: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-italic: Castoro, Georgia, serif;
+  --font-editorial: Castoro, Georgia, serif;
   --ink: #202a31;
   --muted: #5d6b73;
   --paper: #e8edf0;
@@ -359,35 +368,45 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .carousel-slide .slide-plate h2,
 .carousel-slide .slide-plate p { max-width: 100%; color: inherit; text-shadow: none; }
 
-/* Technical slides are diagrams first. The SVGs use one shared visual grammar:
-   hairline routes, restrained nodes, one electric accent and generous dark space. */
+/* Technical slides borrow the course's editorial language: Helvetica labels,
+   Castoro headlines, flat paper-like surfaces and conventional flowchart geometry. */
 .carousel-slide.has-visual {
-  --diagram-accent: #c8ff63;
-  --diagram-cyan: #57d7ff;
-  --diagram-muted: #6f7e88;
+  --diagram-accent: #d9906b;
+  --diagram-accent-fill: #251811;
+  --diagram-answer: #9fc3d5;
+  --diagram-answer-fill: #142129;
+  --diagram-bg: #11171b;
+  --diagram-surface: #0a0e11;
+  --diagram-line: #9aadb8;
+  --diagram-muted: #9aadb8;
+  --diagram-node-line: #27323a;
+  --diagram-soft-fill: #29343a;
+  --diagram-text: #e7eef2;
   --slide-accent: var(--diagram-accent);
-  background:
-    radial-gradient(circle at 78% 18%, rgb(87 215 255 / .08), transparent 31%),
-    radial-gradient(circle at 18% 72%, rgb(200 255 99 / .055), transparent 29%),
-    #080b0d;
+  background: #0c1013;
 }
 .carousel-slide.template-light.has-visual {
-  --slide-fg: #e7eef2;
-  --slide-muted: rgb(231 238 242 / .62);
-  --slide-bg: #080b0d;
-  --slide-surface: #0d1215;
-  --slide-line: rgb(231 238 242 / .18);
+  --diagram-accent: #b55231;
+  --diagram-accent-fill: #f3ded5;
+  --diagram-answer: #3f6575;
+  --diagram-answer-fill: #dce6ec;
+  --diagram-bg: #eff3f5;
+  --diagram-surface: #fbfcfd;
+  --diagram-line: #5c6d78;
+  --diagram-muted: #5c6d78;
+  --diagram-node-line: #c7d2d9;
+  --diagram-soft-fill: #dfe6ea;
+  --diagram-text: #202a31;
+  --slide-fg: #202a31;
+  --slide-muted: rgb(32 42 49 / .68);
+  --slide-bg: #fbfcfd;
+  --slide-surface: #eff3f5;
+  --slide-line: #c7d2d9;
   color: var(--slide-fg);
+  background: #fbfcfd;
 }
 .carousel-slide.has-visual::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  opacity: .2;
-  background-image: linear-gradient(rgb(255 255 255 / .055) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / .055) 1px, transparent 1px);
-  background-size: 5cqw 5cqw;
-  mask-image: linear-gradient(to bottom, transparent 6%, #000 34%, #000 88%, transparent 100%);
+  display: none;
 }
 .has-visual .slide-content {
   position: absolute;
@@ -398,75 +417,53 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   padding: 13.5% 8% 0;
 }
 .has-visual.has-mark .slide-content { padding-top: 13.5%; }
-.has-visual .slide-content h2 { max-width: 86%; font-size: var(--visual-title-size); line-height: .98; letter-spacing: -.045em; }
+.has-visual .slide-content h2 { max-width: 86%; font-family: var(--font-editorial); font-size: var(--visual-title-size); font-weight: 400; line-height: 1.02; letter-spacing: -.028em; }
 .has-visual .slide-content p { max-width: 80%; margin-top: .78em; font-size: 2.25cqw; line-height: 1.42; color: rgb(231 238 242 / .62); }
 .has-visual.layout-cover .slide-content h2,
 .has-visual.layout-closing .slide-content h2 { max-width: 78%; font-size: var(--visual-title-size); }
 .has-visual.layout-closing .slide-content p { font-size: 2.25cqw; }
 .has-visual.layout-cover .technical-diagram { inset: 39% 5.5% 9%; }
-.has-visual.layout-closing .technical-diagram { opacity: .55; }
-.has-visual .slide-mark { top: 6.2%; padding: 0 8%; color: rgb(231 238 242 / .42); font-size: 1.25cqw; text-align: left; }
-.has-visual .slide-meta { position: absolute; right: 0; bottom: 0; left: 0; z-index: 4; padding: 0 8% 5.5%; color: rgb(231 238 242 / .35); }
+.has-visual .slide-mark { top: 6.2%; padding: 0 8%; color: var(--slide-muted); font-size: 1.25cqw; text-align: left; }
+.has-visual .slide-meta { position: absolute; right: 0; bottom: 0; left: 0; z-index: 4; padding: 0 8% 5.5%; color: var(--slide-muted); }
 
 .technical-diagram {
   position: absolute;
   z-index: 2;
   inset: 46% 5.5% 9%;
   overflow: hidden;
-  border: 1px solid rgb(231 238 242 / .12);
-  border-radius: 1.6cqw;
-  background: linear-gradient(145deg, rgb(255 255 255 / .025), rgb(255 255 255 / .008));
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / .015), 0 2.5cqw 7cqw rgb(0 0 0 / .25);
-}
-.technical-diagram::before {
-  content: "LIVE SYSTEM VIEW";
-  position: absolute;
-  top: 1.4cqw;
-  right: 1.65cqw;
-  color: rgb(231 238 242 / .28);
-  font: 700 .9cqw/1 var(--font-sans);
-  letter-spacing: .18em;
-}
-.technical-diagram::after {
-  content: "";
-  position: absolute;
-  top: 1.35cqw;
-  right: 10.8cqw;
-  width: .65cqw;
-  height: .65cqw;
-  border-radius: 50%;
-  background: var(--diagram-accent);
-  box-shadow: 0 0 1.2cqw rgb(200 255 99 / .7);
+  border: 1px solid var(--diagram-node-line);
+  border-radius: 1.05cqw;
+  background: var(--diagram-bg);
 }
 .technical-diagram svg { width: 100%; height: 100%; }
-.diagram-node rect, .context-layer rect { fill: rgb(13 18 21 / .94); stroke: rgb(231 238 242 / .18); stroke-width: 1.5; }
-.diagram-node.is-accent rect { fill: rgb(200 255 99 / .075); stroke: var(--diagram-accent); }
-.diagram-node-title, .diagram-core-title { fill: #e7eef2; font: 700 16px/1 var(--font-sans); letter-spacing: .055em; }
-.diagram-node-detail, .diagram-caption { fill: rgb(231 238 242 / .48); font: 500 13px/1 var(--font-sans); letter-spacing: .02em; }
-.diagram-kicker, .diagram-edge-label { fill: rgb(231 238 242 / .45); font: 700 12px/1 var(--font-sans); letter-spacing: .18em; }
+.diagram-node rect, .context-layer rect { fill: var(--diagram-surface); stroke: var(--diagram-node-line); stroke-width: 2; }
+.diagram-node.is-accent rect { fill: var(--diagram-accent-fill); stroke: var(--diagram-accent); }
+.diagram-node-title, .diagram-core-title { fill: var(--diagram-text); font: 500 18px/1 var(--font-sans); letter-spacing: 0; }
+.diagram-node-detail, .diagram-caption { fill: var(--diagram-muted); font: 400 13px/1 var(--font-sans); letter-spacing: 0; }
+.diagram-kicker, .diagram-edge-label { fill: var(--diagram-muted); font: 500 13px/1 var(--font-sans); letter-spacing: 0; }
 .diagram-edge-label.is-accent { fill: var(--diagram-accent); }
-.diagram-path { fill: none; stroke: rgb(231 238 242 / .25); stroke-width: 1.6; }
-.diagram-orbit { fill: none; stroke: rgb(231 238 242 / .14); stroke-width: 1.2; stroke-dasharray: 5 10; }
-.orbit-outer { stroke: rgb(87 215 255 / .18); stroke-dasharray: 1 13; }
-.diagram-core circle, .loop-center { fill: #0d1215; stroke: var(--diagram-accent); stroke-width: 1.8; }
-.diagram-pulse { fill: var(--diagram-accent); filter: drop-shadow(0 0 8px rgb(200 255 99 / .85)); }
-.loop-track { fill: none; stroke: var(--diagram-accent); stroke-width: 2; stroke-dasharray: 7 9; }
-.context-window rect:first-child { fill: rgb(13 18 21 / .94); stroke: var(--diagram-accent); stroke-width: 1.5; }
-.context-window rect:not(:first-child) { fill: rgb(231 238 242 / .14); }
+.diagram-path { fill: none; stroke: var(--diagram-line); stroke-width: 1.8; }
+.flow-terminal ellipse { fill: var(--diagram-surface); stroke: var(--diagram-node-line); stroke-width: 2; }
+.flow-terminal.is-answer ellipse { fill: var(--diagram-answer-fill); stroke: var(--diagram-answer); }
+.flow-decision path { fill: var(--diagram-accent-fill); stroke: var(--diagram-accent); stroke-width: 2.2; }
+.diagram-core circle, .loop-center { fill: var(--diagram-surface); stroke: var(--diagram-node-line); stroke-width: 2; }
+.loop-track { fill: none; stroke: var(--diagram-line); stroke-width: 2; }
+.context-window rect:first-child { fill: var(--diagram-surface); stroke: var(--diagram-node-line); stroke-width: 2; }
+.context-window rect:not(:first-child) { fill: var(--diagram-soft-fill); }
 .context-window rect.is-accent, .trace-metric rect.is-accent { fill: var(--diagram-accent); }
-.router-core path { fill: rgb(87 215 255 / .055); stroke: var(--diagram-cyan); stroke-width: 1.7; }
-.trust-zone { fill: rgb(87 215 255 / .025); stroke: rgb(87 215 255 / .3); stroke-width: 1.4; stroke-dasharray: 8 8; }
-.trust-flow { fill: none; stroke: rgb(231 238 242 / .24); stroke-width: 2; }
+.router-core path { fill: var(--diagram-accent-fill); stroke: var(--diagram-accent); stroke-width: 2; }
+.trust-zone { fill: transparent; stroke: var(--diagram-node-line); stroke-width: 1.5; stroke-dasharray: 8 8; }
+.trust-flow { fill: none; stroke: var(--diagram-line); stroke-width: 2; }
 .trust-flow.is-accent { stroke: var(--diagram-accent); }
-.trust-gate rect { fill: #0d1215; stroke: var(--diagram-accent); stroke-width: 1.6; }
-.trust-gate circle { fill: rgb(200 255 99 / .1); stroke: var(--diagram-accent); }
+.trust-gate rect { fill: var(--diagram-surface); stroke: var(--diagram-accent); stroke-width: 2; }
+.trust-gate circle { fill: var(--diagram-accent-fill); stroke: var(--diagram-accent); }
 .trust-gate path { fill: none; stroke: var(--diagram-accent); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
-.trace-line { stroke: rgb(231 238 242 / .18); stroke-width: 2; }
-.trace-signal { fill: none; stroke: rgb(87 215 255 / .55); stroke-width: 2; }
-.trace-event line { stroke: rgb(231 238 242 / .12); stroke-dasharray: 5 7; }
-.trace-event circle { fill: #0d1215; stroke: rgb(231 238 242 / .5); stroke-width: 2; }
-.trace-event.is-accent circle { fill: rgb(200 255 99 / .14); stroke: var(--diagram-accent); filter: drop-shadow(0 0 8px rgb(200 255 99 / .45)); }
-.trace-metric rect { fill: rgb(231 238 242 / .1); }
+.trace-line { stroke: var(--diagram-node-line); stroke-width: 2; }
+.trace-signal { fill: none; stroke: var(--diagram-answer); stroke-width: 2; }
+.trace-event line { stroke: var(--diagram-node-line); stroke-dasharray: 5 7; }
+.trace-event circle { fill: var(--diagram-surface); stroke: var(--diagram-line); stroke-width: 2; }
+.trace-event.is-accent circle { fill: var(--diagram-accent-fill); stroke: var(--diagram-accent); }
+.trace-metric rect { fill: var(--diagram-node-line); }
 .carousel-slide .slide-plate p { color: var(--slide-muted); }
 .carousel-slide .mark-accent { color: var(--slide-accent); }
 .carousel-slide .slide-mark { color: var(--slide-muted); }
@@ -475,7 +472,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .template-light .slide-mark { color: rgb(32 42 49 / .54); }
 .template-light .slide-content p { color: var(--slide-muted); }
 .template-light .slide-plate { background: #eff3f5; }
-.template-light.has-visual .slide-meta { color: rgb(231 238 242 / .48); }
+.template-light.has-visual .slide-meta { color: var(--slide-muted); }
 .template-light.has-visual .slide-mark { color: var(--slide-muted); }
 .template-light.has-visual .slide-plate { background: var(--slide-surface); }
 .carousel-slide.layout-closing .slide-content p {
