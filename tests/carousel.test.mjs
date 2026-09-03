@@ -125,6 +125,22 @@ test("preserves the Signifier editorial template", () => {
   assert.equal(slideTemplate(config.slides[0], config), "editorial");
 });
 
+test("preserves editorial layouts and an optional sage ground", () => {
+  const config = parseCarouselConfig(JSON.stringify({
+    template: "editorial",
+    slides: [
+      { title: "Large statement", layout: "poster", tone: "sage" },
+      { title: "Two-part idea", body: "The supporting half.", layout: "split", tone: "unknown" },
+    ],
+  }));
+
+  assert.equal(config.slides[0].layout, "poster");
+  assert.equal(config.slides[0].tone, "sage");
+  assert.equal(config.slides[1].layout, "split");
+  assert.equal(config.slides[1].tone, undefined);
+  assert.equal(slideAlign(config.slides[1]), "left");
+});
+
 test("placement is independent of colour, and defaults from the slide type", () => {
   const config = parseCarouselConfig(JSON.stringify({
     slides: [
@@ -177,7 +193,7 @@ test("rejects unsafe background URLs and oversized carousels", () => {
 test("produces a copyable prompt with the supported config contract", () => {
   const prompt = aiPrompt(starterConfig);
   assert.match(prompt, /Return JSON only/);
-  assert.match(prompt, /cover \| content \| quote \| closing/);
+  assert.match(prompt, /cover \| content \| quote \| poster \| split \| closing/);
   assert.match(prompt, /SOURCE TEXT:/);
 });
 

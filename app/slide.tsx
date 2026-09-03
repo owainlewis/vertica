@@ -94,6 +94,7 @@ export function Slide({
     `layout-${slide.layout}`,
     `pos-${position}`,
     `align-${slideAlign(slide)}`,
+    slide.tone ? `tone-${slide.tone}` : "tone-paper",
     legacyTypeOnly ? "legacy-type-only" : "",
     painted ? "has-background" : "",
     slide.plate ? "has-plate" : "",

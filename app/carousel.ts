@@ -4,7 +4,8 @@ import { isSupportedImageDataUrl } from "./image-formats.ts";
 export type TemplateId = "dark" | "light" | "editorial";
 type LegacyTemplateId = "cinematic" | "midnight" | "paper";
 type TemplateInput = TemplateId | LegacyTemplateId;
-export type SlideLayout = "cover" | "content" | "quote" | "closing";
+export type SlideLayout = "cover" | "content" | "quote" | "poster" | "split" | "closing";
+export type EditorialTone = "paper" | "sage";
 /** Where the text block sits in the frame, independent of colour. */
 export type SlidePosition = "top" | "middle" | "bottom";
 export type SlideAlign = "left" | "center";
@@ -33,6 +34,8 @@ export type CarouselSlide = {
   /** Both default from the slide type, so decks written before these existed are unchanged. */
   position?: SlidePosition;
   align?: SlideAlign;
+  /** An optional editorial ground. Other templates ignore it. */
+  tone?: EditorialTone;
 };
 
 /** Top, middle and bottom third of the image, each a mean brightness from 0 to 1. */
@@ -48,7 +51,7 @@ export function slidePosition(slide: CarouselSlide): SlidePosition {
 }
 
 export function slideAlign(slide: CarouselSlide): SlideAlign {
-  return slide.align ?? (slide.layout === "content" ? "left" : "center");
+  return slide.align ?? (slide.layout === "content" || slide.layout === "split" ? "left" : "center");
 }
 
 export type CarouselConfig = {
@@ -136,10 +139,11 @@ export const starterConfig: CarouselConfig = {
   ],
 };
 
-const layouts: SlideLayout[] = ["cover", "content", "quote", "closing"];
+const layouts: SlideLayout[] = ["cover", "content", "quote", "poster", "split", "closing"];
 const templateInputs: TemplateInput[] = ["dark", "light", "editorial", "cinematic", "midnight", "paper"];
 const positions: SlidePosition[] = ["top", "middle", "bottom"];
 const aligns: SlideAlign[] = ["left", "center"];
+const editorialTones: EditorialTone[] = ["paper", "sage"];
 
 function cleanText(value: unknown, fallback = "") {
   return typeof value === "string" ? value.trim() : fallback;
@@ -235,6 +239,7 @@ export function parseCarouselConfig(input: string): CarouselConfig {
         ? { position: slide.position as SlidePosition }
         : {}),
       ...(aligns.includes(slide.align as SlideAlign) ? { align: slide.align as SlideAlign } : {}),
+      ...(editorialTones.includes(slide.tone as EditorialTone) ? { tone: slide.tone as EditorialTone } : {}),
     } satisfies CarouselSlide;
   });
 
@@ -471,6 +476,8 @@ Rules:
 - Bodies: 45 words or fewer. Separate paragraphs with a blank line.
 - Wrap one phrase per slide in *asterisks* for italic, or **double asterisks** for the accent colour. Use it sparingly.
 - "template" is per slide and optional. Omit it to inherit the carousel default. Use only "dark", "light", or "editorial". Use "editorial" for warm paper, a visible column grid, and Signifier typography. Keep the same value across the deck unless a deliberate contrast is needed.
+- "poster" makes one short idea deliberately oversized. "split" places the title and body on opposing parts of the grid. Use each no more than once.
+- "tone" is optional and only affects editorial slides. Use "sage" on one emphasis slide at most; otherwise omit it for paper.
 
 Use this exact shape:
 ${JSON.stringify(
@@ -481,8 +488,9 @@ ${JSON.stringify(
       template: config.template,
       slides: [
         {
-          layout: "cover | content | quote | closing",
+          layout: "cover | content | quote | poster | split | closing",
           template: "dark | light | editorial",
+          tone: "paper | sage",
           title: "Slide headline",
           body: "Optional supporting copy",
         },

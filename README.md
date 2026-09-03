@@ -81,9 +81,10 @@ bundled for italic emphasis, so marked phrases keep their contrast without a net
 font request.
 
 The **Signifier** template uses the locally installed Signifier regular and italic cuts
-on warm paper, with Georgia as a safe fallback. A subtle twelve-column grid, fixed
-folio, small sans-serif furniture, generous margins and a tighter display scale make
-it suitable for minimalist editorial decks.
+on cool grey paper, with Georgia as a safe fallback. A subtle twelve-column grid,
+fixed folio, small sans-serif furniture, generous margins and a tighter display scale
+make it suitable for minimalist editorial decks. Poster and split layouts add more
+expressive compositions, while a per-slide sage ground can punctuate one key idea.
 
 Quotes, apostrophes, ellipses and number ranges are made typographic at render time,
 never in the stored text, so what you typed is what the editor and the exported config

@@ -56,7 +56,7 @@ const SAVE_LABEL = {
 const templateNames: Record<TemplateId, { name: string; note: string }> = {
   dark: { name: "Dark", note: "Near-black with blue-grey type" },
   light: { name: "Light", note: "Soft white with blue-grey ink" },
-  editorial: { name: "Signifier", note: "Warm paper, serif type and 12-column grid" },
+  editorial: { name: "Signifier", note: "Cool grey, serif type and 12-column grid" },
 };
 
 /** Longest a burst of edits can be folded into one undo step. */
@@ -421,7 +421,7 @@ export default function Editor({
               <button className={`slide-thumb ${index === selectedIndex ? "selected" : ""}`} type="button" key={slide.id} onClick={() => setSelectedIndex(index)}>
                 <span className="thumb-number">{String(index + 1).padStart(2, "0")}</span>
                 <span className={`thumb-card template-${slideTemplate(slide, config)}`}><span>{slide.title.slice(0, 16)}</span></span>
-                <span className="thumb-label">{slide.layout === "cover" ? "Cover" : slide.layout === "closing" ? "Closing" : slide.layout === "quote" ? "Quote" : "Slide"}</span>
+                <span className="thumb-label">{slide.layout === "cover" ? "Cover" : slide.layout === "closing" ? "Closing" : slide.layout === "quote" ? "Quote" : slide.layout === "poster" ? "Poster" : slide.layout === "split" ? "Split" : "Slide"}</span>
               </button>
             ))}
           </div>
@@ -462,7 +462,7 @@ export default function Editor({
           {inspectorTab === "layout" ? (
             <div className="inspector-panel">
               <label className="field-label" htmlFor="slide-layout">Slide type</label>
-              <div className="select-wrap"><select id="slide-layout" value={selectedSlide.layout} onChange={(event) => updateSlide({ layout: event.target.value as CarouselSlide["layout"] })}><option value="cover">Cover</option><option value="content">Content</option><option value="quote">Quote</option><option value="closing">Closing</option></select><ChevronDown size={14} /></div>
+              <div className="select-wrap"><select id="slide-layout" value={selectedSlide.layout} onChange={(event) => updateSlide({ layout: event.target.value as CarouselSlide["layout"] })}><option value="cover">Cover</option><option value="content">Content</option><option value="quote">Quote</option><option value="poster">Poster</option><option value="split">Split</option><option value="closing">Closing</option></select><ChevronDown size={14} /></div>
 
               <span className="field-label">Text position</span>
               <div className="segmented">
@@ -530,6 +530,12 @@ export default function Editor({
               <label className="field-label" htmlFor="author">Footer name</label>
               <input id="author" maxLength={40} value={config.author} onChange={(event) => commit({ ...config, author: event.target.value.toUpperCase() }, "author")} />
               <span className="field-label">Slide background</span>
+              {activeTemplate === "editorial" && (
+                <div className="segmented" aria-label="Editorial background colour">
+                  <button type="button" className={(selectedSlide.tone ?? "paper") === "paper" ? "active" : ""} onClick={() => updateSlide({ tone: "paper" })}>Paper</button>
+                  <button type="button" className={selectedSlide.tone === "sage" ? "active" : ""} onClick={() => updateSlide({ tone: "sage" })}>Sage</button>
+                </div>
+              )}
               <button className="wide-upload" type="button" onClick={() => setMediaOpen(true)}><Images size={15} /> {selectedSlide.background ? "Choose another image" : "Choose from media"}</button>
               {isImageKey(selectedSlide.background) && (
                 <p className="field-hint warning">
