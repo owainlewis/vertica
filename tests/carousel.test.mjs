@@ -114,6 +114,17 @@ test("lets a slide override the carousel template and ignores unknown ones", () 
   assert.equal(slideTemplate(config.slides[1], config), "light");
 });
 
+test("preserves the Signifier editorial template", () => {
+  const config = parseCarouselConfig(JSON.stringify({
+    template: "editorial",
+    slides: [{ title: "A designed idea" }, { title: "A quiet continuation", template: "editorial" }],
+  }));
+
+  assert.equal(config.template, "editorial");
+  assert.equal(config.slides[1].template, "editorial");
+  assert.equal(slideTemplate(config.slides[0], config), "editorial");
+});
+
 test("placement is independent of colour, and defaults from the slide type", () => {
   const config = parseCarouselConfig(JSON.stringify({
     slides: [

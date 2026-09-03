@@ -56,6 +56,7 @@ const SAVE_LABEL = {
 const templateNames: Record<TemplateId, { name: string; note: string }> = {
   dark: { name: "Dark", note: "Near-black with blue-grey type" },
   light: { name: "Light", note: "Soft white with blue-grey ink" },
+  editorial: { name: "Signifier", note: "Warm paper, serif type and 12-column grid" },
 };
 
 /** Longest a burst of edits can be folded into one undo step. */

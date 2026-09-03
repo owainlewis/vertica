@@ -8,6 +8,22 @@
   src: url("/fonts/castoro-latin-italic.woff2") format("woff2");
 }
 
+@font-face {
+  font-family: "Signifier";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local("Signifier Regular"), local("Signifier-Regular");
+}
+
+@font-face {
+  font-family: "Signifier";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: local("Signifier Regular Italic"), local("Signifier-RegularItalic");
+}
+
 :root {
   --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-title: "Helvetica Neue", Helvetica, Arial, sans-serif;
@@ -155,6 +171,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .thumb-card { aspect-ratio: 4/5; display: flex; align-items: center; overflow: hidden; padding: 5px; color: #f6f1e7; background: #14140f; }
 .thumb-card.template-dark { color: #e7eef2; background: #0c1013; }
 .thumb-card.template-light { color: #202a31; background: #fbfcfd; }
+.thumb-card.template-editorial { color: #171714; background: #f2f0eb; }
+.thumb-card.template-editorial span { font-family: Signifier, Georgia, serif; font-weight: 400; }
 .thumb-card span { font-family: var(--font-title); font-size: 5.5px; font-weight: 700; line-height: 1.1; }
 .thumb-label { overflow: hidden; font-size: 11px; font-weight: 650; text-overflow: ellipsis; text-transform: capitalize; white-space: nowrap; }
 .rail-import { margin-top: auto; padding: 22px 4px 3px; }
@@ -278,9 +296,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 /* Closing slides keep the same body scale and finish without a pill-shaped CTA. */
 .layout-closing .slide-content h2 { max-width: 88%; }
 
-/* Carousel themes. These are the only two visual modes: a near-black dark mode and
-   the blue-grey light mode from the reference course. Layouts change placement only,
-   so every slide in a deck keeps the same type, contrast, and surface language. */
+/* Carousel themes. Dark and light share the existing blue-grey system; editorial
+   deliberately replaces that typography and spacing while preserving the slide model. */
 .carousel-slide {
   --slide-fg: #e7eef2;
   --slide-muted: rgb(231 238 242 / .72);
@@ -304,6 +321,115 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   color: var(--slide-fg);
   background: var(--slide-bg);
 }
+
+/* Editorial is an intentionally rigid print system. The content sits on a twelve-column
+   field with a generous outer margin, while tiny sans-serif furniture holds the frame.
+   The rules are part of the exported artwork, not an editor-only guide. */
+.template-editorial {
+  --editorial-ink: #171714;
+  --editorial-paper: #f2f0eb;
+  --editorial-rule: rgb(23 23 20 / .075);
+  --slide-fg: var(--editorial-ink);
+  --slide-muted: rgb(23 23 20 / .62);
+  --slide-accent: var(--editorial-ink);
+  --slide-line: rgb(23 23 20 / .16);
+  --slide-surface: rgb(255 255 255 / .32);
+  color: var(--editorial-ink);
+  background: var(--editorial-paper);
+  font-family: Signifier, Georgia, serif;
+}
+.template-editorial::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 4.8% 9.5%;
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--editorial-rule) 0,
+    var(--editorial-rule) 1px,
+    transparent 1px,
+    transparent calc(100% / 12)
+  );
+  border-right: 1px solid var(--editorial-rule);
+  pointer-events: none;
+}
+.template-editorial .slide-image { opacity: .96; filter: grayscale(.08) saturate(.72) contrast(1.02); }
+.template-editorial:not(.has-background) .slide-image,
+.template-editorial:not(.has-background) .slide-overlay { display: none; }
+.template-editorial.has-background .slide-overlay {
+  background: linear-gradient(180deg, rgb(242 240 235 / .96) 0%, rgb(242 240 235 / .8) 25%, rgb(242 240 235 / .18) 58%, rgb(242 240 235 / .04) 100%);
+}
+.template-editorial .slide-content {
+  z-index: 1;
+  padding: 18% 15.8% 14%;
+}
+.template-editorial .slide-content h2 {
+  max-width: 100%;
+  color: var(--editorial-ink);
+  font-family: Signifier, Georgia, serif;
+  font-size: 9.25cqw;
+  font-weight: 400;
+  line-height: .94;
+  letter-spacing: -.046em;
+  word-spacing: -.025em;
+}
+.template-editorial .slide-content p {
+  max-width: 86%;
+  margin-top: 1.5em;
+  color: rgb(23 23 20 / .78);
+  font-family: Signifier, Georgia, serif;
+  font-size: 4.55cqw;
+  line-height: 1.12;
+  letter-spacing: -.032em;
+}
+.template-editorial .mark-italic { font-family: Signifier, Georgia, serif; }
+.template-editorial .mark-accent { color: inherit; text-decoration: underline; text-decoration-thickness: .045em; text-underline-offset: .09em; }
+.template-editorial .slide-mark {
+  top: 8.2%;
+  left: 9.5%;
+  right: auto;
+  padding: 0;
+  color: var(--editorial-ink);
+  font-family: var(--font-sans);
+  font-size: 1.55cqw;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: .01em;
+  text-align: left;
+  text-transform: none;
+}
+.template-editorial .slide-meta { position: static; padding: 0; font-family: var(--font-sans); }
+.template-editorial .slide-meta .meta-author {
+  position: absolute;
+  z-index: 1;
+  left: 9.5%;
+  bottom: 7.8%;
+  color: var(--editorial-ink);
+  font-size: 1.45cqw;
+  font-weight: 600;
+  letter-spacing: .015em;
+  text-transform: none;
+}
+.template-editorial .slide-meta span:last-child {
+  position: absolute;
+  z-index: 1;
+  top: 8.2%;
+  right: 9.5%;
+  color: var(--editorial-ink);
+  font-size: 1.55cqw;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+.template-editorial.layout-cover .slide-content { padding-inline: 9.5%; }
+.template-editorial.layout-cover .slide-content h2 { max-width: 100%; font-size: 12.4cqw; line-height: .9; }
+.template-editorial.layout-content.align-left .slide-content { padding-right: 12%; }
+.template-editorial.layout-quote .slide-content { padding-inline: 12.7%; }
+.template-editorial.layout-quote .slide-content h2 { font-size: 8.4cqw; line-height: .98; }
+.template-editorial .slide-callout { max-width: 82%; margin-top: 2.2em; padding: 0; border: 0; background: transparent; }
+.template-editorial .slide-callout p { max-width: 100%; margin: 0; }
+.template-editorial.layout-closing .slide-content { padding-inline: 12.7%; }
+.template-editorial.layout-closing .slide-content h2 { font-size: 10.8cqw; }
+.template-editorial.layout-closing .slide-content p { max-width: 60%; font-family: var(--font-sans); font-size: 2.25cqw; font-weight: 600; line-height: 1.2; letter-spacing: -.015em; }
 .carousel-slide .slide-image { filter: saturate(.78) contrast(1.02); }
 .template-dark:not(.has-background) .slide-overlay,
 .template-light .slide-overlay { display: none; }
@@ -378,6 +504,33 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   text-transform: none;
 }
 
+/* These sit after the shared slide rules on purpose. Editorial owns its own scale and
+   weight rather than inheriting the Helvetica system above. */
+.carousel-slide.template-editorial .slide-content h2,
+.carousel-slide.template-editorial.layout-quote .slide-content h2,
+.carousel-slide.template-editorial .slide-plate h2 {
+  color: var(--editorial-ink);
+  font-family: Signifier, Georgia, serif;
+  font-size: 9.25cqw;
+  font-weight: 400;
+  line-height: .94;
+  letter-spacing: -.046em;
+}
+.carousel-slide.template-editorial .slide-content p,
+.carousel-slide.template-editorial.layout-quote .slide-content p {
+  color: rgb(23 23 20 / .78);
+  font-family: Signifier, Georgia, serif;
+  font-size: 4.55cqw;
+  font-weight: 400;
+  line-height: 1.12;
+  letter-spacing: -.032em;
+}
+.carousel-slide.template-editorial.layout-cover .slide-meta { display: flex; }
+.carousel-slide.template-editorial.layout-cover .slide-content h2 { font-size: 12.4cqw; line-height: .9; }
+.carousel-slide.template-editorial.layout-quote .slide-content h2 { font-size: 8.4cqw; line-height: .98; }
+.carousel-slide.template-editorial.layout-closing .slide-content h2 { font-size: 10.8cqw; }
+.carousel-slide.template-editorial.layout-closing .slide-content p { font-family: var(--font-sans); font-size: 2.25cqw; font-weight: 600; line-height: 1.2; letter-spacing: -.015em; }
+
 .inspector { border-left: 1px solid var(--line); padding: 18px; }
 .inspector-tabs { display: grid; grid-template-columns: repeat(3, 1fr); margin-bottom: 22px; border-bottom: 1px solid var(--line); }
 .inspector-tabs button { padding: 7px 0 11px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font-size: 11px; font-weight: 700; cursor: pointer; }
@@ -412,6 +565,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .template-swatch.light { background: #fbfcfd; border: 1px solid #c7d2d9; }
 .template-swatch.light i { background: #202a31; }
 .template-swatch.light i:first-child { background: #3f6575; }
+.template-swatch.editorial { background: #f2f0eb; border: 1px solid #d1cec6; }
+.template-swatch.editorial i { height: 1px; background: #171714; }
+.template-swatch.editorial i:first-child { width: 55%; background: #171714; }
 .wide-upload { padding: 12px; background: white; }
 .text-button { margin-top: 8px; padding: 0; border: 0; background: transparent; color: #9f3529; font-size: 10px; font-weight: 700; cursor: pointer; }
 .text-button.subtle { color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }

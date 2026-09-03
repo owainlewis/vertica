@@ -1,7 +1,7 @@
 import { isSupportedImageDataUrl } from "./image-formats.ts";
 
 /** Colour and ground only. It says nothing about where the text sits. */
-export type TemplateId = "dark" | "light";
+export type TemplateId = "dark" | "light" | "editorial";
 type LegacyTemplateId = "cinematic" | "midnight" | "paper";
 type TemplateInput = TemplateId | LegacyTemplateId;
 export type SlideLayout = "cover" | "content" | "quote" | "closing";
@@ -76,6 +76,7 @@ export function slideTemplate(slide: CarouselSlide, config: CarouselConfig) {
  * light. Unknown values always fall back to dark instead of reaching a CSS class.
  */
 export function normalizeTemplate(value: unknown): TemplateId {
+  if (value === "editorial") return "editorial";
   return value === "light" || value === "paper" ? "light" : "dark";
 }
 
@@ -136,7 +137,7 @@ export const starterConfig: CarouselConfig = {
 };
 
 const layouts: SlideLayout[] = ["cover", "content", "quote", "closing"];
-const templateInputs: TemplateInput[] = ["dark", "light", "cinematic", "midnight", "paper"];
+const templateInputs: TemplateInput[] = ["dark", "light", "editorial", "cinematic", "midnight", "paper"];
 const positions: SlidePosition[] = ["top", "middle", "bottom"];
 const aligns: SlideAlign[] = ["left", "center"];
 
@@ -469,7 +470,7 @@ Rules:
 - Put a "|" in a title to force a line break where the sense breaks. Use it on the cover and on any title of five words or more.
 - Bodies: 45 words or fewer. Separate paragraphs with a blank line.
 - Wrap one phrase per slide in *asterisks* for italic, or **double asterisks** for the accent colour. Use it sparingly.
-- "template" is per slide and optional. Omit it to inherit the carousel default. Use only "dark" or "light". Keep the same value across the deck unless a deliberate contrast is needed.
+- "template" is per slide and optional. Omit it to inherit the carousel default. Use only "dark", "light", or "editorial". Use "editorial" for warm paper, a visible column grid, and Signifier typography. Keep the same value across the deck unless a deliberate contrast is needed.
 
 Use this exact shape:
 ${JSON.stringify(
@@ -481,7 +482,7 @@ ${JSON.stringify(
       slides: [
         {
           layout: "cover | content | quote | closing",
-          template: "dark | light",
+          template: "dark | light | editorial",
           title: "Slide headline",
           body: "Optional supporting copy",
         },

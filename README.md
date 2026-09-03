@@ -7,7 +7,7 @@ A minimal studio for creating LinkedIn document carousels.
 - saves every carousel to a database and lists them on a home gallery
 - turns pasted text into an editable slide sequence
 - imports and exports a small JSON format that Claude or Codex can generate
-- pairs Helvetica Bold titles with Helvetica text and Castoro italics, with two consistent dark and light colour modes
+- pairs Helvetica Bold titles with Helvetica text and Castoro italics, plus a Signifier editorial template with a strict twelve-column grid
 - keeps colour, placement and slide type separate, so any text position works with any colour
 - accepts local background images per slide, and darkens each one to suit its own brightness
 - exports one PDF for LinkedIn, or numbered JPEGs zipped for Instagram, both at 2×
@@ -79,6 +79,11 @@ after it are still balanced.
 Titles use Helvetica Bold and body copy, labels and controls use Helvetica. Castoro is
 bundled for italic emphasis, so marked phrases keep their contrast without a network
 font request.
+
+The **Signifier** template uses the locally installed Signifier regular and italic cuts
+on warm paper, with Georgia as a safe fallback. A subtle twelve-column grid, fixed
+folio, small sans-serif furniture, generous margins and a tighter display scale make
+it suitable for minimalist editorial decks.
 
 Quotes, apostrophes, ellipses and number ranges are made typographic at render time,
 never in the stored text, so what you typed is what the editor and the exported config
