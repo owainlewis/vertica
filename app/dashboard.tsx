@@ -58,6 +58,7 @@ function CardPreview({
       ...(parsed.template ? { template: parsed.template } : {}),
       ...(parsed.position ? { position: parsed.position } : {}),
       ...(parsed.align ? { align: parsed.align } : {}),
+      ...(parsed.tone ? { tone: parsed.tone } : {}),
       // Carried through so the card's scrim matches the editor's rather than
       // falling back to the fixed one, which would darken the tile differently.
       ...(parsed.luma ? { luma: parsed.luma } : {}),
@@ -75,7 +76,7 @@ function CardPreview({
       version: 1,
       title: carousel.title,
       author: carousel.author,
-      template: (carousel.template as CarouselConfig["template"]) ?? "dark",
+      template: "editorial",
       ...(mark ? { mark } : {}),
       slides: Array.from({ length: Math.max(carousel.slideCount, 1) }, () => slide),
     }),

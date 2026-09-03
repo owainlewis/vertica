@@ -54,7 +54,7 @@ test("generates a readable slide sequence from paragraphs", () => {
   assert.equal(config.slides[0].layout, "cover");
   assert.equal(config.slides[2].layout, "closing");
   assert.equal(config.author, "OWAIN LEWIS");
-  assert.equal(config.template, "dark");
+  assert.equal(config.template, "editorial");
   assert.match(config.slides[1].title, /first supporting point/i);
 });
 
@@ -91,13 +91,13 @@ test("parses AI-generated JSON and applies safe defaults", () => {
   }));
 
   assert.equal(config.version, 1);
-  assert.equal(config.template, "dark");
+  assert.equal(config.template, "editorial");
   assert.equal(config.author, "JANE DOE");
   assert.equal(config.slides[0].layout, "cover");
   assert.equal(config.slides[1].layout, "quote");
 });
 
-test("lets a slide override the carousel template and ignores unknown ones", () => {
+test("collapses old and unknown template names into Signifier", () => {
   const config = parseCarouselConfig(JSON.stringify({
     template: "cinematic",
     slides: [
@@ -108,20 +108,20 @@ test("lets a slide override the carousel template and ignores unknown ones", () 
   }));
 
   assert.equal(config.slides[0].template, undefined);
-  assert.equal(config.slides[1].template, "paper");
+  assert.equal(config.slides[1].template, undefined);
   assert.equal(config.slides[2].template, undefined);
-  assert.equal(slideTemplate(config.slides[0], config), "dark");
-  assert.equal(slideTemplate(config.slides[1], config), "light");
+  assert.equal(slideTemplate(config.slides[0], config), "editorial");
+  assert.equal(slideTemplate(config.slides[1], config), "editorial");
 });
 
-test("preserves the Signifier editorial template", () => {
+test("uses Signifier without redundant per-slide style overrides", () => {
   const config = parseCarouselConfig(JSON.stringify({
     template: "editorial",
     slides: [{ title: "A designed idea" }, { title: "A quiet continuation", template: "editorial" }],
   }));
 
   assert.equal(config.template, "editorial");
-  assert.equal(config.slides[1].template, "editorial");
+  assert.equal(config.slides[1].template, undefined);
   assert.equal(slideTemplate(config.slides[0], config), "editorial");
 });
 
@@ -456,7 +456,7 @@ test("short and long covers share one leading", () => {
   assert.equal(long.coverLeading, short.coverLeading);
 });
 
-test("legacy template names remain readable and normalize at render time", () => {
+test("legacy template names collapse into the image-capable Signifier system", () => {
   const config = parseCarouselConfig(JSON.stringify({
     template: "midnight",
     slides: [
@@ -465,15 +465,13 @@ test("legacy template names remain readable and normalize at render time", () =>
     ],
   }));
 
-  // Keep the source value in the parsed config so old type-only backgrounds can
-  // still be suppressed by Slide. slideTemplate is the canonical visual mode.
-  assert.equal(config.template, "midnight");
-  assert.equal(config.slides[0].template, "cinematic");
-  assert.equal(config.slides[1].template, "paper");
-  assert.equal(slideTemplate(config.slides[0], config), "dark");
-  assert.equal(slideTemplate(config.slides[1], config), "light");
-  assert.equal(isLegacyTypeOnlyTemplate("midnight"), true);
-  assert.equal(isLegacyTypeOnlyTemplate("paper"), true);
+  assert.equal(config.template, "editorial");
+  assert.equal(config.slides[0].template, undefined);
+  assert.equal(config.slides[1].template, undefined);
+  assert.equal(slideTemplate(config.slides[0], config), "editorial");
+  assert.equal(slideTemplate(config.slides[1], config), "editorial");
+  assert.equal(isLegacyTypeOnlyTemplate("midnight"), false);
+  assert.equal(isLegacyTypeOnlyTemplate("paper"), false);
   assert.equal(isLegacyTypeOnlyTemplate("cinematic"), false);
   assert.equal(isLegacyTypeOnlyTemplate("dark"), false);
 });

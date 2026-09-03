@@ -28,7 +28,7 @@ function emptyConfig(): CarouselConfig {
     title: "Untitled carousel",
     author: BRAND_FOOTER,
     mark: BRAND_MARK,
-    template: "dark",
+    template: "editorial",
     slides: [
       { id: `slide-${Date.now().toString(36)}`, layout: "cover", title: "Your headline here", body: "" },
     ],

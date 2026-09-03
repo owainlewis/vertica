@@ -1,11 +1,9 @@
 import { isSupportedImageDataUrl } from "./image-formats.ts";
 
 /** Colour and ground only. It says nothing about where the text sits. */
-export type TemplateId = "dark" | "light" | "editorial";
-type LegacyTemplateId = "cinematic" | "midnight" | "paper";
-type TemplateInput = TemplateId | LegacyTemplateId;
+export type TemplateId = "editorial";
 export type SlideLayout = "cover" | "content" | "quote" | "poster" | "split" | "closing";
-export type EditorialTone = "paper" | "sage";
+export type EditorialTone = "paper" | "sage" | "black";
 /** Where the text block sits in the frame, independent of colour. */
 export type SlidePosition = "top" | "middle" | "bottom";
 export type SlideAlign = "left" | "center";
@@ -30,7 +28,7 @@ export type CarouselSlide = {
    */
   plate?: boolean;
   /** Overrides the carousel colour mode for one slide when a contrast is deliberate. */
-  template?: TemplateInput;
+  template?: TemplateId;
   /** Both default from the slide type, so decks written before these existed are unchanged. */
   position?: SlidePosition;
   align?: SlideAlign;
@@ -42,7 +40,7 @@ export type CarouselSlide = {
 export type LumaBands = [number, number, number];
 
 /**
- * Colour and placement stay separate: choosing dark or light never moves the text.
+ * Ground and placement stay separate: choosing a tone never moves the text.
  * These are only the starting points a slide type suggests. A cover or a closing line
  * reads centred; a content slide reads as a lower third over a photograph.
  */
@@ -59,7 +57,7 @@ export type CarouselConfig = {
   title: string;
   author: string;
   /** The template a slide falls back to when it does not set its own. */
-  template: TemplateInput;
+  template: TemplateId;
   /**
    * A short wordmark set at the top of every slide. This is what makes a deck
    * recognisable mid-scroll: same words, same place, every slide. Deck-level on
@@ -74,18 +72,18 @@ export function slideTemplate(slide: CarouselSlide, config: CarouselConfig) {
 }
 
 /**
- * Keep old saved decks readable while making dark and light the only styles the
- * editor can create. Cinematic and midnight were both dark surfaces; paper maps to
- * light. Unknown values always fall back to dark instead of reaching a CSS class.
+ * Every saved template name now enters the same Signifier system. Accepting legacy
+ * values keeps old documents readable without preserving competing visual styles.
  */
 export function normalizeTemplate(value: unknown): TemplateId {
-  if (value === "editorial") return "editorial";
-  return value === "light" || value === "paper" ? "light" : "dark";
+  void value;
+  return "editorial";
 }
 
-/** Midnight and Paper were type-only styles. Keep their no-photo behavior for old decks. */
+/** Legacy decks now use the same image-capable Signifier system. */
 export function isLegacyTypeOnlyTemplate(value: unknown) {
-  return value === "midnight" || value === "paper";
+  void value;
+  return false;
 }
 
 /** Stops an export that would silently paint an unresolved local image as blank. */
@@ -110,7 +108,7 @@ export const starterConfig: CarouselConfig = {
   title: "Directing AI",
   author: BRAND_FOOTER,
   mark: BRAND_MARK,
-  template: "dark",
+  template: "editorial",
   slides: [
     {
       id: "starter-cover",
@@ -140,10 +138,9 @@ export const starterConfig: CarouselConfig = {
 };
 
 const layouts: SlideLayout[] = ["cover", "content", "quote", "poster", "split", "closing"];
-const templateInputs: TemplateInput[] = ["dark", "light", "editorial", "cinematic", "midnight", "paper"];
 const positions: SlidePosition[] = ["top", "middle", "bottom"];
 const aligns: SlideAlign[] = ["left", "center"];
-const editorialTones: EditorialTone[] = ["paper", "sage"];
+const editorialTones: EditorialTone[] = ["paper", "sage", "black"];
 
 function cleanText(value: unknown, fallback = "") {
   return typeof value === "string" ? value.trim() : fallback;
@@ -197,12 +194,9 @@ export function parseCarouselConfig(input: string): CarouselConfig {
     throw new Error("Keep the carousel to 20 slides or fewer.");
   }
 
-  // Preserve a recognised legacy value through import. Rendering still normalises
-  // it to dark or light, but Slide needs to see midnight/paper so old type-only
-  // decks do not unexpectedly reveal a retained background image.
-  const template = templateInputs.includes(record.template as TemplateInput)
-    ? (record.template as TemplateInput)
-    : "dark";
+  // Template names from older documents are intentionally collapsed into the one
+  // current visual system instead of preserving hidden style modes.
+  const template: TemplateId = "editorial";
 
   const slides = record.slides.map((item, index) => {
     if (!item || typeof item !== "object" || Array.isArray(item)) {
@@ -232,9 +226,6 @@ export function parseCarouselConfig(input: string): CarouselConfig {
       ...(background ? { background } : {}),
       ...(luma ? { luma } : {}),
       ...(slide.plate === true ? { plate: true } : {}),
-      ...(templateInputs.includes(slide.template as TemplateInput)
-        ? { template: slide.template as TemplateInput }
-        : {}),
       ...(positions.includes(slide.position as SlidePosition)
         ? { position: slide.position as SlidePosition }
         : {}),
@@ -307,7 +298,7 @@ export function generateCarouselFromText(
   source: string,
   options: Pick<CarouselConfig, "author" | "template"> = {
     author: BRAND_FOOTER,
-    template: "dark",
+    template: "editorial",
   },
 ): CarouselConfig {
   const chunks = sentenceChunks(source);
@@ -333,7 +324,7 @@ export function generateCarouselFromText(
     title: slides[0].title.replace(/[.!?]$/, ""),
     author: options.author.trim().toUpperCase() || BRAND_FOOTER,
     mark: BRAND_MARK,
-    template: options.template,
+    template: normalizeTemplate(options.template),
     slides,
   };
 }
@@ -475,9 +466,9 @@ Rules:
 - Put a "|" in a title to force a line break where the sense breaks. Use it on the cover and on any title of five words or more.
 - Bodies: 45 words or fewer. Separate paragraphs with a blank line.
 - Wrap one phrase per slide in *asterisks* for italic, or **double asterisks** for the accent colour. Use it sparingly.
-- "template" is per slide and optional. Omit it to inherit the carousel default. Use only "dark", "light", or "editorial". Use "editorial" for warm paper, a visible column grid, and Signifier typography. Keep the same value across the deck unless a deliberate contrast is needed.
+- There is one visual style: Signifier editorial typography on a visible column grid. Set "template" to "editorial" or omit it.
 - "poster" makes one short idea deliberately oversized. "split" places the title and body on opposing parts of the grid. Use each no more than once.
-- "tone" is optional and only affects editorial slides. Use "sage" on one emphasis slide at most; otherwise omit it for paper.
+- "tone" is optional. Use "sage" or "black" on one emphasis slide at most; otherwise omit it for paper. Every text element on a page uses the same ink colour.
 
 Use this exact shape:
 ${JSON.stringify(
@@ -489,8 +480,8 @@ ${JSON.stringify(
       slides: [
         {
           layout: "cover | content | quote | poster | split | closing",
-          template: "dark | light | editorial",
-          tone: "paper | sage",
+          template: "editorial",
+          tone: "paper | sage | black",
           title: "Slide headline",
           body: "Optional supporting copy",
         },

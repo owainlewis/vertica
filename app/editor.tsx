@@ -54,9 +54,7 @@ const SAVE_LABEL = {
 } as const;
 
 const templateNames: Record<TemplateId, { name: string; note: string }> = {
-  dark: { name: "Dark", note: "Near-black with blue-grey type" },
-  light: { name: "Light", note: "Soft white with blue-grey ink" },
-  editorial: { name: "Signifier", note: "Cool grey, serif type and 12-column grid" },
+  editorial: { name: "Signifier", note: "Editorial typography on a 12-column grid" },
 };
 
 /** Longest a burst of edits can be folded into one undo step. */
@@ -159,7 +157,6 @@ export default function Editor({
    */
   function commit(next: CarouselConfig, key = "") {
     // This runs only in user and async callbacks, never while rendering.
-    // eslint-disable-next-line react-hooks/purity
     const now = Date.now();
     const continuing = key !== "" && key === lastMark.current.key && now - lastMark.current.at < COALESCE_MS;
     if (!continuing) past.current = [...past.current, config].slice(-HISTORY_LIMIT);
@@ -264,7 +261,6 @@ export default function Editor({
   function addSlide() {
     const slide: CarouselSlide = {
       // Event-time uniqueness keeps imported and duplicated slide ids distinct.
-      // eslint-disable-next-line react-hooks/purity
       id: `slide-${Date.now().toString(36)}`,
       layout: "content",
       title: "Add a clear headline",
@@ -275,7 +271,6 @@ export default function Editor({
   }
 
   function duplicateSlide() {
-    // eslint-disable-next-line react-hooks/purity
     const copy = { ...selectedSlide, id: `slide-${Date.now().toString(36)}` };
     const slides = [...config.slides];
     slides.splice(selectedIndex + 1, 0, copy);
@@ -506,27 +501,10 @@ export default function Editor({
           ) : (
             <div className="inspector-panel">
               <span className="field-label">Style · slide {selectedIndex + 1}</span>
-              <div className="template-options">
-                {(Object.keys(templateNames) as TemplateId[]).map((template) => (
-                  <button type="button" className={activeTemplate === template ? "active" : ""} key={template} onClick={() => updateSlide({ template })}>
-                    <span className={`template-swatch ${template}`}><i /><i /><i /></span>
-                    <span><strong>{templateNames[template].name}</strong><small>{templateNames[template].note}</small></span>
-                    {activeTemplate === template && <Check size={15} />}
-                  </button>
-                ))}
+              <div className="style-summary">
+                <span className="template-swatch editorial"><i /><i /><i /></span>
+                <span><strong>{templateNames.editorial.name}</strong><small>{templateNames.editorial.note}</small></span>
               </div>
-              {config.slides.some((slide) => slideTemplate(slide, config) !== activeTemplate) ? (
-                <p className="field-hint">
-                  Other slides use a different style.{" "}
-                  <button type="button" className="text-button subtle inline" onClick={() => commit({ ...config, template: activeTemplate, slides: config.slides.map((slide) => ({ ...slide, template: undefined })) })}>
-                    Make them all {templateNames[activeTemplate].name.toLowerCase()}
-                  </button>
-                </p>
-              ) : (
-                <button type="button" className="text-button subtle" onClick={() => commit({ ...config, template: activeTemplate, slides: config.slides.map((slide) => ({ ...slide, template: undefined })) })}>
-                  Apply this style to every slide
-                </button>
-              )}
               <label className="field-label" htmlFor="author">Footer name</label>
               <input id="author" maxLength={40} value={config.author} onChange={(event) => commit({ ...config, author: event.target.value.toUpperCase() }, "author")} />
               <span className="field-label">Slide background</span>
@@ -534,6 +512,7 @@ export default function Editor({
                 <div className="segmented" aria-label="Editorial background colour">
                   <button type="button" className={(selectedSlide.tone ?? "paper") === "paper" ? "active" : ""} onClick={() => updateSlide({ tone: "paper" })}>Paper</button>
                   <button type="button" className={selectedSlide.tone === "sage" ? "active" : ""} onClick={() => updateSlide({ tone: "sage" })}>Sage</button>
+                  <button type="button" className={selectedSlide.tone === "black" ? "active" : ""} onClick={() => updateSlide({ tone: "black" })}>Black</button>
                 </div>
               )}
               <button className="wide-upload" type="button" onClick={() => setMediaOpen(true)}><Images size={15} /> {selectedSlide.background ? "Choose another image" : "Choose from media"}</button>
