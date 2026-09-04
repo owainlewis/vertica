@@ -257,7 +257,7 @@ test("saves a carousel and lists it back with a summary", async () => {
   assert.equal(created.status, 201);
   const { carousel } = await created.json();
   assert.equal(carousel.title, "AI code review");
-  assert.equal(carousel.template, "dark");
+  assert.equal(carousel.template, "editorial", "one visual system, whatever the payload claimed");
   assert.equal(JSON.parse(carousel.cover).slide.title, "Four AI reviewers");
   assert.equal(carousel.slideCount, 2);
   assert.equal(carousel.coverTitle, "Four AI reviewers");

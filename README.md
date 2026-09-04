@@ -1,68 +1,15 @@
 # Vertica
 
-A minimal studio for creating LinkedIn document carousels.
+A studio for LinkedIn and Instagram carousels. One editorial design system, seven
+slide layouts, a media library, and one-click export to PDF or numbered JPEGs.
 
-## What it does
+Every deck is a small JSON document. You can write it by hand, paste it from Claude,
+or generate it from plain text, and the app renders it the same way in the editor,
+in the gallery, and in the export.
 
-- saves every carousel to a database and lists them on a home gallery
-- turns pasted text into an editable slide sequence
-- imports and exports a small JSON format that Claude or Codex can generate
-- uses one Signifier editorial system with a faint twelve-column grid
-- keeps colour, placement and slide type separate, so any text position works with any colour
-- puts photographs on the paper as objects: a square grid, a filmstrip that bleeds off both edges, or one contained figure
-- accepts a background photograph per slide as well, veiled to suit the copy sitting over it
-- a deck avatar bottom-left, a series label top-left, a bare page number top-right, and a swipe arrow on every slide but the last
-- exports one PDF for LinkedIn, or numbered JPEGs zipped for Instagram, both at 2×
-- blocks an export rather than silently omitting a background that only exists in another browser
-- undo and redo across the whole deck, with ⌘Z and ⇧⌘Z
-- serializes autosaves and flushes queued edits before leaving the editor
-- a deck wordmark, understated quote callouts, and a text plate for copy that has to sit on a busy photograph
+![Vertica editor](docs/editor.jpg)
 
-## The shell
-
-One frame on every screen: a rail on the left with the mark, Carousels and Media, then
-the page. Opening a deck keeps the rail, so the editor is a room in the same house
-rather than a different app. Leaving a deck through the rail flushes its queued edits
-first. The chrome takes its palette from the slides: paper ground, ink type, sage for
-the one accent, Signifier for page titles and Helvetica for controls.
-
-## The gallery
-
-Three across, square corners and no card chrome anywhere a slide is drawn. Tiles show
-the slide at its own 4:5, which is what a carousel is. The editor's slide rail draws
-the same real slides small, so it is an honest table of contents.
-Instagram centre-crops a portrait post to a square on the profile grid; the editor's
-**Grid crop** toggle draws that cut over the full slide when you want to check it,
-which is better than designing against the crop all day.
-
-## Storage
-
-Carousels live in Cloudflare D1. The binding name is set by `"d1"` in
-`.openai/hosting.json`; with it unset the app still runs and the API returns a clear
-503 instead of failing quietly.
-
-Background images do **not** go in the database. D1 caps a single value at 1MB, which
-a photograph exceeds, so R2 stores the bytes and the carousel row stores only a
-content-hash key. IndexedDB is a local cache, and `app/image-store.ts` uploads and
-resolves the same key through `/api/media`, so a saved carousel can load its images in
-another browser. Existing browser-local images migrate to R2 the next time that
-browser opens and saves the carousel. The logical R2 binding is `MEDIA` in
-`.openai/hosting.json`. Uploads accept PNG, JPEG, GIF, AVIF, and WebP images.
-
-If an image cannot be resolved, the key is kept rather than dropped. This protects the
-saved carousel while making the missing media visible instead of silently overwriting
-the deck without its background.
-
-Every write carries the version the client last read, and the server refuses one built
-on a stale version with a 409 rather than overwriting. Two tabs open on the same deck
-will not silently clobber each other; the second one is told to reload.
-
-## Access
-
-Set an `APP_SECRET` binding to put the dashboard and API behind one shared password.
-With no secret set the app is open, which is what local development wants.
-
-## Run locally
+## Run it
 
 Requires Node.js 22.13 or newer.
 
@@ -71,95 +18,125 @@ npm install
 npm run dev
 ```
 
-Open the local URL shown in the terminal.
+Open the URL the terminal prints. Decks, images and settings persist locally in a
+Miniflare-backed D1 database and R2 bucket under `.wrangler/`, so nothing leaves
+your machine in development.
 
-## Branding
+`npm test` typechecks, builds, and runs the unit tests. `npm run lint` runs ESLint.
 
-Every deck is branded AI Engineer unless it says otherwise: `AI Engineer` as the
-series label at the top of each slide, `aiengineer.co` in the footer. Both are defaults
-in `app/carousel.ts`, so a new deck, a generated deck and a pasted config all get them
-without anyone typing them in. Case is kept as written. The furniture is sentence case
-and a light weight on purpose: it holds the frame without competing with the headline.
-Both are editable under Design, along with the avatar, the page number style and the
-swipe arrow.
+## How it is built
 
-## Layouts
+The app is a single Cloudflare Worker. It serves a React 19 front end rendered by
+[vinext](https://github.com/cloudflare/vinext) (a Next.js app-router runtime on
+Vite) and a JSON API under `/api`.
 
-Seven, each with one job. Cover, content and closing draw the headline and the copy.
-Note, poster, diagram and photos draw the headline only, so nothing can collide with
-the figure. Their copy is kept in the document and comes back if the slide type
-changes.
-
-- `cover`: big headline, one-line subtitle at the foot
-- `content`: headline and copy, the workhorse
-- `note`: one plain sans statement, `**bold**` for the phrase that matters
-- `poster`: one short serif statement, oversized
-- `diagram`: an inline SVG figure with the headline as its caption
-- `photos`: pictures under a one-line title. One is a figure, two or three a filmstrip, four or more a grid
-- `closing`: headline and one line
-
-Older names still load: `quote` and `split` read as content, `grid`, `strip` and
-`figure` read as photos.
-
-## Pictures and diagrams
-
-`images` holds up to nine pictures for a photos slide. `diagram` holds inline SVG for a
-diagram slide, sanitised on the way in so it can draw but not run or fetch. Draw with
-`currentColor` and the figure takes the slide's ink on any ground. `background` still
-exists for a photograph behind the copy. Its veil is a per-slide dial under Design,
-`veil` in the config, 0 for the photograph untouched.
-
-## Writing a deck with Claude
-
-`.claude/skills/carousel/SKILL.md` is the house style: the seven-slide arc, the one
-sage character slide, copy rules, diagram rules and the JSON shape. In Claude Code,
-`/carousel` loads it. Paste the result under Generate, JSON config.
-
-## Generator
-
-Pasted text becomes slides with the rhythm of the reference decks: a cover whose
-second sentence is the subtitle, content slides that explain, a short statement of
-eight words or fewer set as a poster, the first poster after the setup on a sage
-ground, and a closing slide. Titles of five words or more get one suggested `|` break
-before their last two or three words.
-
-## Typography
-
-Sizes are set in container-width units against the slide itself, so the preview and the
-export are the same drawing at different scales. Every carousel uses the same title and
-body sizes. Put a `|` in a headline to break the line where the sense breaks; the words
-after it are still balanced.
-
-Headlines are Signifier, loaded from the machine because its web licence is separate
-from the desktop one. Body copy is Helvetica at regular weight with a touch of
-negative tracking, the way the reference decks pair a serif headline with a plain
-paragraph. The editor warns when it is missing, since
-the export would otherwise ship Georgia without anyone noticing. Labels and controls
-use Helvetica. `*word*` sets a phrase in italic and `**word**` paints a sage
-highlighter stroke behind it. Castoro is
-bundled for italic emphasis in the interface, so marked phrases keep their contrast without a network
-font request.
-
-The **Signifier** system uses the locally installed Signifier regular and italic cuts
-on cool grey paper, with Georgia as a safe fallback. A subtle twelve-column grid,
-fixed folio, small sans-serif furniture, generous margins and a tighter display scale
-make it suitable for minimalist editorial decks. Poster and split layouts add more
-expressive compositions, while per-slide sage and black grounds can punctuate one key
-idea. Every text element on a slide uses the same ink colour.
-
-Quotes, apostrophes, ellipses and number ranges are made typographic at render time,
-never in the stored text, so what you typed is what the editor and the exported config
-give back.
-
-## Use AI-generated configs
-
-Open **Design → Edit JSON config → Copy AI prompt**. Paste that prompt and your source text into Claude or Codex, then paste the returned JSON into Vertica and choose **Apply config**.
-
-Backgrounds are deliberately restricted to locally uploaded image data. Remote image URLs are rejected so PDF export remains reliable and private.
-
-## Checks
-
-```bash
-npm run lint
-npm test
 ```
+app/            the React app
+  carousel.ts     the document model, parser, generator, AI prompt
+  slide.tsx       the one renderer, used for the editor, the gallery and the export
+  editor.tsx      the editor screen
+  dashboard.tsx   the gallery
+  media-*.tsx     the media library and the picker
+  export.ts       PDF and ZIP export, rasterised from the DOM at 2x
+  image-store.ts  content-addressed media keys, IndexedDB cache in front of R2
+  save-queue.ts   ordered, coalesced autosave
+  globals.css     the design system and the app chrome
+worker/         the Worker
+  api.ts          routes, validation, media garbage collection
+  db.ts           D1 schema and queries
+  media.ts        R2 storage
+  auth.ts         the optional shared-password gate
+tests/          node:test suites, run against the built worker where it matters
+```
+
+Two ideas do most of the work.
+
+**One renderer.** `Slide` draws a slide from its JSON. The editor preview, the rail
+thumbnails, the gallery cards and the export stage are all that component at
+different sizes. Type is set in container-width units, so a 64px thumbnail and a
+1080px export are the same drawing.
+
+**Keys, not bytes.** Images live in R2 under a content hash. A deck stores `img:`
+keys, the browser caches bytes in IndexedDB, and the API resolves keys on any
+machine. The Worker garbage-collects unreferenced media with a grace period, so a
+save that is still uploading can never lose its picture.
+
+Writes are optimistic. Every save carries the version the client last read, and the
+server refuses a stale one with a 409 rather than overwriting.
+
+## The design system
+
+Signifier for headlines, Helvetica for copy and furniture, paper ground with sage
+and black as the two alternative grounds. A faint twelve-column field sits under
+every text slide. Series label top left, page number top right, footer and optional
+avatar bottom left, a swipe arrow bottom right on every slide but the last.
+
+Seven layouts, each with one job. Note, poster, diagram and photos draw the headline
+only, so nothing can collide with the figure.
+
+| Layout | Draws | Use it for |
+|---|---|---|
+| `cover` | headline, one-line subtitle | the opener |
+| `content` | headline, copy | most slides |
+| `note` | one sans statement, `**bold**` for emphasis | an aside |
+| `poster` | one short serif statement | the strongest line |
+| `diagram` | inline SVG, headline as caption | architecture and flows |
+| `photos` | one to nine pictures under a title | a figure, a filmstrip, a grid |
+| `closing` | headline, one line | the finish |
+
+Inline marks: `*word*` for italic, `**phrase**` for a highlighter stroke, `|` in a
+headline to force the line break. Photos can also sit behind the copy on any slide,
+with a per-slide veil dial.
+
+`.claude/skills/carousel/SKILL.md` is the house style for writing a deck: the
+seven-slide arc, the one character slide, copy rules, diagram rules, and the JSON
+shape. In Claude Code, `/carousel` loads it.
+
+## The document
+
+```json
+{
+  "version": 1,
+  "title": "What is a software factory?",
+  "author": "aiengineer.co",
+  "mark": "Software factories",
+  "slides": [
+    { "layout": "cover", "title": "What is a | software *factory*?", "body": "A thesis, and the place it breaks" },
+    { "layout": "content", "title": "Agents are | inconsistent", "body": "Fifty runs, fifty answers.\n\nPrompts narrow the spread. They do not close it." },
+    { "layout": "poster", "tone": "sage", "title": "*Except…*" },
+    { "layout": "diagram", "title": "Control plane and data plane", "diagram": "<svg viewBox=\"0 0 800 500\">…</svg>" },
+    { "layout": "closing", "title": "Build the tool. | Keep the agent for *judgment*.", "body": "Link in the comments." }
+  ]
+}
+```
+
+Optional fields: `avatar` (a media key or data URL), `numbering` (`"fraction"` for
+02 / 06), `arrow: false`, and per slide `tone`, `position`, `align`, `background`,
+`veil`, `images`. `parseCarouselConfig` in `app/carousel.ts` is the contract; it
+throws a plain message for anything the app would refuse, and it maps older layout
+names onto the current seven.
+
+Diagrams are sanitised on the way in. Scripts, event handlers, embedded HTML and
+external references are stripped, so a pasted SVG can draw but never run or fetch.
+
+## Deploying
+
+The Worker needs a D1 database and an R2 bucket. Binding names come from
+`.openai/hosting.json` (`d1` and `r2`); `vite.config.ts` reads them for local
+development and the hosting platform provides the real bindings in production.
+With no database bound the API returns a clear 503 rather than failing quietly.
+
+Set an `APP_SECRET` binding to put the whole app behind one shared password. It is
+exchanged for an HMAC-signed cookie, so the secret itself never reaches the browser.
+With no secret the app is open, which is what local development wants.
+
+## Fonts
+
+Signifier is a commercial face from Klim and is not bundled. The app loads it from
+the machine and warns in the editor when it is missing, since the export would
+otherwise ship Georgia. Helvetica is a system font on macOS; elsewhere Arial stands
+in.
+
+## Licence
+
+MIT.

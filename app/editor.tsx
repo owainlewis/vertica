@@ -24,13 +24,11 @@ import { Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useS
 import { saveCarousel, StaleSaveError, type CarouselSummary, type MediaAsset } from "./api-client";
 import { isImageKey, loadImages } from "./image-store";
 import MediaPicker from "./media-picker";
-import { measureDataUrl } from "./scrim";
 import {
   aiPrompt,
   assertBackgroundsAvailableForExport,
   CarouselConfig,
   CarouselSlide,
-  deckTypeScale,
   generateCarouselFromText,
   imageCapacity,
   parseCarouselConfig,
@@ -177,7 +175,6 @@ export default function Editor({
   const signifierMissing = useSignifierCheck();
   const activePosition = slidePosition(selectedSlide);
   const activeAlign = slideAlign(selectedSlide);
-  const typeScale = useMemo(() => deckTypeScale(config.slides), [config.slides]);
   const exportFileName = useMemo(() => fileNameFor(config.title), [config.title]);
   const zipFileName = useMemo(() => fileNameFor(config.title, "zip"), [config.title]);
 
@@ -363,26 +360,6 @@ export default function Editor({
     setSelectedIndex(nextIndex);
   }
 
-  /**
-   * Picking an image also records how bright it is, which is what sizes the scrim.
-   * The image lands straight away and the measurement follows, because decoding a
-   * full-size photograph is slow enough to feel like lag on the click.
-   *
-   * That second write is deliberately not an undo step and does not go through
-   * commit: it is derived from the image rather than chosen by anyone, so undo should
-   * step over the whole thing. It matches on the image itself, so it still lands if
-   * the selection has moved on, and it fixes every slide sharing that photograph.
-   */
-  async function chooseBackground(background: string) {
-    updateSlide({ background, luma: undefined });
-    const luma = await measureDataUrl(background);
-    if (!luma) return;
-    setConfig((current) => ({
-      ...current,
-      slides: current.slides.map((slide) => (slide.background === background ? { ...slide, luma } : slide)),
-    }));
-  }
-
   async function chooseMedia(asset: MediaAsset) {
     const target = mediaOpen ?? "background";
     const loaded = await loadImages([asset.key]);
@@ -401,7 +378,7 @@ export default function Editor({
       showNotice({ kind: "success", message: room > 0 ? `Added ${asset.name}. Room for ${room} more.` : `Added ${asset.name}.` });
       return;
     }
-    await chooseBackground(data);
+    updateSlide({ background: data });
     showNotice({ kind: "success", message: `${asset.name} is now the slide background.` });
   }
 
@@ -420,7 +397,7 @@ export default function Editor({
     try {
       const next = composeMode === "json"
         ? parseCarouselConfig(jsonText)
-        : generateCarouselFromText(sourceText, { author: config.author, template: config.template });
+        : generateCarouselFromText(sourceText, config.author);
       // Through commit, so replacing a whole deck by mistake is undoable.
       commit(next);
       setSelectedIndex(0);
@@ -517,7 +494,7 @@ export default function Editor({
             {config.slides.map((slide, index) => (
               <button className={`slide-thumb ${index === selectedIndex ? "selected" : ""}`} type="button" key={slide.id} onClick={() => setSelectedIndex(index)} aria-label={`Slide ${index + 1}: ${slide.title}`}>
                 <span className="thumb-number">{String(index + 1).padStart(2, "0")}</span>
-                <span className="thumb-frame" aria-hidden="true"><Slide slide={slide} config={config} scale={typeScale} index={index} /></span>
+                <span className="thumb-frame" aria-hidden="true"><Slide slide={slide} config={config} index={index} /></span>
                 <span className="thumb-label">
                   <strong>{titleLines(slide.title).join(" ").replace(/\*/g, "")}</strong>
                   <small>{layoutNames[slide.layout]}</small>
@@ -541,7 +518,7 @@ export default function Editor({
             <span>{selectedIndex + 1} of {config.slides.length}</span>
           </div>
           <div className="preview-frame">
-            <Slide slide={selectedSlide} config={config} scale={typeScale} index={selectedIndex} />
+            <Slide slide={selectedSlide} config={config} index={selectedIndex} />
             {showCrop && <div className="crop-guide" />}
           </div>
           <div className="slide-actions" aria-label="Slide actions">
@@ -666,7 +643,7 @@ export default function Editor({
                   </label>
                   <input id="veil" className="range" type="range" min={0} max={100} step={5} value={Math.round((selectedSlide.veil ?? DEFAULT_VEIL) * 100)} onChange={(event) => updateSlide({ veil: Number(event.target.value) / 100 }, "veil")} />
                   <p className="field-hint">0% shows the photograph untouched. Raise it when copy has to sit on a busy part of the picture.</p>
-                  <button type="button" className="text-button" onClick={() => updateSlide({ background: undefined, luma: undefined, veil: undefined })}>Remove image</button>
+                  <button type="button" className="text-button" onClick={() => updateSlide({ background: undefined, veil: undefined })}>Remove image</button>
                 </>
               )}
 
@@ -696,7 +673,7 @@ export default function Editor({
         </aside>
       </section>
 
-      <ExportStage config={config} scale={typeScale} />
+      <ExportStage config={config} />
 
       {composeOpen && (
         <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) setComposeOpen(false); }}>

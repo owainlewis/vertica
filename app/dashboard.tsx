@@ -4,12 +4,12 @@ import { Download, Images, LoaderCircle, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   deleteCarousel,
-  inlineBackgrounds,
+  resolveMedia,
   listCarousels,
   loadCarousel,
   type CarouselSummary,
 } from "./api-client";
-import { assertBackgroundsAvailableForExport, CarouselConfig, CarouselSlide, deckTypeScale, normalizeLayout } from "./carousel";
+import { assertBackgroundsAvailableForExport, CarouselConfig, CarouselSlide, normalizeLayout } from "./carousel";
 import { exportStageToPdf, exportStageToZip, fileNameFor } from "./export";
 import { loadImages } from "./image-store";
 import { ExportStage, Slide } from "./slide";
@@ -49,49 +49,33 @@ function CardPreview({
   /** Resolved media keys, so the card paints what the editor paints. */
   images: Record<string, string>;
 }) {
-  const { slide, scale, mark, avatar } = useMemo(() => {
-    const resolve = (ref: string | undefined) => (ref && images[ref]) || undefined;
+  const config = useMemo<CarouselConfig>(() => {
     const stored = readCover(carousel.cover);
+    const resolve = (ref: string | undefined) => (ref && images[ref]) || ref;
     const parsed = stored.slide ?? {};
     const cover: CarouselSlide = {
+      ...parsed,
       id: parsed.id ?? "cover",
       layout: normalizeLayout(parsed.layout, "cover"),
       title: parsed.title ?? (carousel.coverTitle || carousel.title),
       body: parsed.body ?? "",
-      ...(parsed.template ? { template: parsed.template } : {}),
-      ...(parsed.position ? { position: parsed.position } : {}),
-      ...(parsed.align ? { align: parsed.align } : {}),
-      ...(parsed.tone ? { tone: parsed.tone } : {}),
-      // Carried through so the card's scrim matches the editor's rather than
-      // falling back to the fixed one, which would darken the tile differently.
-      ...(parsed.luma ? { luma: parsed.luma } : {}),
-      ...(typeof parsed.veil === "number" ? { veil: parsed.veil } : {}),
-      ...(parsed.plate ? { plate: true } : {}),
-      ...(resolve(parsed.background) ? { background: resolve(parsed.background) } : {}),
-      ...(parsed.images?.length ? { images: parsed.images.map((ref) => resolve(ref) ?? ref) } : {}),
+      ...(parsed.background ? { background: resolve(parsed.background) } : {}),
+      ...(parsed.images ? { images: parsed.images.map((ref) => resolve(ref) ?? ref) } : {}),
     };
-    // The type scale is a design-system value now, not saved carousel data. Recompute
-    // it so old rows cannot bring their adaptive title sizes back into the gallery.
-    return { slide: cover, scale: deckTypeScale([cover]), mark: stored.mark ?? "", avatar: resolve(stored.avatar) };
-  }, [carousel, images]);
-
-  // The footer counter reads off the deck length, so the card needs the real count.
-  const config = useMemo<CarouselConfig>(
-    () => ({
+    // The footer counter reads off the deck length, so the card needs the real count.
+    return {
       version: 1,
       title: carousel.title,
       author: carousel.author,
-      template: "editorial",
-      ...(mark ? { mark } : {}),
-      ...(avatar ? { avatar } : {}),
-      slides: Array.from({ length: Math.max(carousel.slideCount, 1) }, () => slide),
-    }),
-    [carousel, slide, mark, avatar],
-  );
+      ...(stored.mark ? { mark: stored.mark } : {}),
+      ...(stored.avatar && images[stored.avatar] ? { avatar: images[stored.avatar] } : {}),
+      slides: Array.from({ length: Math.max(carousel.slideCount, 1) }, () => cover),
+    };
+  }, [carousel, images]);
 
   return (
     <span className="card-preview">
-      <Slide slide={slide} config={config} scale={scale} index={0} />
+      <Slide slide={config.slides[0]} config={config} index={0} />
     </span>
   );
 }
@@ -158,7 +142,7 @@ export default function Dashboard({
     setError(null);
     try {
       const { config } = await loadCarousel(carousel.id);
-      const painted = await inlineBackgrounds(config);
+      const painted = await resolveMedia(config);
       assertBackgroundsAvailableForExport(painted);
       setPending({ config: painted, title: config.title, kind });
     } catch (cause) {
@@ -240,7 +224,7 @@ export default function Dashboard({
         </ul>
       </section>
 
-      {pending && <ExportStage config={pending.config} scale={deckTypeScale(pending.config.slides)} />}
+      {pending && <ExportStage config={pending.config} />}
     </main>
   );
 }

@@ -1,14 +1,6 @@
 @import "tailwindcss";
 
 @font-face {
-  font-family: "Castoro";
-  font-style: italic;
-  font-weight: 400;
-  font-display: swap;
-  src: url("/fonts/castoro-latin-italic.woff2") format("woff2");
-}
-
-@font-face {
   font-family: "Signifier";
   font-style: normal;
   font-weight: 400;
@@ -60,14 +52,12 @@ button, label { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 ::selection { background: var(--accent-soft); }
 
-/* Buttons. Three kinds, used everywhere: primary ink, secondary paper, ghost. */
-.export-button, .primary-button, .secondary-button, .ghost-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 8px 14px; border-radius: var(--radius); font-size: 12.5px; font-weight: 600; letter-spacing: -.005em; cursor: pointer; transition: background .14s ease, border-color .14s ease, color .14s ease, transform .14s ease; }
+/* Buttons. Two kinds, used everywhere: primary ink and secondary paper. */
+.export-button, .primary-button, .secondary-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 8px 14px; border-radius: var(--radius); font-size: 12.5px; font-weight: 600; letter-spacing: -.005em; cursor: pointer; transition: background .14s ease, border-color .14s ease, color .14s ease, transform .14s ease; }
 .export-button, .primary-button { border: 1px solid var(--ink); color: #fff; background: var(--ink); }
 .export-button:hover:not(:disabled), .primary-button:hover:not(:disabled) { background: #2b2b27; border-color: #2b2b27; }
 .secondary-button { border: 1px solid var(--line-strong); background: var(--panel); }
 .secondary-button:hover:not(:disabled) { border-color: var(--ink); }
-.ghost-button { border: 1px solid transparent; background: transparent; color: var(--muted); }
-.ghost-button:hover:not(:disabled) { color: var(--ink); background: var(--panel-2); }
 .export-button:disabled, .primary-button:disabled, .secondary-button:disabled { opacity: .55; cursor: default; }
 .icon-button { padding: 8px 10px; }
 .icon-button:disabled { opacity: .35; cursor: default; }
@@ -389,10 +379,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .layout-note .mark-accent { padding: 0; margin: 0; background: none; font-weight: 700; }
 .layout-note .mark-italic { font-style: italic; }
 
-/* A filled panel for copy over a busy photograph. */
-.slide-plate { box-sizing: border-box; width: 100%; padding: 5% 5.5%; background: var(--paper); color: var(--ink); }
-.slide-plate h2, .slide-plate p { max-width: 100%; }
-
 .font-warning { width: min(52vh, 520px); margin-bottom: 10px; padding: 9px 12px; border: 1px solid #ddc9a2; border-radius: var(--radius); background: #fbf5e8; color: #6d5a2c; font-size: 11px; line-height: 1.5; }
 .picture-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }
 .picture-list li { position: relative; aspect-ratio: 1; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel-2) center / cover no-repeat; }
@@ -428,8 +414,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .segmented button { padding: 7px 6px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 11.5px; font-weight: 600; cursor: pointer; transition: background .12s ease, color .12s ease; }
 .segmented button:hover { color: var(--ink); }
 .segmented button.active { color: var(--ink); background: var(--panel); box-shadow: 0 1px 2px rgb(26 26 23 / .08); }
-.wide-upload, .library-picker-button { position: relative; display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; padding: 11px 10px; border: 1px dashed var(--line-strong); border-radius: var(--radius); background: var(--panel); color: var(--muted); font-size: 11.5px; font-weight: 600; cursor: pointer; transition: border-color .12s ease, color .12s ease; }
-.wide-upload:hover, .library-picker-button:hover { border-color: var(--accent); color: var(--accent-ink); }
+.wide-upload { position: relative; display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; padding: 11px 10px; border: 1px dashed var(--line-strong); border-radius: var(--radius); background: var(--panel); color: var(--muted); font-size: 11.5px; font-weight: 600; cursor: pointer; transition: border-color .12s ease, color .12s ease; }
+.wide-upload:hover { border-color: var(--accent); color: var(--accent-ink); }
 .wide-upload input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .config-tools { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line); }
 .config-tools button { display: flex; align-items: center; gap: 8px; width: 100%; margin-bottom: 6px; padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); font-size: 11px; font-weight: 600; cursor: pointer; }

@@ -1,34 +1,10 @@
 "use client";
 
-import type { CarouselConfig } from "./carousel";
+import { slideImageRefs, type CarouselConfig } from "./carousel";
 import { isImageKey, loadImages, putImage } from "./image-store";
-import { slideImageRefs } from "./carousel";
+import type { CarouselSummary, MediaAsset } from "../worker/db.ts";
 
-export type CarouselSummary = {
-  id: string;
-  title: string;
-  author: string;
-  template: string;
-  slideCount: number;
-  coverTitle: string;
-  cover: string;
-  /** Bumped on every write. Send the last one read back, or the save is refused. */
-  version: number;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type MediaAsset = {
-  key: string;
-  kind: "image" | "video";
-  name: string;
-  mimeType: string;
-  width: number | null;
-  height: number | null;
-  byteSize: number | null;
-  createdAt: string;
-  updatedAt: string;
-};
+export type { CarouselSummary, MediaAsset } from "../worker/db.ts";
 
 /** A save refused because someone else wrote first. Reloading is the only fix. */
 export class StaleSaveError extends Error {
@@ -61,10 +37,6 @@ export function signIn(password: string) {
   return call<{ ok: true }>("/session", { method: "POST", body: JSON.stringify({ password }) });
 }
 
-export function signOut() {
-  return call<{ ok: true }>("/session", { method: "DELETE" });
-}
-
 export async function listCarousels() {
   return (await call<{ carousels: CarouselSummary[] }>("/carousels")).carousels;
 }
@@ -91,7 +63,7 @@ async function externalise(ref: string | undefined) {
   return putImage(ref);
 }
 
-async function externaliseBackgrounds(config: CarouselConfig): Promise<CarouselConfig> {
+async function storeMedia(config: CarouselConfig): Promise<CarouselConfig> {
   const slides = await Promise.all(
     config.slides.map(async (slide) => {
       const background = await externalise(slide.background);
@@ -117,7 +89,7 @@ async function externaliseBackgrounds(config: CarouselConfig): Promise<CarouselC
  * at all over the one in the database. The renderer paints data URLs only, so an
  * unresolved key shows nothing and saves back unharmed.
  */
-export async function inlineBackgrounds(config: CarouselConfig): Promise<CarouselConfig> {
+export async function resolveMedia(config: CarouselConfig): Promise<CarouselConfig> {
   const keys = [config.avatar ?? "", ...config.slides.flatMap(slideImageRefs)].filter(isImageKey);
   const images = await loadImages(keys);
   const resolve = (ref: string) => (isImageKey(ref) && images[ref]) || ref;
@@ -134,7 +106,7 @@ export async function inlineBackgrounds(config: CarouselConfig): Promise<Carouse
 
 
 export async function saveCarousel(id: string | null, config: CarouselConfig, version: number | null) {
-  const stored = await externaliseBackgrounds(config);
+  const stored = await storeMedia(config);
   const payload = JSON.stringify({ id: id ?? "", version, config: JSON.stringify(stored) });
   const result = id
     ? await call<{ carousel: CarouselSummary }>(`/carousels/${id}`, { method: "PUT", body: payload })

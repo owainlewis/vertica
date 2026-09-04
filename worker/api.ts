@@ -112,7 +112,7 @@ function readInput(body: unknown) {
     throw new InvalidInput("This carousel is too large to save. Background images belong in the image store, not the config.");
   }
 
-  let parsed: { title?: unknown; author?: unknown; template?: unknown; mark?: unknown; avatar?: unknown; slides?: unknown };
+  let parsed: { title?: unknown; author?: unknown; mark?: unknown; avatar?: unknown; slides?: unknown };
   try {
     parsed = JSON.parse(config);
   } catch {
@@ -138,7 +138,8 @@ function readInput(body: unknown) {
     id: typeof record.id === "string" && /^[\w-]{1,200}$/.test(record.id) ? record.id : "",
     title: text(parsed.title, "Untitled carousel"),
     author: text(parsed.author, ""),
-    template: text(parsed.template, "dark"),
+    // One visual system. The column predates it and is kept so old rows still read.
+    template: "editorial",
     slideCount: slides.length,
     coverTitle: text(cover?.title, ""),
     // The gallery renders the real first slide rather than an approximation of it.

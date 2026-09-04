@@ -1,7 +1,5 @@
 import { isSupportedImageDataUrl } from "./image-formats.ts";
 
-/** One visual system. Kept as a type so saved documents stay readable. */
-export type TemplateId = "editorial";
 /**
  * Seven layouts, each with one job:
  *   cover    big headline, one-line subtitle at the foot
@@ -42,34 +40,16 @@ export type CarouselSlide = {
    */
   diagram?: string;
   /**
-   * Mean brightness of the background's top, middle and bottom third, each 0 to 1,
-   * measured once when the image is chosen. The scrim is built from whichever third
-   * the text actually sits over, so a bright photo is darkened and a dark one is not.
-   * Absent on decks saved before this existed, which fall back to the fixed scrim.
-   */
-  luma?: LumaBands;
-  /**
    * How strongly the background photograph is veiled under the copy, 0 to 1.
    * Absent means the default. 0 shows the photograph untouched.
    */
   veil?: number;
-  /**
-   * Sets the copy in a filled panel rather than straight on the photograph. A
-   * gradient scrim fails on a busy image: a panel gives the text its own ground and
-   * keeps the picture legible around it.
-   */
-  plate?: boolean;
-  /** Kept for old documents. Every value resolves to the one system. */
-  template?: TemplateId;
   /** Both default from the slide type, so decks written before these existed are unchanged. */
   position?: SlidePosition;
   align?: SlideAlign;
   /** An optional editorial ground. */
   tone?: EditorialTone;
 };
-
-/** Top, middle and bottom third of the image, each a mean brightness from 0 to 1. */
-export type LumaBands = [number, number, number];
 
 /** Layouts that draw the slide's `images` list. */
 export function usesImages(layout: SlideLayout) {
@@ -133,8 +113,6 @@ export type CarouselConfig = {
   version: 1;
   title: string;
   author: string;
-  /** The template a slide falls back to when it does not set its own. */
-  template: TemplateId;
   /**
    * A short series label set at the top of every slide. This is what makes a deck
    * recognisable mid-scroll: same words, same place, every slide. Deck-level on
@@ -149,12 +127,6 @@ export type CarouselConfig = {
   arrow?: boolean;
   slides: CarouselSlide[];
 };
-
-export function slideTemplate(slide: CarouselSlide, config: CarouselConfig): TemplateId {
-  void slide;
-  void config;
-  return "editorial";
-}
 
 /** Every image reference a slide can carry, whether painted or not. */
 export function slideImageRefs(slide: CarouselSlide) {
@@ -181,41 +153,6 @@ export function assertBackgroundsAvailableForExport(config: CarouselConfig) {
 export const BRAND_MARK = "AI Engineer";
 export const BRAND_FOOTER = "aiengineer.co";
 
-export const starterConfig: CarouselConfig = {
-  version: 1,
-  title: "Directing AI",
-  author: BRAND_FOOTER,
-  mark: BRAND_MARK,
-  template: "editorial",
-  slides: [
-    {
-      id: "starter-cover",
-      layout: "cover",
-      title: "AI won’t *replace* | developers",
-      body: "But the ones who learn to direct it will move much faster",
-    },
-    {
-      id: "starter-context",
-      layout: "content",
-      title: "The bottleneck moved",
-      body: "Writing code is getting cheaper by the month.\n\nDeciding what to build, giving clear context, and judging the result are what still cost you something.",
-    },
-    {
-      id: "starter-method",
-      layout: "poster",
-      tone: "sage",
-      title: "Direct. Inspect. *Refine.*",
-      body: "",
-    },
-    {
-      id: "starter-close",
-      layout: "closing",
-      title: "Context is part of the *craft*",
-      body: "Save this for your next build",
-    },
-  ],
-};
-
 const layouts: SlideLayout[] = ["cover", "content", "note", "poster", "diagram", "photos", "closing"];
 const MAX_DIAGRAM_CHARS = 60_000;
 const positions: SlidePosition[] = ["top", "middle", "bottom"];
@@ -235,13 +172,6 @@ function limitedText(value: unknown, label: string, limit: number, fallback = ""
 
 function makeId(index: number) {
   return `slide-${Date.now().toString(36)}-${index}`;
-}
-
-/** Three finite brightnesses in 0..1, or nothing. Anything else is discarded. */
-function readLuma(value: unknown): LumaBands | undefined {
-  if (!Array.isArray(value) || value.length !== 3) return undefined;
-  const bands = value.map((band) => (typeof band === "number" && Number.isFinite(band) ? clamp(band, 0, 1) : NaN));
-  return bands.some(Number.isNaN) ? undefined : (bands as LumaBands);
 }
 
 /**
@@ -306,7 +236,6 @@ export function parseCarouselConfig(input: string): CarouselConfig {
     if (images.length > MAX_IMAGES) {
       throw new Error(`Slide ${index + 1} has more than ${MAX_IMAGES} images.`);
     }
-    const luma = readLuma(slide.luma);
     const veil = typeof slide.veil === "number" && Number.isFinite(slide.veil) ? clamp(slide.veil, 0, 1) : undefined;
 
     const diagram = typeof slide.diagram === "string" ? sanitizeSvg(slide.diagram) : "";
@@ -325,9 +254,7 @@ export function parseCarouselConfig(input: string): CarouselConfig {
       ...(background ? { background } : {}),
       ...(images.length ? { images } : {}),
       ...(diagram ? { diagram } : {}),
-      ...(luma ? { luma } : {}),
       ...(veil !== undefined ? { veil } : {}),
-      ...(slide.plate === true ? { plate: true } : {}),
       ...(positions.includes(slide.position as SlidePosition)
         ? { position: slide.position as SlidePosition }
         : {}),
@@ -348,7 +275,6 @@ export function parseCarouselConfig(input: string): CarouselConfig {
     version: 1,
     title: limitedText(record.title, "Carousel title", 100, "Untitled carousel"),
     author: limitedText(record.author, "Author", 40) || BRAND_FOOTER,
-    template: "editorial",
     mark,
     ...(avatar ? { avatar } : {}),
     ...(record.numbering === "fraction" ? { numbering: "fraction" as const } : {}),
@@ -580,13 +506,7 @@ const POSTER_MAX_WORDS = 8;
  * subtitle, content slides that explain, a short statement set as a poster now and
  * then, one of them on a sage ground, and a close.
  */
-export function generateCarouselFromText(
-  source: string,
-  options: Pick<CarouselConfig, "author" | "template"> = {
-    author: BRAND_FOOTER,
-    template: "editorial",
-  },
-): CarouselConfig {
+export function generateCarouselFromText(source: string, author = BRAND_FOOTER): CarouselConfig {
   const chunks = sentenceChunks(source);
   if (!chunks.length) throw new Error("Paste some source text first.");
   if (chunks.length > 10) {
@@ -615,9 +535,8 @@ export function generateCarouselFromText(
   return {
     version: 1,
     title: titleLines(slides[0].title).join(" ").replace(/[.!?]$/, ""),
-    author: options.author.trim() || BRAND_FOOTER,
+    author: author.trim() || BRAND_FOOTER,
     mark: BRAND_MARK,
-    template: "editorial",
     slides,
   };
 }
@@ -693,14 +612,6 @@ export const TYPE_SCALE = {
   tracking: -0.02,
   leading: 0.98,
 } as const;
-
-export type TypeScale = typeof TYPE_SCALE;
-
-/** Every carousel shares the same scale. Kept as a function so callers stay unchanged. */
-export function deckTypeScale(slides: CarouselSlide[]): TypeScale {
-  void slides;
-  return TYPE_SCALE;
-}
 
 export function aiPrompt(config: CarouselConfig) {
   return `Create a minimal LinkedIn carousel from the source text below. Return JSON only, with no markdown fences.

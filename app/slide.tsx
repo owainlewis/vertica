@@ -14,12 +14,9 @@ import {
   slidePosition,
   smartQuotes,
   titleLines,
-  TypeScale,
+  TYPE_SCALE,
   usesImages,
 } from "./carousel";
-import { scrimGradient } from "./scrim";
-
-export type { TypeScale } from "./carousel";
 
 function Marked({ text }: { text: string }) {
   return (
@@ -44,16 +41,15 @@ function painted(ref: string | undefined) {
 export function Slide({
   slide,
   config,
-  scale,
   index,
   exportMode = false,
 }: {
   slide: CarouselSlide;
   config: CarouselConfig;
-  scale: TypeScale;
   index: number;
   exportMode?: boolean;
 }) {
+  const scale = TYPE_SCALE;
   const isCover = slide.layout === "cover";
   const isPoster = slide.layout === "poster";
   const position = slidePosition(slide);
@@ -74,7 +70,6 @@ export function Slide({
     "--title-tracking": `${scale.tracking}em`,
     "--title-leading": `${scale.leading}`,
     "--body-size": `${scale.body}cqw`,
-    "--slide-scrim": scrimGradient(slide.layout, position, slide.luma),
     "--veil": String(slide.veil ?? DEFAULT_VEIL),
     ...(background ? { "--slide-background": `url(${background})` } : {}),
   } as CSSProperties;
@@ -110,7 +105,6 @@ export function Slide({
     `align-${slideAlign(slide)}`,
     slide.tone ? `tone-${slide.tone}` : "tone-paper",
     background ? "has-background" : "",
-    slide.plate ? "has-plate" : "",
     config.mark ? "has-mark" : "",
     avatar ? "has-avatar" : "",
     pictures.length ? `has-pictures pictures-${pictures.length} photos-${photoArrangement(pictures.length)}` : "",
@@ -129,11 +123,7 @@ export function Slide({
         {config.mark && <span className="slide-mark">{config.mark}</span>}
         <span className="slide-counter">{counter}</span>
       </header>
-      <div className="slide-content">
-        {/* Only wrapped when there is a plate to draw, so every other slide keeps
-            the exact box it had before and its line breaking cannot shift. */}
-        {slide.plate ? <div className="slide-plate">{copy}</div> : copy}
-      </div>
+      <div className="slide-content">{copy}</div>
       {/* Sanitised at parse time and again here, so a diagram can draw but never run. */}
       {slide.layout === "diagram" && (
         <div className="slide-diagram">
@@ -165,11 +155,11 @@ export function Slide({
 }
 
 /** Offscreen full-size slides. The PDF export reads these, never the preview. */
-export function ExportStage({ config, scale }: { config: CarouselConfig; scale: TypeScale }) {
+export function ExportStage({ config }: { config: CarouselConfig }) {
   return (
     <div className="export-stage" aria-hidden="true">
       {config.slides.map((slide, index) => (
-        <Slide key={slide.id} slide={slide} config={config} scale={scale} index={index} exportMode />
+        <Slide key={slide.id} slide={slide} config={config} index={index} exportMode />
       ))}
     </div>
   );

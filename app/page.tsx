@@ -2,7 +2,7 @@
 
 import { Images, LayoutGrid, LoaderCircle, Lock } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getSession, inlineBackgrounds, loadCarousel, signIn, type CarouselSummary } from "./api-client";
+import { getSession, loadCarousel, resolveMedia, signIn, type CarouselSummary } from "./api-client";
 import { BRAND_FOOTER, BRAND_MARK, CarouselConfig } from "./carousel";
 import Dashboard from "./dashboard";
 import Editor, { type EditorHandle } from "./editor";
@@ -28,7 +28,6 @@ function emptyConfig(): CarouselConfig {
     title: "Untitled carousel",
     author: BRAND_FOOTER,
     mark: BRAND_MARK,
-    template: "editorial",
     slides: [
       { id: `slide-${Date.now().toString(36)}`, layout: "cover", title: "Your headline here", body: "" },
     ],
@@ -114,7 +113,7 @@ export default function Home() {
   const openCarousel = useCallback(async (id: string, push = true) => {
     try {
       const { summary, config } = await loadCarousel(id);
-      const painted = await inlineBackgrounds(config);
+      const painted = await resolveMedia(config);
       setError(null);
       setView({ kind: "editor", key: id, id, config: painted, version: summary.version });
       // Arriving here from popstate means the entry is already the current one.
@@ -141,7 +140,7 @@ export default function Home() {
 
     let live = true;
     loadCarousel(id)
-      .then(async ({ summary, config }) => ({ config: await inlineBackgrounds(config), version: summary.version }))
+      .then(async ({ summary, config }) => ({ config: await resolveMedia(config), version: summary.version }))
       .then(({ config, version }) => { if (live) setView({ kind: "editor", key: id, id, config, version }); })
       .catch((cause) => { if (live) setError(cause instanceof Error ? cause.message : "Could not open that carousel."); });
     return () => { live = false; };
