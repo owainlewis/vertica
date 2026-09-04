@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * A minimal ZIP writer, stored (uncompressed) only. JPEGs are already compressed, so
  * deflating them buys nothing and would cost a dependency. Around sixty lines is

@@ -1,5 +1,3 @@
-"use client";
-
 import { ImagePlus, LoaderCircle, Trash2, Upload } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { deleteMedia, listMedia, type MediaAsset } from "./api-client";
@@ -163,7 +161,6 @@ export default function MediaGallery() {
         <ul className="media-grid">
           {(media ?? []).map((asset) => (
             <li className="media-card" key={asset.key}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={mediaUrl(asset.key)} alt={asset.name} loading="lazy" />
               <div className="media-card-meta">
                 <span><strong>{asset.name}</strong><small>{imageDetails(asset)}</small></span>

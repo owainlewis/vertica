@@ -18,51 +18,52 @@ npm install
 npm run dev
 ```
 
-Open the URL the terminal prints. Decks, images and settings persist locally in a
-Miniflare-backed D1 database and R2 bucket under `.wrangler/`, so nothing leaves
-your machine in development.
+That starts the API on port 8787 and Vite on the port it prints, with `/api`
+proxied through. Decks and images are written to `.data/` in the project, so
+nothing leaves your machine.
 
-`npm test` typechecks, builds, and runs the unit tests. `npm run lint` runs ESLint.
+`npm test` typechecks, builds, and runs the tests. `npm run lint` runs ESLint.
 
 ## How it is built
 
-The app is a single Cloudflare Worker. It serves a React 19 front end rendered by
-[vinext](https://github.com/cloudflare/vinext) (a Next.js app-router runtime on
-Vite) and a JSON API under `/api`.
+One Node process, one bucket, one container.
 
 ```
-app/            the React app
+app/            the React app (Vite)
   carousel.ts     the document model, parser, generator, AI prompt
   slide.tsx       the one renderer, used for the editor, the gallery and the export
   editor.tsx      the editor screen
   dashboard.tsx   the gallery
   media-*.tsx     the media library and the picker
   export.ts       PDF and ZIP export, rasterised from the DOM at 2x
-  image-store.ts  content-addressed media keys, IndexedDB cache in front of R2
+  image-store.ts  content-addressed media keys, IndexedDB cache in front of the API
   save-queue.ts   ordered, coalesced autosave
   globals.css     the design system and the app chrome
-worker/         the Worker
-  api.ts          routes, validation, media garbage collection
-  db.ts           D1 schema and queries
-  media.ts        R2 storage
+server/         the API and static host (Hono)
+  bucket.ts       the storage interface: Google Cloud Storage, or a folder on disk
+  store.ts        decks and media as objects
+  api.ts          routes and validation
   auth.ts         the optional shared-password gate
-tests/          node:test suites, run against the built worker where it matters
+tests/          node:test suites, run against the on-disk bucket
 ```
 
-Two ideas do most of the work.
+Three ideas do most of the work.
 
 **One renderer.** `Slide` draws a slide from its JSON. The editor preview, the rail
 thumbnails, the gallery cards and the export stage are all that component at
 different sizes. Type is set in container-width units, so a 64px thumbnail and a
 1080px export are the same drawing.
 
-**Keys, not bytes.** Images live in R2 under a content hash. A deck stores `img:`
-keys, the browser caches bytes in IndexedDB, and the API resolves keys on any
-machine. The Worker garbage-collects unreferenced media with a grace period, so a
-save that is still uploading can never lose its picture.
+**Objects, not tables.** There is no database. A deck is `carousels/<id>.json` in the
+bucket with its gallery summary in the object's metadata, so listing the gallery
+never downloads a document. Its version is the object's generation, and every save
+carries the generation the client last read. The bucket refuses a stale write, the
+API turns that into a 409, and the editor asks you to reload. Two tabs on one deck
+cannot clobber each other.
 
-Writes are optimistic. Every save carries the version the client last read, and the
-server refuses a stale one with a 409 rather than overwriting.
+**Keys, not bytes.** Images live under a content hash at `media/<hash>`. A deck
+stores `img:` keys, the browser caches bytes in IndexedDB, and the API serves them
+on any machine. Deleting a library image is refused while a deck still uses it.
 
 ## The design system
 
@@ -121,14 +122,30 @@ external references are stripped, so a pasted SVG can draw but never run or fetc
 
 ## Deploying
 
-The Worker needs a D1 database and an R2 bucket. Binding names come from
-`.openai/hosting.json` (`d1` and `r2`); `vite.config.ts` reads them for local
-development and the hosting platform provides the real bindings in production.
-With no database bound the API returns a clear 503 rather than failing quietly.
+The service runs on Cloud Run with one Cloud Storage bucket. `npm run deploy` builds
+from source and deploys; set `PROJECT`, `REGION`, `SERVICE` and `BUCKET` to override
+the defaults at the top of `deploy.sh`.
 
-Set an `APP_SECRET` binding to put the whole app behind one shared password. It is
-exchanged for an HMAC-signed cookie, so the secret itself never reaches the browser.
-With no secret the app is open, which is what local development wants.
+One-time setup for a fresh project, with an authenticated `gcloud`:
+
+```bash
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com
+gcloud storage buckets create gs://$BUCKET --location $REGION --uniform-bucket-level-access --public-access-prevention
+printf '%s' "$PASSWORD" | gcloud secrets create vertica-app-secret --data-file=-
+```
+
+Then give the Cloud Run service account `roles/storage.objectAdmin` on the bucket,
+`roles/secretmanager.secretAccessor` on the secret, and the build roles
+(`cloudbuild.builds.builder`, `artifactregistry.writer`, `logging.logWriter`,
+`storage.objectViewer`) on the project. If the project sits under an organisation
+with domain-restricted sharing, allow `allUsers` on the service, or the URL answers
+403 to everyone.
+
+The container reads two variables: `BUCKET`, the bucket name, and `APP_SECRET`, the
+shared password. With `APP_SECRET` set the whole app sits behind one password,
+exchanged for an HMAC-signed cookie so the secret itself never reaches the browser.
+With it unset the app is open, which is what local development wants. With `BUCKET`
+unset the server uses `.data/` on disk.
 
 ## Fonts
 

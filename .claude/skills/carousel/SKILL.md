@@ -111,8 +111,11 @@ the local server:
 
 ```bash
 node -e "const fs=require('fs');fs.writeFileSync('payload.json',JSON.stringify({id:'',version:null,config:fs.readFileSync('deck.json','utf8')}))"
-curl -s -X POST http://localhost:3001/api/carousels -H 'content-type: application/json' --data-binary @payload.json
+curl -s -X POST http://localhost:8787/api/carousels -H 'content-type: application/json' --data-binary @payload.json
 ```
+
+The API listens on 8787 in development. Against a deployed instance with a password,
+sign in first with `POST /api/session` and send the cookie it returns.
 
 Validate first with `parseCarouselConfig` from `app/carousel.ts` if in doubt. It
 throws a plain message for anything the app would refuse.

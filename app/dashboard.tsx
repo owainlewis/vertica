@@ -1,5 +1,3 @@
-"use client";
-
 import { Download, Images, LoaderCircle, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {

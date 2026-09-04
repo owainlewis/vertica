@@ -1,5 +1,3 @@
-"use client";
-
 import { SUPPORTED_IMAGE_MIME_TYPES } from "./image-formats";
 
 const MAX_IMAGE_EDGE = 2160;

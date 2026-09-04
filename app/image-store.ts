@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * Background images use a content hash as their stable key. IndexedDB remains a
  * local cache, while the API stores the bytes in R2 so a saved carousel can resolve

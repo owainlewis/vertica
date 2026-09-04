@@ -1,5 +1,3 @@
-"use client";
-
 import { CSSProperties } from "react";
 import {
   bodyParagraphs,

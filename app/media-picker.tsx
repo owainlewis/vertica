@@ -1,5 +1,3 @@
-"use client";
-
 import { Check, Images, LoaderCircle, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { listMedia, type MediaAsset } from "./api-client";
@@ -83,7 +81,6 @@ export default function MediaPicker({
           <div className="media-picker-grid">
             {(media ?? []).map((asset) => (
               <button type="button" key={asset.key} onClick={() => { void choose(asset); }} disabled={choosing !== null} aria-label={`Use ${asset.name}`}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={mediaUrl(asset.key)} alt="" loading="lazy" />
                 <span>{asset.name}</span>
                 {choosing === asset.key && <i><LoaderCircle className="spin" size={15} /></i>}

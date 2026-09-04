@@ -1,5 +1,3 @@
-"use client";
-
 import { Images, LayoutGrid, LoaderCircle, Lock } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getSession, loadCarousel, resolveMedia, signIn, type CarouselSummary } from "./api-client";
@@ -95,7 +93,7 @@ function AppNav({ active, onNavigate }: { active: "gallery" | "media" | "editor"
   );
 }
 
-export default function Home() {
+export default function App() {
   const [authorised, setAuthorised] = useState<boolean | null>(null);
   const editorRef = useRef<EditorHandle>(null);
   const [view, setView] = useState<View>({ kind: "gallery" });

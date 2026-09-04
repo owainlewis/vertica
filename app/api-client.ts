@@ -1,10 +1,8 @@
-"use client";
-
 import { slideImageRefs, type CarouselConfig } from "./carousel";
 import { isImageKey, loadImages, putImage } from "./image-store";
-import type { CarouselSummary, MediaAsset } from "../worker/db.ts";
+import type { CarouselSummary, MediaAsset } from "../server/store.ts";
 
-export type { CarouselSummary, MediaAsset } from "../worker/db.ts";
+export type { CarouselSummary, MediaAsset } from "../server/store.ts";
 
 /** A save refused because someone else wrote first. Reloading is the only fix. */
 export class StaleSaveError extends Error {

@@ -1,5 +1,3 @@
-"use client";
-
 import { createZip, dataUrlToBytes } from "./zip";
 
 /** LinkedIn's portrait page box, in points. Instagram takes the same 4:5 frame. */
