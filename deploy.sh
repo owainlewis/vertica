@@ -13,6 +13,7 @@ gcloud run deploy "$SERVICE" \
   --region "$REGION" \
   --source . \
   --allow-unauthenticated \
+  --no-invoker-iam-check \
   --set-env-vars "BUCKET=$BUCKET" \
   --set-secrets "APP_SECRET=$SECRET:latest" \
   --memory 512Mi \

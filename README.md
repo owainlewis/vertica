@@ -137,9 +137,10 @@ printf '%s' "$PASSWORD" | gcloud secrets create vertica-app-secret --data-file=-
 Then give the Cloud Run service account `roles/storage.objectAdmin` on the bucket,
 `roles/secretmanager.secretAccessor` on the secret, and the build roles
 (`cloudbuild.builds.builder`, `artifactregistry.writer`, `logging.logWriter`,
-`storage.objectViewer`) on the project. If the project sits under an organisation
-with domain-restricted sharing, allow `allUsers` on the service, or the URL answers
-403 to everyone.
+`storage.objectViewer`) on the project. The deploy disables Cloud Run's invoker IAM
+check, because an organisation with domain-restricted sharing cannot grant
+`allUsers` the invoker role and the URL would answer 403 to everyone. The app's own
+password gate is what protects it.
 
 The container reads two variables: `BUCKET`, the bucket name, and `APP_SECRET`, the
 shared password. With `APP_SECRET` set the whole app sits behind one password,
