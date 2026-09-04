@@ -257,13 +257,19 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .has-background .slide-image { display: block; background-image: var(--slide-background); background-position: center; background-size: cover; }
 /* A photograph is a photograph: no column rules over it, no wash across it. */
 .has-background .slide-rules, .has-pictures .slide-rules { display: none; }
-.has-background .slide-overlay { display: block; }
+/* The veil's strength is the slide's own dial, 0 to 1. */
+.has-background .slide-overlay { display: block; opacity: var(--veil, .6); }
 /* The veil covers only the band the copy sits in and clears everywhere else, so
    the photograph stays a photograph rather than a tint. */
 .tone-paper.has-background.pos-top .slide-overlay { background: linear-gradient(180deg, rgb(239 238 234 / .86) 0%, rgb(239 238 234 / .72) 36%, rgb(239 238 234 / .15) 58%, rgb(239 238 234 / 0) 72%); }
 .tone-paper.has-background.pos-middle .slide-overlay { background: linear-gradient(180deg, rgb(239 238 234 / 0) 8%, rgb(239 238 234 / .8) 34%, rgb(239 238 234 / .8) 66%, rgb(239 238 234 / 0) 92%); }
 .tone-paper.has-background.pos-bottom .slide-overlay { background: linear-gradient(180deg, rgb(239 238 234 / 0) 28%, rgb(239 238 234 / .15) 42%, rgb(239 238 234 / .72) 64%, rgb(239 238 234 / .88) 100%); }
-.tone-sage.has-background .slide-overlay, .tone-black.has-background .slide-overlay { background: linear-gradient(180deg, rgb(14 22 16 / .45) 0%, rgb(14 22 16 / .35) 50%, rgb(14 22 16 / .5) 100%); }
+/* Dark grounds veil the text band only, the same as paper, so the photograph stays
+   bright everywhere the copy is not. */
+.tone-sage.has-background.pos-top .slide-overlay, .tone-black.has-background.pos-top .slide-overlay { background: linear-gradient(180deg, rgb(12 16 13 / .7) 0%, rgb(12 16 13 / .55) 36%, rgb(12 16 13 / .12) 60%, rgb(12 16 13 / 0) 74%); }
+.tone-sage.has-background.pos-middle .slide-overlay, .tone-black.has-background.pos-middle .slide-overlay { background: linear-gradient(180deg, rgb(12 16 13 / .08) 6%, rgb(12 16 13 / .6) 34%, rgb(12 16 13 / .6) 66%, rgb(12 16 13 / .08) 94%); }
+.tone-sage.has-background.pos-bottom .slide-overlay, .tone-black.has-background.pos-bottom .slide-overlay { background: linear-gradient(180deg, rgb(12 16 13 / 0) 26%, rgb(12 16 13 / .12) 40%, rgb(12 16 13 / .55) 64%, rgb(12 16 13 / .72) 100%); }
+.tone-sage.has-background .slide-head, .tone-sage.has-background .slide-meta, .tone-black.has-background .slide-head, .tone-black.has-background .slide-meta { text-shadow: 0 0 1.2cqw rgb(12 16 13 / .7); }
 /* The furniture still has to read at the top and bottom edges over a bright photo. */
 .tone-paper.has-background .slide-head, .tone-paper.has-background .slide-meta { text-shadow: 0 0 1.2cqw rgb(239 238 234 / .7); }
 
@@ -397,6 +403,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .avatar-row .wide-upload { flex: 1; }
 .check-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 11.5px; }
 .check-row input { width: auto; accent-color: var(--accent); }
+.field-label.range-label { display: flex; justify-content: space-between; }
+.range-label span:last-child { font-family: var(--font-mono); text-transform: none; letter-spacing: 0; }
+.inspector input.range { padding: 0; border: 0; background: transparent; box-shadow: none; accent-color: var(--accent); }
 
 /* Inspector */
 .inspector { border-left: 1px solid var(--line); padding: 18px 20px 28px; }

@@ -49,6 +49,11 @@ export type CarouselSlide = {
    */
   luma?: LumaBands;
   /**
+   * How strongly the background photograph is veiled under the copy, 0 to 1.
+   * Absent means the default. 0 shows the photograph untouched.
+   */
+  veil?: number;
+  /**
    * Sets the copy in a filled panel rather than straight on the photograph. A
    * gradient scrim fails on a busy image: a panel gives the text its own ground and
    * keeps the picture legible around it.
@@ -302,6 +307,7 @@ export function parseCarouselConfig(input: string): CarouselConfig {
       throw new Error(`Slide ${index + 1} has more than ${MAX_IMAGES} images.`);
     }
     const luma = readLuma(slide.luma);
+    const veil = typeof slide.veil === "number" && Number.isFinite(slide.veil) ? clamp(slide.veil, 0, 1) : undefined;
 
     const diagram = typeof slide.diagram === "string" ? sanitizeSvg(slide.diagram) : "";
     if (typeof slide.diagram === "string" && slide.diagram.trim() && !diagram) {
@@ -320,6 +326,7 @@ export function parseCarouselConfig(input: string): CarouselConfig {
       ...(images.length ? { images } : {}),
       ...(diagram ? { diagram } : {}),
       ...(luma ? { luma } : {}),
+      ...(veil !== undefined ? { veil } : {}),
       ...(slide.plate === true ? { plate: true } : {}),
       ...(positions.includes(slide.position as SlidePosition)
         ? { position: slide.position as SlidePosition }

@@ -65,6 +65,7 @@ function CardPreview({
       // Carried through so the card's scrim matches the editor's rather than
       // falling back to the fixed one, which would darken the tile differently.
       ...(parsed.luma ? { luma: parsed.luma } : {}),
+      ...(typeof parsed.veil === "number" ? { veil: parsed.veil } : {}),
       ...(parsed.plate ? { plate: true } : {}),
       ...(resolve(parsed.background) ? { background: resolve(parsed.background) } : {}),
       ...(parsed.images?.length ? { images: parsed.images.map((ref) => resolve(ref) ?? ref) } : {}),

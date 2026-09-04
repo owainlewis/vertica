@@ -240,6 +240,8 @@ test("keeps picture lists, the avatar, numbering and the arrow", () => {
   }));
 
   assert.equal(config.avatar, "data:image/png;base64,YQ==");
+  const veiled = parseCarouselConfig(JSON.stringify({ slides: [{ title: "A", veil: 0.25 }, { title: "B", veil: 7 }, { title: "C", veil: "x" }] }));
+  assert.deepEqual(veiled.slides.map((slide) => slide.veil), [0.25, 1, undefined], "veil is clamped to 0..1 and dropped when malformed");
   assert.equal(config.numbering, "fraction");
   assert.equal(config.arrow, false);
   assert.deepEqual(config.slides[0].images, ["data:image/png;base64,YQ==", "img:abc"]);

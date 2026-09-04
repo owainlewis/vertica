@@ -33,6 +33,9 @@ function Marked({ text }: { text: string }) {
   );
 }
 
+/** Enough to hold copy over most photographs without turning them to mud. */
+export const DEFAULT_VEIL = 0.6;
+
 /** Only real bytes are painted. A stored key that reached the renderer has nothing to draw. */
 function painted(ref: string | undefined) {
   return ref?.startsWith("data:") ? ref : undefined;
@@ -72,6 +75,7 @@ export function Slide({
     "--title-leading": `${scale.leading}`,
     "--body-size": `${scale.body}cqw`,
     "--slide-scrim": scrimGradient(slide.layout, position, slide.luma),
+    "--veil": String(slide.veil ?? DEFAULT_VEIL),
     ...(background ? { "--slide-background": `url(${background})` } : {}),
   } as CSSProperties;
 

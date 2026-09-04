@@ -45,7 +45,7 @@ import {
 } from "./carousel";
 import { downloadBlob, exportStageToPdf, exportStageToZip, fileNameFor } from "./export";
 import { SaveQueue } from "./save-queue";
-import { ExportStage, Slide } from "./slide";
+import { DEFAULT_VEIL, ExportStage, Slide } from "./slide";
 
 type Notice = { kind: "success" | "error"; message: string } | null;
 
@@ -658,7 +658,17 @@ export default function Editor({
                   It is kept in the saved carousel. If it predates media persistence, add it to Media again or choose a replacement from your library.
                 </p>
               )}
-              {selectedSlide.background && <button type="button" className="text-button" onClick={() => updateSlide({ background: undefined, luma: undefined })}>Remove image</button>}
+              {selectedSlide.background && (
+                <>
+                  <label className="field-label range-label" htmlFor="veil">
+                    <span>Photo veil</span>
+                    <span>{Math.round((selectedSlide.veil ?? DEFAULT_VEIL) * 100)}%</span>
+                  </label>
+                  <input id="veil" className="range" type="range" min={0} max={100} step={5} value={Math.round((selectedSlide.veil ?? DEFAULT_VEIL) * 100)} onChange={(event) => updateSlide({ veil: Number(event.target.value) / 100 }, "veil")} />
+                  <p className="field-hint">0% shows the photograph untouched. Raise it when copy has to sit on a busy part of the picture.</p>
+                  <button type="button" className="text-button" onClick={() => updateSlide({ background: undefined, luma: undefined, veil: undefined })}>Remove image</button>
+                </>
+              )}
 
               <label className="field-label" htmlFor="mark">Series label · every slide</label>
               <input id="mark" maxLength={30} value={config.mark ?? ""} placeholder="AI Engineer" onChange={(event) => commit({ ...config, mark: event.target.value }, "mark")} />

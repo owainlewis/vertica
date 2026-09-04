@@ -106,7 +106,8 @@ Older names still load: `quote` and `split` read as content, `grid`, `strip` and
 `images` holds up to nine pictures for a photos slide. `diagram` holds inline SVG for a
 diagram slide, sanitised on the way in so it can draw but not run or fetch. Draw with
 `currentColor` and the figure takes the slide's ink on any ground. `background` still
-exists for a photograph behind the copy, veiled with one smooth gradient.
+exists for a photograph behind the copy. Its veil is a per-slide dial under Design,
+`veil` in the config, 0 for the photograph untouched.
 
 ## Writing a deck with Claude
 
