@@ -142,8 +142,10 @@ check, because an organisation with domain-restricted sharing cannot grant
 `allUsers` the invoker role and the URL would answer 403 to everyone. The app's own
 password gate is what protects it.
 
-The container reads two variables: `BUCKET`, the bucket name, and `APP_SECRET`, the
-shared password. With `APP_SECRET` set the whole app sits behind one password,
+The container requires two variables in production: `BUCKET`, the bucket name, and
+`APP_SECRET`, the shared password. It refuses to start if either is missing, so a
+misconfigured Cloud Run revision cannot silently write to ephemeral disk or expose an
+open API. With `APP_SECRET` set the whole app sits behind one password,
 exchanged for an HMAC-signed cookie so the secret itself never reaches the browser.
 With it unset the app is open, which is what local development wants. With `BUCKET`
 unset the server uses `.data/` on disk.
