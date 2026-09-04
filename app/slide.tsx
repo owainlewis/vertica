@@ -5,18 +5,21 @@ import {
   bodyParagraphs,
   CarouselConfig,
   CarouselSlide,
-  deckTypeScale,
+  imageCapacity,
   parseInlineMarks,
+  photoArrangement,
+  showsBody,
+  sanitizeSvg,
   slideAlign,
   slidePosition,
-  slideTemplate,
-  isLegacyTypeOnlyTemplate,
   smartQuotes,
   titleLines,
+  TypeScale,
+  usesImages,
 } from "./carousel";
 import { scrimGradient } from "./scrim";
 
-export type TypeScale = ReturnType<typeof deckTypeScale>;
+export type { TypeScale } from "./carousel";
 
 function Marked({ text }: { text: string }) {
   return (
@@ -28,6 +31,11 @@ function Marked({ text }: { text: string }) {
       )}
     </>
   );
+}
+
+/** Only real bytes are painted. A stored key that reached the renderer has nothing to draw. */
+function painted(ref: string | undefined) {
+  return ref?.startsWith("data:") ? ref : undefined;
 }
 
 export function Slide({
@@ -44,24 +52,27 @@ export function Slide({
   exportMode?: boolean;
 }) {
   const isCover = slide.layout === "cover";
+  const isPoster = slide.layout === "poster";
   const position = slidePosition(slide);
   const lines = titleLines(slide.title);
-  const paragraphs = bodyParagraphs(slide.body);
-  const rawTemplate = slide.template ?? (config.template as unknown);
-  const legacyTypeOnly = isLegacyTypeOnlyTemplate(rawTemplate);
-
-  // Only real bytes are painted. An `img:` key that survived to here is an image
-  // saved in another browser: it stays in the config so saving cannot lose it, but
-  // there is nothing to draw, and url(img:…) would just be a failed fetch per slide.
-  const painted = slide.background?.startsWith("data:") ? slide.background : undefined;
+  // Title-only layouts keep their body in the document but never draw it.
+  const paragraphs = showsBody(slide.layout) ? bodyParagraphs(slide.body) : [];
+  const background = painted(slide.background);
+  const avatar = painted(config.avatar);
+  const pictures = usesImages(slide.layout)
+    ? (slide.images ?? []).slice(0, imageCapacity(slide.layout)).map(painted)
+    : [];
+  const diagram = slide.layout === "diagram" && slide.diagram ? sanitizeSvg(slide.diagram) : "";
+  const isLast = index === config.slides.length - 1;
+  const showArrow = config.arrow !== false && !isLast;
 
   const style = {
-    "--title-size": `${isCover ? scale.cover : scale.title}cqw`,
-    "--title-tracking": `${isCover ? scale.coverTracking : scale.tracking}em`,
-    "--title-leading": `${isCover ? scale.coverLeading : scale.leading}`,
+    "--title-size": `${isCover ? scale.cover : isPoster ? scale.poster : scale.title}cqw`,
+    "--title-tracking": `${scale.tracking}em`,
+    "--title-leading": `${scale.leading}`,
     "--body-size": `${scale.body}cqw`,
     "--slide-scrim": scrimGradient(slide.layout, position, slide.luma),
-    ...(painted ? { "--slide-background": `url(${painted})` } : {}),
+    ...(background ? { "--slide-background": `url(${background})` } : {}),
   } as CSSProperties;
 
   // A headline opening on a quote mark sits visibly indented against the copy below
@@ -76,29 +87,32 @@ export function Slide({
           <span className="title-line" key={lineIndex}><Marked text={line} /></span>
         ))}
       </h2>
-      {slide.layout === "quote" && paragraphs.length ? (
-        <div className="slide-callout">
-          {paragraphs.map((paragraph, paragraphIndex) => (
-            <p key={paragraphIndex}><Marked text={paragraph} /></p>
-          ))}
-        </div>
-      ) : paragraphs.map((paragraph, paragraphIndex) => (
+      {paragraphs.map((paragraph, paragraphIndex) => (
         <p key={paragraphIndex}><Marked text={paragraph} /></p>
       ))}
     </>
   );
 
+  const page = String(index + 1).padStart(2, "0");
+  const counter = config.numbering === "fraction"
+    ? `${page} / ${String(config.slides.length).padStart(2, "0")}`
+    : page;
+
   const classes = [
     "carousel-slide",
-    `template-${slideTemplate(slide, config)}`,
+    "template-editorial",
     `layout-${slide.layout}`,
     `pos-${position}`,
     `align-${slideAlign(slide)}`,
     slide.tone ? `tone-${slide.tone}` : "tone-paper",
-    legacyTypeOnly ? "legacy-type-only" : "",
-    painted ? "has-background" : "",
+    background ? "has-background" : "",
     slide.plate ? "has-plate" : "",
     config.mark ? "has-mark" : "",
+    avatar ? "has-avatar" : "",
+    pictures.length ? `has-pictures pictures-${pictures.length} photos-${photoArrangement(pictures.length)}` : "",
+    diagram ? "has-diagram" : "",
+    // A one-word poster ("But…") is a beat, not a sentence, and gets set larger.
+    isPoster && slide.title.replace(/[*|]/g, "").trim().length <= 10 ? "title-short" : "",
     exportMode ? "export-slide" : "",
   ].filter(Boolean).join(" ");
 
@@ -106,15 +120,41 @@ export function Slide({
     <article className={classes} style={style} data-export-slide={exportMode ? "true" : undefined}>
       <div className="slide-image" />
       <div className="slide-overlay" />
-      {config.mark && <div className="slide-mark">{config.mark}</div>}
+      <div className="slide-rules" />
+      <header className="slide-head">
+        {config.mark && <span className="slide-mark">{config.mark}</span>}
+        <span className="slide-counter">{counter}</span>
+      </header>
       <div className="slide-content">
         {/* Only wrapped when there is a plate to draw, so every other slide keeps
             the exact box it had before and its line breaking cannot shift. */}
         {slide.plate ? <div className="slide-plate">{copy}</div> : copy}
       </div>
+      {/* Sanitised at parse time and again here, so a diagram can draw but never run. */}
+      {slide.layout === "diagram" && (
+        <div className="slide-diagram">
+          {diagram
+            ? <div className="slide-diagram-svg" dangerouslySetInnerHTML={{ __html: diagram }} />
+            : <div className="slide-diagram-empty">Add an SVG diagram under Content</div>}
+        </div>
+      )}
+      {pictures.length > 0 && (
+        <div className="slide-pictures">
+          {pictures.map((picture, pictureIndex) => (
+            <div
+              className={`slide-picture ${picture ? "" : "is-missing"}`}
+              key={pictureIndex}
+              style={picture ? { backgroundImage: `url(${picture})` } : undefined}
+            />
+          ))}
+        </div>
+      )}
       <footer className="slide-meta">
-        <span className="meta-author">{config.author}</span>
-        <span>{String(index + 1).padStart(2, "0")} / {String(config.slides.length).padStart(2, "0")}</span>
+        <span className="meta-identity">
+          {avatar && <span className="slide-avatar" style={{ backgroundImage: `url(${avatar})` }} />}
+          <span className="meta-author">{config.author}</span>
+        </span>
+        {showArrow && <span className="slide-arrow" aria-hidden="true">→</span>}
       </footer>
     </article>
   );

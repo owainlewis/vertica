@@ -2,6 +2,7 @@
 
 import type { CarouselConfig } from "./carousel";
 import { isImageKey, loadImages, putImage } from "./image-store";
+import { slideImageRefs } from "./carousel";
 
 export type CarouselSummary = {
   id: string;
@@ -85,14 +86,25 @@ export function deleteCarousel(id: string) {
  * Moves any freshly uploaded image bytes into the durable media store, so what
  * reaches the database is keys. Slides that already carry a key are left alone.
  */
+async function externalise(ref: string | undefined) {
+  if (!ref || isImageKey(ref)) return ref;
+  return putImage(ref);
+}
+
 async function externaliseBackgrounds(config: CarouselConfig): Promise<CarouselConfig> {
   const slides = await Promise.all(
     config.slides.map(async (slide) => {
-      if (!slide.background || isImageKey(slide.background)) return slide;
-      return { ...slide, background: await putImage(slide.background) };
+      const background = await externalise(slide.background);
+      const images = slide.images ? await Promise.all(slide.images.map(externalise)) : undefined;
+      return {
+        ...slide,
+        ...(background ? { background } : {}),
+        ...(images ? { images: images.filter((ref): ref is string => Boolean(ref)) } : {}),
+      };
     }),
   );
-  return { ...config, slides };
+  const avatar = await externalise(config.avatar);
+  return { ...config, ...(avatar ? { avatar } : {}), slides };
 }
 
 /**
@@ -106,14 +118,17 @@ async function externaliseBackgrounds(config: CarouselConfig): Promise<CarouselC
  * unresolved key shows nothing and saves back unharmed.
  */
 export async function inlineBackgrounds(config: CarouselConfig): Promise<CarouselConfig> {
-  const images = await loadImages(config.slides.map((slide) => slide.background ?? ""));
+  const keys = [config.avatar ?? "", ...config.slides.flatMap(slideImageRefs)].filter(isImageKey);
+  const images = await loadImages(keys);
+  const resolve = (ref: string) => (isImageKey(ref) && images[ref]) || ref;
   return {
     ...config,
-    slides: config.slides.map((slide) => {
-      if (!isImageKey(slide.background)) return slide;
-      const data = images[slide.background];
-      return data ? { ...slide, background: data } : slide;
-    }),
+    ...(config.avatar ? { avatar: resolve(config.avatar) } : {}),
+    slides: config.slides.map((slide) => ({
+      ...slide,
+      ...(slide.background ? { background: resolve(slide.background) } : {}),
+      ...(slide.images ? { images: slide.images.map(resolve) } : {}),
+    })),
   };
 }
 

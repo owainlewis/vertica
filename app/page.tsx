@@ -1,11 +1,11 @@
 "use client";
 
 import { Images, LayoutGrid, LoaderCircle, Lock } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getSession, inlineBackgrounds, loadCarousel, signIn, type CarouselSummary } from "./api-client";
 import { BRAND_FOOTER, BRAND_MARK, CarouselConfig } from "./carousel";
 import Dashboard from "./dashboard";
-import Editor from "./editor";
+import Editor, { type EditorHandle } from "./editor";
 import MediaGallery from "./media-gallery";
 
 type View =
@@ -76,8 +76,29 @@ function SignIn({ onDone }: { onDone: () => void }) {
   );
 }
 
+/**
+ * The frame every screen shares: the mark and the two places you can be. It never
+ * changes shape between the library and a deck, so opening a carousel feels like
+ * moving within one room rather than into another app.
+ */
+function AppNav({ active, onNavigate }: { active: "gallery" | "media" | "editor"; onNavigate: (kind: "gallery" | "media") => void }) {
+  return (
+    <nav className="app-nav" aria-label="Main navigation">
+      <button className="app-mark" type="button" onClick={() => onNavigate("gallery")} aria-label="Vertica home">V</button>
+      <button type="button" className={`app-nav-item ${active === "gallery" || active === "editor" ? "active" : ""}`} aria-current={active === "gallery" ? "page" : undefined} onClick={() => onNavigate("gallery")}>
+        <LayoutGrid size={18} /> Carousels
+      </button>
+      <button type="button" className={`app-nav-item ${active === "media" ? "active" : ""}`} aria-current={active === "media" ? "page" : undefined} onClick={() => onNavigate("media")}>
+        <Images size={18} /> Media
+      </button>
+      <span className="app-nav-foot">Vertica</span>
+    </nav>
+  );
+}
+
 export default function Home() {
   const [authorised, setAuthorised] = useState<boolean | null>(null);
+  const editorRef = useRef<EditorHandle>(null);
   const [view, setView] = useState<View>({ kind: "gallery" });
   const [reloadToken, setReloadToken] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -155,6 +176,16 @@ export default function Home() {
     window.history.pushState({}, "", kind === "media" ? "/?view=media" : "/");
   }
 
+  // Leaving an open deck through the rail flushes its queued edits first, the same
+  // as the crumb inside the editor does, so no route out of a deck can lose work.
+  async function navigate(kind: "gallery" | "media") {
+    if (view.kind === "editor") {
+      const saved = await (editorRef.current?.flush() ?? Promise.resolve(true));
+      if (!saved) return;
+    }
+    showLibrary(kind);
+  }
+
   function handleSaved(summary: CarouselSummary) {
     // Only the id is adopted here. The editor owns the live version, and writing a
     // stale one back into view state would make its next save look out of date.
@@ -170,33 +201,27 @@ export default function Home() {
     return <SignIn onDone={() => setAuthorised(true)} />;
   }
 
-  if (view.kind === "editor") {
-    return (
-      <Editor
-        key={view.key}
-        carouselId={view.id}
-        initialConfig={view.config}
-        initialVersion={view.version}
-        onExit={exitToGallery}
-        onSaved={handleSaved}
-      />
-    );
-  }
-
   return (
-    <div className="library-shell">
+    <div className="app">
       {error && <div className="toast error" role="status">{error}</div>}
-      <aside className="library-nav" aria-label="Main navigation">
-        <span className="brand"><span className="brand-mark">V</span><span>Vertica</span></span>
-        <nav>
-          <button type="button" className={view.kind === "gallery" ? "active" : ""} aria-current={view.kind === "gallery" ? "page" : undefined} onClick={() => showLibrary("gallery")}><LayoutGrid size={17} /> Carousels</button>
-          <button type="button" className={view.kind === "media" ? "active" : ""} aria-current={view.kind === "media" ? "page" : undefined} onClick={() => showLibrary("media")}><Images size={17} /> Media</button>
-        </nav>
-        <p>Images now. Video backgrounds can join this library later.</p>
-      </aside>
-      {view.kind === "media"
-        ? <MediaGallery />
-        : <Dashboard onOpen={openCarousel} onCreate={createCarousel} reloadToken={reloadToken} />}
+      <AppNav active={view.kind} onNavigate={(kind) => { void navigate(kind); }} />
+      <div className="app-main">
+        {view.kind === "editor" ? (
+          <Editor
+            ref={editorRef}
+            key={view.key}
+            carouselId={view.id}
+            initialConfig={view.config}
+            initialVersion={view.version}
+            onExit={exitToGallery}
+            onSaved={handleSaved}
+          />
+        ) : view.kind === "media" ? (
+          <MediaGallery />
+        ) : (
+          <Dashboard onOpen={openCarousel} onCreate={createCarousel} reloadToken={reloadToken} />
+        )}
+      </div>
     </div>
   );
 }

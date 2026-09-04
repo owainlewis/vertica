@@ -2,10 +2,10 @@
 
 import {
   ArrowDown,
-  ArrowLeft,
   ArrowUp,
   Check,
   ChevronDown,
+  ChevronRight,
   Copy,
   Download,
   Images,
@@ -17,9 +17,10 @@ import {
   Square,
   Trash2,
   Undo2,
+  UserRound,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { saveCarousel, StaleSaveError, type CarouselSummary, type MediaAsset } from "./api-client";
 import { isImageKey, loadImages } from "./image-store";
 import MediaPicker from "./media-picker";
@@ -31,19 +32,25 @@ import {
   CarouselSlide,
   deckTypeScale,
   generateCarouselFromText,
+  imageCapacity,
   parseCarouselConfig,
   slideAlign,
   SlideAlign,
+  SlideLayout,
+  showsBody,
   slidePosition,
   SlidePosition,
-  slideTemplate,
-  TemplateId,
+  titleLines,
+  usesImages,
 } from "./carousel";
 import { downloadBlob, exportStageToPdf, exportStageToZip, fileNameFor } from "./export";
 import { SaveQueue } from "./save-queue";
 import { ExportStage, Slide } from "./slide";
 
 type Notice = { kind: "success" | "error"; message: string } | null;
+
+/** What the shell can ask of an open editor: finish saving before leaving it. */
+export type EditorHandle = { flush: () => Promise<boolean> };
 
 const SAVE_LABEL = {
   saved: "Saved",
@@ -53,21 +60,70 @@ const SAVE_LABEL = {
   stale: "Out of date",
 } as const;
 
-const templateNames: Record<TemplateId, { name: string; note: string }> = {
-  editorial: { name: "Signifier", note: "Editorial typography on a 12-column grid" },
+const layoutNames: Record<SlideLayout, string> = {
+  cover: "Cover",
+  content: "Content",
+  note: "Note",
+  poster: "Poster",
+  diagram: "Diagram",
+  photos: "Photos",
+  closing: "Closing",
 };
+
+const layoutHints: Record<SlideLayout, string> = {
+  cover: "The headline large, with the supporting copy as a one-line subtitle at the foot.",
+  content: "A headline with copy underneath. The workhorse.",
+  note: "One plain sans statement, no headline. The title is the statement; **bold** marks the phrase that matters.",
+  poster: "One short serif statement, oversized. Title only.",
+  diagram: "An SVG figure with the headline as its caption. Title only. Bottom puts the caption under the figure, Top above it.",
+  photos: "Pictures under a one-line title. One picture is a figure, two or three a filmstrip, four or more a grid.",
+  closing: "A headline and one line to finish on.",
+};
+
+/** Where a picked image goes: behind the copy, into the slide's pictures, or the deck avatar. */
+type MediaTarget = "background" | "images" | "avatar";
+
+/**
+ * Signifier is loaded from the machine, not bundled, because its web licence is
+ * separate. Where it is missing the slides fall back to Georgia, and the export
+ * would ship that way without anyone noticing.
+ */
+function useSignifierCheck() {
+  const [missing, setMissing] = useState(false);
+  useEffect(() => {
+    if (typeof document === "undefined" || !("fonts" in document)) return;
+    let live = true;
+    document.fonts.ready.then(() => {
+      if (live) setMissing(!document.fonts.check("16px Signifier"));
+    }).catch(() => undefined);
+    return () => { live = false; };
+  }, []);
+  return missing;
+}
 
 /** Longest a burst of edits can be folded into one undo step. */
 const COALESCE_MS = 700;
+
+/* Clock and id reads live outside the component so the compiler can see they only
+   run from event handlers, never from render. */
+function clockNow() {
+  return Date.now();
+}
+function newSlideId() {
+  // Event-time uniqueness keeps imported and duplicated slide ids distinct.
+  return `slide-${Date.now().toString(36)}`;
+}
 const HISTORY_LIMIT = 60;
 
 export default function Editor({
+  ref,
   carouselId,
   initialConfig,
   initialVersion,
   onExit,
   onSaved,
 }: {
+  ref?: Ref<EditorHandle>;
   carouselId: string | null;
   initialConfig: CarouselConfig;
   initialVersion: number | null;
@@ -82,7 +138,7 @@ export default function Editor({
   const [composeMode, setComposeMode] = useState<"text" | "json">("text");
   const [sourceText, setSourceText] = useState("");
   const [jsonText, setJsonText] = useState("");
-  const [mediaOpen, setMediaOpen] = useState(false);
+  const [mediaOpen, setMediaOpen] = useState<MediaTarget | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [exporting, setExporting] = useState<false | "pdf" | "zip">(false);
   const [saveState, setSaveState] = useState<keyof typeof SAVE_LABEL>("saved");
@@ -111,7 +167,7 @@ export default function Editor({
   }, []);
 
   const selectedSlide = config.slides[selectedIndex] ?? config.slides[0];
-  const activeTemplate = slideTemplate(selectedSlide, config);
+  const signifierMissing = useSignifierCheck();
   const activePosition = slidePosition(selectedSlide);
   const activeAlign = slideAlign(selectedSlide);
   const typeScale = useMemo(() => deckTypeScale(config.slides), [config.slides]);
@@ -142,6 +198,8 @@ export default function Editor({
     }
   }, []);
 
+  useImperativeHandle(ref, () => ({ flush: flushSave }), [flushSave]);
+
   // Undo holds whole configs. The deck is a small plain object, so keeping sixty of
   // them costs less than the machinery to diff them would.
   const past = useRef<CarouselConfig[]>([]);
@@ -157,7 +215,7 @@ export default function Editor({
    */
   function commit(next: CarouselConfig, key = "") {
     // This runs only in user and async callbacks, never while rendering.
-    const now = Date.now();
+    const now = clockNow();
     const continuing = key !== "" && key === lastMark.current.key && now - lastMark.current.at < COALESCE_MS;
     if (!continuing) past.current = [...past.current, config].slice(-HISTORY_LIMIT);
     lastMark.current = { key, at: now };
@@ -182,6 +240,8 @@ export default function Editor({
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
+      // Escape closes the composer, the way the native media dialog already closes.
+      if (event.key === "Escape") { setComposeOpen(false); return; }
       if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "z") return;
       event.preventDefault();
       step(event.shiftKey ? "future" : "past");
@@ -260,8 +320,7 @@ export default function Editor({
 
   function addSlide() {
     const slide: CarouselSlide = {
-      // Event-time uniqueness keeps imported and duplicated slide ids distinct.
-      id: `slide-${Date.now().toString(36)}`,
+      id: newSlideId(),
       layout: "content",
       title: "Add a clear headline",
       body: "Use one thought per slide. Keep the supporting copy short.",
@@ -271,7 +330,7 @@ export default function Editor({
   }
 
   function duplicateSlide() {
-    const copy = { ...selectedSlide, id: `slide-${Date.now().toString(36)}` };
+    const copy = { ...selectedSlide, id: newSlideId() };
     const slides = [...config.slides];
     slides.splice(selectedIndex + 1, 0, copy);
     commit({ ...config, slides });
@@ -318,11 +377,30 @@ export default function Editor({
   }
 
   async function chooseMedia(asset: MediaAsset) {
-    const images = await loadImages([asset.key]);
-    const background = images[asset.key];
-    if (!background) throw new Error("That image could not be loaded. Try uploading it again from Media.");
-    await chooseBackground(background);
+    const target = mediaOpen ?? "background";
+    const loaded = await loadImages([asset.key]);
+    const data = loaded[asset.key];
+    if (!data) throw new Error("That image could not be loaded. Try uploading it again from Media.");
+
+    if (target === "avatar") {
+      commit({ ...config, avatar: data });
+      showNotice({ kind: "success", message: `${asset.name} is now the deck avatar.` });
+      return;
+    }
+    if (target === "images") {
+      const images = [...(selectedSlide.images ?? []), data];
+      updateSlide({ images });
+      const room = imageCapacity(selectedSlide.layout) - images.length;
+      showNotice({ kind: "success", message: room > 0 ? `Added ${asset.name}. Room for ${room} more.` : `Added ${asset.name}.` });
+      return;
+    }
+    await chooseBackground(data);
     showNotice({ kind: "success", message: `${asset.name} is now the slide background.` });
+  }
+
+  function removePicture(at: number) {
+    const images = (selectedSlide.images ?? []).filter((_, index) => index !== at);
+    updateSlide({ images: images.length ? images : undefined });
   }
 
   function openComposer(mode: "text" | "json") {
@@ -385,9 +463,11 @@ export default function Editor({
   return (
     <main className="studio-shell">
       <header className="topbar">
-        <button className="brand brand-back" type="button" onClick={() => { void requestExit(); }} disabled={exiting} aria-label="Back to all carousels">
-          {exiting ? <LoaderCircle className="spin" size={16} /> : <ArrowLeft size={16} />}<span className="brand-mark">V</span><span>All carousels</span>
-        </button>
+        <div className="topbar-crumbs">
+          <button type="button" onClick={() => { void requestExit(); }} disabled={exiting}>Carousels</button>
+          <ChevronRight className="crumb-sep" size={13} />
+          <span>{exiting ? "Saving…" : `${config.slides.length} slide${config.slides.length === 1 ? "" : "s"}`}</span>
+        </div>
         <label className="project-name">
           <span className={`status-dot ${saveState}`} title={SAVE_LABEL[saveState]} />
           <input aria-label="Carousel title" maxLength={100} value={config.title} onChange={(event) => commit({ ...config, title: event.target.value }, "deck-title")} />
@@ -413,21 +493,24 @@ export default function Editor({
           <div className="rail-heading"><span>Slides · {config.slides.length}</span><button type="button" onClick={addSlide} aria-label="Add slide"><Plus size={15} /></button></div>
           <div className="slide-list">
             {config.slides.map((slide, index) => (
-              <button className={`slide-thumb ${index === selectedIndex ? "selected" : ""}`} type="button" key={slide.id} onClick={() => setSelectedIndex(index)}>
+              <button className={`slide-thumb ${index === selectedIndex ? "selected" : ""}`} type="button" key={slide.id} onClick={() => setSelectedIndex(index)} aria-label={`Slide ${index + 1}: ${slide.title}`}>
                 <span className="thumb-number">{String(index + 1).padStart(2, "0")}</span>
-                <span className={`thumb-card template-${slideTemplate(slide, config)}`}><span>{slide.title.slice(0, 16)}</span></span>
-                <span className="thumb-label">{slide.layout === "cover" ? "Cover" : slide.layout === "closing" ? "Closing" : slide.layout === "quote" ? "Quote" : slide.layout === "poster" ? "Poster" : slide.layout === "split" ? "Split" : "Slide"}</span>
+                <span className="thumb-frame" aria-hidden="true"><Slide slide={slide} config={config} scale={typeScale} index={index} /></span>
+                <span className="thumb-label">
+                  <strong>{titleLines(slide.title).join(" ").replace(/\*/g, "")}</strong>
+                  <small>{layoutNames[slide.layout]}</small>
+                </span>
               </button>
             ))}
-          </div>
-          <div className="rail-import">
-            <span>Background</span>
-            <button className="library-picker-button" type="button" onClick={() => setMediaOpen(true)}><Images size={16} /><span>Choose from media</span></button>
-            <small>Reuse images from your shared library.</small>
           </div>
         </aside>
 
         <section className="canvas-area" aria-label="Slide preview">
+          {signifierMissing && (
+            <p className="font-warning" role="status">
+              Signifier is not installed on this machine, so slides are showing Georgia. Exports from here will ship Georgia too. Install Signifier or export from a machine that has it.
+            </p>
+          )}
           <div className="canvas-toolbar">
             <span>LinkedIn portrait · 1080 × 1350</span>
             <button className="crop-toggle" type="button" aria-pressed={showCrop} onClick={() => setShowCrop(!showCrop)} title="Instagram crops the profile grid to a square">
@@ -457,7 +540,7 @@ export default function Editor({
           {inspectorTab === "layout" ? (
             <div className="inspector-panel">
               <label className="field-label" htmlFor="slide-layout">Slide type</label>
-              <div className="select-wrap"><select id="slide-layout" value={selectedSlide.layout} onChange={(event) => updateSlide({ layout: event.target.value as CarouselSlide["layout"] })}><option value="cover">Cover</option><option value="content">Content</option><option value="quote">Quote</option><option value="poster">Poster</option><option value="split">Split</option><option value="closing">Closing</option></select><ChevronDown size={14} /></div>
+              <div className="select-wrap"><select id="slide-layout" value={selectedSlide.layout} onChange={(event) => updateSlide({ layout: event.target.value as SlideLayout })}>{(Object.keys(layoutNames) as SlideLayout[]).map((layout) => <option value={layout} key={layout}>{layoutNames[layout]}</option>)}</select><ChevronDown size={14} /></div>
 
               <span className="field-label">Text position</span>
               <div className="segmented">
@@ -481,41 +564,72 @@ export default function Editor({
                 Apply this layout to every slide
               </button>
 
-              {selectedSlide.layout === "cover" && (
-                <p className="field-hint">A cover shows the headline on its own. Position and alignment still apply.</p>
-              )}
+              <p className="field-hint">{layoutHints[selectedSlide.layout]}</p>
             </div>
           ) : inspectorTab === "content" ? (
             <div className="inspector-panel">
               <label className="field-label" htmlFor="headline">Headline</label>
-              <textarea id="headline" maxLength={90} rows={5} value={selectedSlide.title} onChange={(event) => updateSlide({ title: event.target.value }, "title")} />
-              <div className="character-count">{selectedSlide.title.length} / 90</div>
+              <textarea id="headline" maxLength={120} rows={5} value={selectedSlide.title} onChange={(event) => updateSlide({ title: event.target.value }, "title")} />
+              <div className="character-count">{selectedSlide.title.length} / 120</div>
               <p className="field-hint">Put a <em>|</em> where the headline should break. Without one the lines are evened automatically, which rarely breaks where the sense does.</p>
-              <label className="field-label" htmlFor="body">Supporting copy</label>
-              <textarea id="body" maxLength={280} rows={6} value={selectedSlide.body} onChange={(event) => updateSlide({ body: event.target.value }, "body")} />
-              <p className="field-hint"><em>*word*</em> sets a phrase in italic. <em>**word**</em> tints it with the accent colour. Leave a blank line to start a new paragraph.</p>
-              {selectedSlide.layout === "cover" && (
-                <p className="field-hint">This slide is a Cover, so only the headline is drawn. The supporting copy is kept — change the slide type under Layout to show it.</p>
+              {showsBody(selectedSlide.layout) ? (
+                <>
+                  <label className="field-label" htmlFor="body">Supporting copy</label>
+                  <textarea id="body" maxLength={280} rows={6} value={selectedSlide.body} onChange={(event) => updateSlide({ body: event.target.value }, "body")} />
+                  <p className="field-hint"><em>*word*</em> sets a phrase in italic. <em>**word**</em> draws a highlighter stroke behind it. Leave a blank line to start a new paragraph.</p>
+                  {selectedSlide.layout === "cover" && (
+                    <p className="field-hint">On a cover the supporting copy is the subtitle. Keep it to one line.</p>
+                  )}
+                </>
+              ) : (
+                <p className="field-hint">
+                  {layoutNames[selectedSlide.layout]} slides draw the headline only, so nothing can crowd the {selectedSlide.layout === "diagram" ? "figure" : selectedSlide.layout === "photos" ? "pictures" : "statement"}.
+                  {selectedSlide.body ? " The supporting copy is kept and comes back if you change the slide type." : ""}
+                </p>
+              )}
+              {selectedSlide.layout === "diagram" && (
+                <>
+                  <label className="field-label" htmlFor="diagram">Diagram SVG</label>
+                  <textarea className="svg-editor" id="diagram" rows={8} spellCheck={false} value={selectedSlide.diagram ?? ""} onChange={(event) => updateSlide({ diagram: event.target.value || undefined }, "diagram")} placeholder='<svg viewBox="0 0 800 500">…</svg>' />
+                  <p className="field-hint">Paste inline SVG. Use <em>currentColor</em> for strokes and text so it takes the slide’s ink on any ground. Scripts and external references are stripped. The Copy AI prompt under Design explains how to ask Claude for one.</p>
+                </>
+              )}
+              {usesImages(selectedSlide.layout) && (
+                <>
+                  <span className="field-label">Pictures · {(selectedSlide.images ?? []).length} of {imageCapacity(selectedSlide.layout)}</span>
+                  {(selectedSlide.images ?? []).length > 0 && (
+                    <ul className="picture-list">
+                      {(selectedSlide.images ?? []).map((image, pictureIndex) => (
+                        <li
+                          key={`${pictureIndex}-${image.slice(-24)}`}
+                          className={isImageKey(image) ? "is-missing" : ""}
+                          style={isImageKey(image) ? undefined : { backgroundImage: `url(${image})` }}
+                          title={isImageKey(image) ? "Not available in this browser" : `Picture ${pictureIndex + 1}`}
+                        >
+                          <button type="button" onClick={() => removePicture(pictureIndex)} aria-label={`Remove picture ${pictureIndex + 1}`}><X size={12} /></button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <p className="field-hint">One picture is a figure, two or three a filmstrip, four or more a grid. Grids read best with four or nine.</p>
+                  {(selectedSlide.images ?? []).length < imageCapacity(selectedSlide.layout) ? (
+                    <button className="wide-upload" type="button" onClick={() => setMediaOpen("images")} style={{ marginTop: 8 }}><Images size={15} /> Add a picture</button>
+                  ) : (
+                    <p className="field-hint">This layout is full. Remove a picture to add another.</p>
+                  )}
+                </>
               )}
             </div>
           ) : (
             <div className="inspector-panel">
-              <span className="field-label">Style · slide {selectedIndex + 1}</span>
-              <div className="style-summary">
-                <span className="template-swatch editorial"><i /><i /><i /></span>
-                <span><strong>{templateNames.editorial.name}</strong><small>{templateNames.editorial.note}</small></span>
+              <span className="field-label">Ground · slide {selectedIndex + 1}</span>
+              <div className="segmented" aria-label="Slide ground colour">
+                <button type="button" className={(selectedSlide.tone ?? "paper") === "paper" ? "active" : ""} onClick={() => updateSlide({ tone: "paper" })}>Paper</button>
+                <button type="button" className={selectedSlide.tone === "sage" ? "active" : ""} onClick={() => updateSlide({ tone: "sage" })}>Sage</button>
+                <button type="button" className={selectedSlide.tone === "black" ? "active" : ""} onClick={() => updateSlide({ tone: "black" })}>Black</button>
               </div>
-              <label className="field-label" htmlFor="author">Footer name</label>
-              <input id="author" maxLength={40} value={config.author} onChange={(event) => commit({ ...config, author: event.target.value.toUpperCase() }, "author")} />
-              <span className="field-label">Slide background</span>
-              {activeTemplate === "editorial" && (
-                <div className="segmented" aria-label="Editorial background colour">
-                  <button type="button" className={(selectedSlide.tone ?? "paper") === "paper" ? "active" : ""} onClick={() => updateSlide({ tone: "paper" })}>Paper</button>
-                  <button type="button" className={selectedSlide.tone === "sage" ? "active" : ""} onClick={() => updateSlide({ tone: "sage" })}>Sage</button>
-                  <button type="button" className={selectedSlide.tone === "black" ? "active" : ""} onClick={() => updateSlide({ tone: "black" })}>Black</button>
-                </div>
-              )}
-              <button className="wide-upload" type="button" onClick={() => setMediaOpen(true)}><Images size={15} /> {selectedSlide.background ? "Choose another image" : "Choose from media"}</button>
+              <span className="field-label">Background photo</span>
+              <button className="wide-upload" type="button" onClick={() => setMediaOpen("background")}><Images size={15} /> {selectedSlide.background ? "Choose another image" : "Choose from media"}</button>
               {isImageKey(selectedSlide.background) && (
                 <p className="field-hint warning">
                   This slide has an image that is not available in this browser, so it cannot be shown or exported here.
@@ -523,6 +637,23 @@ export default function Editor({
                 </p>
               )}
               {selectedSlide.background && <button type="button" className="text-button" onClick={() => updateSlide({ background: undefined, luma: undefined })}>Remove image</button>}
+
+              <label className="field-label" htmlFor="mark">Series label · every slide</label>
+              <input id="mark" maxLength={30} value={config.mark ?? ""} placeholder="AI Engineer" onChange={(event) => commit({ ...config, mark: event.target.value }, "mark")} />
+              <label className="field-label" htmlFor="author">Footer name</label>
+              <input id="author" maxLength={40} value={config.author} onChange={(event) => commit({ ...config, author: event.target.value }, "author")} />
+              <span className="field-label">Avatar</span>
+              <div className="avatar-row">
+                <span className="avatar-preview" style={config.avatar && !isImageKey(config.avatar) ? { backgroundImage: `url(${config.avatar})` } : undefined} />
+                <button className="wide-upload" type="button" onClick={() => setMediaOpen("avatar")}><UserRound size={15} /> {config.avatar ? "Change avatar" : "Choose from media"}</button>
+              </div>
+              {config.avatar && <button type="button" className="text-button" onClick={() => commit({ ...config, avatar: undefined })}>Remove avatar</button>}
+              <span className="field-label">Page number</span>
+              <div className="segmented" aria-label="Page number style">
+                <button type="button" className={(config.numbering ?? "page") === "page" ? "active" : ""} onClick={() => commit({ ...config, numbering: undefined })}>02</button>
+                <button type="button" className={config.numbering === "fraction" ? "active" : ""} onClick={() => commit({ ...config, numbering: "fraction" })}>02 / 06</button>
+              </div>
+              <label className="check-row"><input type="checkbox" checked={config.arrow !== false} onChange={(event) => commit({ ...config, arrow: event.target.checked ? undefined : false })} /> Swipe arrow on every slide but the last</label>
               <div className="config-tools">
                 <span className="field-label">Project data</span>
                 <button type="button" onClick={() => openComposer("json")}><Layers3 size={15} /> Edit JSON config</button>
@@ -564,7 +695,7 @@ export default function Editor({
         </div>
       )}
 
-      {mediaOpen && <MediaPicker onChoose={chooseMedia} onClose={() => setMediaOpen(false)} />}
+      {mediaOpen && <MediaPicker onChoose={chooseMedia} onClose={() => setMediaOpen(null)} />}
 
       {notice && <div className={`toast ${notice.kind}`} role="status">{notice.kind === "success" ? <Check size={16} /> : <X size={16} />}{notice.message}</div>}
     </main>

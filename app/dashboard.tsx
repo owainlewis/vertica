@@ -9,7 +9,7 @@ import {
   loadCarousel,
   type CarouselSummary,
 } from "./api-client";
-import { assertBackgroundsAvailableForExport, CarouselConfig, CarouselSlide, deckTypeScale } from "./carousel";
+import { assertBackgroundsAvailableForExport, CarouselConfig, CarouselSlide, deckTypeScale, normalizeLayout } from "./carousel";
 import { exportStageToPdf, exportStageToZip, fileNameFor } from "./export";
 import { loadImages } from "./image-store";
 import { ExportStage, Slide } from "./slide";
@@ -20,6 +20,7 @@ function readCover(cover: string) {
     return JSON.parse(cover || "{}") as {
       slide?: Partial<CarouselSlide>;
       mark?: string;
+      avatar?: string;
     };
   } catch {
     return {};
@@ -42,17 +43,19 @@ function relativeDate(iso: string) {
  */
 function CardPreview({
   carousel,
-  background,
+  images,
 }: {
   carousel: CarouselSummary;
-  background?: string;
+  /** Resolved media keys, so the card paints what the editor paints. */
+  images: Record<string, string>;
 }) {
-  const { slide, scale, mark } = useMemo(() => {
+  const { slide, scale, mark, avatar } = useMemo(() => {
+    const resolve = (ref: string | undefined) => (ref && images[ref]) || undefined;
     const stored = readCover(carousel.cover);
     const parsed = stored.slide ?? {};
     const cover: CarouselSlide = {
       id: parsed.id ?? "cover",
-      layout: parsed.layout ?? "cover",
+      layout: normalizeLayout(parsed.layout, "cover"),
       title: parsed.title ?? (carousel.coverTitle || carousel.title),
       body: parsed.body ?? "",
       ...(parsed.template ? { template: parsed.template } : {}),
@@ -63,12 +66,13 @@ function CardPreview({
       // falling back to the fixed one, which would darken the tile differently.
       ...(parsed.luma ? { luma: parsed.luma } : {}),
       ...(parsed.plate ? { plate: true } : {}),
-      ...(background ? { background } : {}),
+      ...(resolve(parsed.background) ? { background: resolve(parsed.background) } : {}),
+      ...(parsed.images?.length ? { images: parsed.images.map((ref) => resolve(ref) ?? ref) } : {}),
     };
     // The type scale is a design-system value now, not saved carousel data. Recompute
     // it so old rows cannot bring their adaptive title sizes back into the gallery.
-    return { slide: cover, scale: deckTypeScale([cover]), mark: stored.mark ?? "" };
-  }, [carousel, background]);
+    return { slide: cover, scale: deckTypeScale([cover]), mark: stored.mark ?? "", avatar: resolve(stored.avatar) };
+  }, [carousel, images]);
 
   // The footer counter reads off the deck length, so the card needs the real count.
   const config = useMemo<CarouselConfig>(
@@ -78,9 +82,10 @@ function CardPreview({
       author: carousel.author,
       template: "editorial",
       ...(mark ? { mark } : {}),
+      ...(avatar ? { avatar } : {}),
       slides: Array.from({ length: Math.max(carousel.slideCount, 1) }, () => slide),
     }),
-    [carousel, slide, mark],
+    [carousel, slide, mark, avatar],
   );
 
   return (
@@ -106,7 +111,7 @@ export default function Dashboard({
   // Downloading needs the slides on the page, so the chosen deck is mounted
   // offscreen and rasterised once React has painted it.
   const [pending, setPending] = useState<{ config: CarouselConfig; title: string; kind: "pdf" | "zip" } | null>(null);
-  // Cover backgrounds are loaded from the durable media store once the list arrives.
+  // Cover media is loaded from the durable media store once the list arrives.
   const [covers, setCovers] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -120,12 +125,12 @@ export default function Dashboard({
   useEffect(() => {
     if (!carousels?.length) return;
     let live = true;
-    const keys = carousels.map((row) => {
-      return [row.id, readCover(row.cover).slide?.background ?? ""] as const;
-    });
-    loadImages(keys.map(([, key]) => key)).then((images) => {
-      if (!live) return;
-      setCovers(Object.fromEntries(keys.filter(([, key]) => images[key]).map(([id, key]) => [id, images[key]])));
+    const keys = carousels.flatMap((row) => {
+      const stored = readCover(row.cover);
+      return [stored.avatar ?? "", stored.slide?.background ?? "", ...(stored.slide?.images ?? [])];
+    }).filter(Boolean);
+    loadImages([...new Set(keys)]).then((images) => {
+      if (live) setCovers(images);
     });
     return () => { live = false; };
   }, [carousels]);
@@ -177,7 +182,7 @@ export default function Dashboard({
   return (
     <main className="dashboard">
       <header className="dashboard-bar">
-        <div><strong>Carousels</strong><span>Create, edit, and export your decks</span></div>
+        <div><strong>Carousels</strong><span>Every deck, saved as you work</span></div>
         <button className="export-button" type="button" onClick={onCreate}><Plus size={15} /> New carousel</button>
       </header>
 
@@ -201,10 +206,7 @@ export default function Dashboard({
           {(carousels ?? []).map((carousel) => (
             <li className="gallery-card" key={carousel.id}>
               <button className="card-open" type="button" onClick={() => onOpen(carousel.id)} aria-label={`Open ${carousel.title}`}>
-                <CardPreview
-                  carousel={carousel}
-                  background={covers[carousel.id]}
-                />
+                <CardPreview carousel={carousel} images={covers} />
               </button>
               <div className="card-overlay">
                 <span className="card-meta">

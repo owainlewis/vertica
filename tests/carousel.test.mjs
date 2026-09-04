@@ -6,22 +6,25 @@ import {
   BRAND_FOOTER,
   BRAND_MARK,
   bodyParagraphs,
-  bodySize,
   deckTypeScale,
   generateCarouselFromText,
-  isLegacyTypeOnlyTemplate,
+  imageCapacity,
+  normalizeLayout,
   parseCarouselConfig,
+  photoArrangement,
+  showsBody,
   parseInlineMarks,
+  sanitizeSvg,
   slideAlign,
+  slideImageRefs,
   slidePosition,
   slideTemplate,
   starterConfig,
-  estimateLines,
   smartQuotes,
-  titleLeading,
+  suggestBreak,
   titleLines,
-  titleSize,
-  titleTracking,
+  TYPE_SCALE,
+  usesImages,
 } from "../app/carousel.ts";
 
 test("blocks exports that would silently omit unresolved backgrounds", () => {
@@ -36,6 +39,19 @@ test("blocks exports that would silently omit unresolved backgrounds", () => {
   assert.throws(
     () => assertBackgroundsAvailableForExport(config),
     /slides 2, 3 are not available in this browser/,
+  );
+  assert.throws(
+    () => assertBackgroundsAvailableForExport(parseCarouselConfig(JSON.stringify({
+      slides: [{ title: "Grid", layout: "photos", images: ["data:image/jpeg;base64,YQ==", "img:gone"] }],
+    }))),
+    /slide 1 are not available/,
+  );
+  assert.throws(
+    () => assertBackgroundsAvailableForExport(parseCarouselConfig(JSON.stringify({
+      avatar: "img:gone",
+      slides: [{ title: "Fine" }],
+    }))),
+    /avatar is not available/,
   );
   assert.doesNotThrow(() => assertBackgroundsAvailableForExport({
     ...config,
@@ -53,9 +69,35 @@ test("generates a readable slide sequence from paragraphs", () => {
   assert.equal(config.slides.length, 3);
   assert.equal(config.slides[0].layout, "cover");
   assert.equal(config.slides[2].layout, "closing");
-  assert.equal(config.author, "OWAIN LEWIS");
+  assert.equal(config.author, "Owain Lewis", "case is kept as written");
   assert.equal(config.template, "editorial");
   assert.match(config.slides[1].title, /first supporting point/i);
+});
+
+test("gives generated decks the reference rhythm", () => {
+  const config = generateCarouselFromText([
+    "AI will not replace developers. But the ones who direct it will move faster.",
+    "The bottleneck moved. Writing code is cheap now, and deciding what to build is not.",
+    "Context changes everything",
+    "Direct, inspect, refine",
+    "Judgment still decides. Speed matters, but only judgment says whether the result is ready.",
+    "Save this for your next build",
+  ].join("\n\n"));
+
+  const layouts = config.slides.map((slide) => slide.layout);
+  assert.deepEqual(layouts, ["cover", "content", "poster", "poster", "content", "closing"]);
+  assert.equal(config.slides[0].body, "But the ones who direct it will move faster.", "the second sentence is the cover subtitle");
+  assert.equal(config.slides[2].tone, "sage", "the first poster after the setup gets the colour");
+  assert.equal(config.slides[3].tone, undefined, "and only that one");
+  assert.equal(config.slides[0].title, "AI will not | replace developers", "long titles get one suggested break");
+  assert.equal(config.title, "AI will not replace developers", "the deck title has no break marker in it");
+});
+
+test("suggests a break before the tail of a long title and leaves short or broken ones alone", () => {
+  assert.equal(suggestBreak("Four words is short"), "Four words is short");
+  assert.equal(suggestBreak("Five words gets a break"), "Five words gets | a break");
+  assert.equal(suggestBreak("Seven words get three at the end"), "Seven words get three | at the end");
+  assert.equal(suggestBreak("An author's | own break"), "An author's | own break");
 });
 
 test("rejects empty source text", () => {
@@ -92,9 +134,10 @@ test("parses AI-generated JSON and applies safe defaults", () => {
 
   assert.equal(config.version, 1);
   assert.equal(config.template, "editorial");
-  assert.equal(config.author, "JANE DOE");
+  assert.equal(config.author, "Jane Doe");
+  assert.equal(config.mark, BRAND_MARK, "the brand is the default series label");
   assert.equal(config.slides[0].layout, "cover");
-  assert.equal(config.slides[1].layout, "quote");
+  assert.equal(config.slides[1].layout, "content", "the old quote layout reads as content");
 });
 
 test("collapses old and unknown template names into Signifier", () => {
@@ -125,20 +168,34 @@ test("uses Signifier without redundant per-slide style overrides", () => {
   assert.equal(slideTemplate(config.slides[0], config), "editorial");
 });
 
-test("preserves editorial layouts and an optional sage ground", () => {
+test("preserves editorial layouts, maps old names, and keeps an optional sage ground", () => {
   const config = parseCarouselConfig(JSON.stringify({
     template: "editorial",
     slides: [
       { title: "Large statement", layout: "poster", tone: "sage" },
       { title: "Two-part idea", body: "The supporting half.", layout: "split", tone: "unknown" },
+      { title: "Old grid", layout: "grid" },
+      { title: "Old strip", layout: "strip" },
+      { title: "Old figure", layout: "figure" },
+      { title: "Nonsense", layout: "hero" },
     ],
   }));
 
   assert.equal(config.slides[0].layout, "poster");
   assert.equal(config.slides[0].tone, "sage");
-  assert.equal(config.slides[1].layout, "split");
+  assert.equal(config.slides[1].layout, "content");
   assert.equal(config.slides[1].tone, undefined);
   assert.equal(slideAlign(config.slides[1]), "left");
+  assert.deepEqual(config.slides.slice(2).map((slide) => slide.layout), ["photos", "photos", "photos", "content"]);
+  assert.equal(normalizeLayout("quote", "cover"), "content");
+  assert.equal(normalizeLayout(undefined, "cover"), "cover");
+
+  // Title-only layouts keep the body in the document; the renderer decides not to draw it.
+  assert.ok(showsBody("cover") && showsBody("content") && showsBody("closing"));
+  assert.ok(!showsBody("note") && !showsBody("poster") && !showsBody("diagram") && !showsBody("photos"));
+  assert.equal(photoArrangement(1), "figure");
+  assert.equal(photoArrangement(3), "strip");
+  assert.equal(photoArrangement(4), "grid");
 });
 
 test("placement is independent of colour, and defaults from the slide type", () => {
@@ -152,10 +209,10 @@ test("placement is independent of colour, and defaults from the slide type", () 
     ],
   }));
 
-  // A cover reads centred, a content slide reads as a lower third.
+  // A cover and a content slide both read centred; only alignment differs.
   assert.equal(slidePosition(config.slides[0]), "middle");
   assert.equal(slideAlign(config.slides[0]), "center");
-  assert.equal(slidePosition(config.slides[1]), "bottom");
+  assert.equal(slidePosition(config.slides[1]), "middle");
   assert.equal(slideAlign(config.slides[1]), "left");
 
   // Choosing a colour must not move the text: Midnight sits where any content slide does.
@@ -167,8 +224,78 @@ test("placement is independent of colour, and defaults from the slide type", () 
 
   // Unknown values fall back rather than reaching the class name.
   assert.equal(config.slides[4].position, undefined);
-  assert.equal(slidePosition(config.slides[4]), "bottom");
+  assert.equal(slidePosition(config.slides[4]), "middle");
   assert.equal(slideAlign(config.slides[4]), "left");
+});
+
+test("keeps picture lists, the avatar, numbering and the arrow", () => {
+  const config = parseCarouselConfig(JSON.stringify({
+    avatar: "data:image/png;base64,YQ==",
+    numbering: "fraction",
+    arrow: false,
+    slides: [
+      { title: "Pictures", layout: "photos", images: ["data:image/png;base64,YQ==", " img:abc ", ""] },
+      { title: "Strip", layout: "photos" },
+    ],
+  }));
+
+  assert.equal(config.avatar, "data:image/png;base64,YQ==");
+  assert.equal(config.numbering, "fraction");
+  assert.equal(config.arrow, false);
+  assert.deepEqual(config.slides[0].images, ["data:image/png;base64,YQ==", "img:abc"]);
+  assert.equal(config.slides[1].images, undefined);
+  assert.deepEqual(slideImageRefs(config.slides[0]), ["data:image/png;base64,YQ==", "img:abc"]);
+  assert.ok(usesImages("photos") && !usesImages("content"));
+  assert.equal(imageCapacity("photos"), 9);
+  assert.equal(imageCapacity("content"), 0);
+  assert.equal(slidePosition(config.slides[0]), "top", "pictures sit under the copy");
+
+  const plain = parseCarouselConfig(JSON.stringify({ slides: [{ title: "Plain" }] }));
+  assert.equal(plain.avatar, undefined);
+  assert.equal(plain.numbering, undefined);
+  assert.equal(plain.arrow, undefined);
+
+  assert.throws(
+    () => parseCarouselConfig(JSON.stringify({ slides: [{ title: "Bad", images: ["https://example.com/a.jpg"] }] })),
+    /unsupported image/,
+  );
+  assert.throws(
+    () => parseCarouselConfig(JSON.stringify({ slides: [{ title: "Too many", images: Array(10).fill("img:a") }] })),
+    /more than 9 images/,
+  );
+  assert.throws(
+    () => parseCarouselConfig(JSON.stringify({ avatar: "https://example.com/me.jpg", slides: [{ title: "Bad" }] })),
+    /avatar must be an uploaded image/,
+  );
+});
+
+test("keeps a diagram drawable and strips anything that could run or fetch", () => {
+  const dirty = `<svg width="800" height="500" viewBox="0 0 800 500" onload="alert(1)">
+    <!-- note --><script>alert(1)</script>
+    <style>@import url(https://evil.example/x.css); .a { fill: url(https://evil.example/p.png); }</style>
+    <rect x="1" y="1" width="10" height="10" stroke="currentColor" onclick="alert(1)"/>
+    <a href="https://evil.example"><text x="0" y="0">hi</text></a>
+    <use href="#ok"/><image href="https://evil.example/i.png"/>
+    <foreignObject><body>html</body></foreignObject>
+  </svg>`;
+  const clean = sanitizeSvg(dirty);
+  assert.match(clean, /^<svg viewBox="0 0 800 500">/, "root keeps its viewBox and loses width, height and handlers");
+  assert.match(clean, /<rect[^>]*stroke="currentColor"/);
+  assert.doesNotMatch(clean, /script|foreignObject|onload|onclick|evil\.example|@import|<use/);
+  assert.equal(sanitizeSvg("<div>not svg</div>"), "");
+  assert.equal(sanitizeSvg(""), "");
+
+  const config = parseCarouselConfig(JSON.stringify({
+    slides: [{ title: "Flow", layout: "diagram", diagram: dirty }, { title: "Plain", diagram: "   " }],
+  }));
+  assert.equal(config.slides[0].layout, "diagram");
+  assert.equal(config.slides[0].diagram, clean, "stored already sanitised");
+  assert.equal(config.slides[1].diagram, undefined);
+  assert.equal(slidePosition(config.slides[0]), "bottom", "the headline is a caption by default");
+  assert.throws(
+    () => parseCarouselConfig(JSON.stringify({ slides: [{ title: "Bad", layout: "diagram", diagram: "<p>no</p>" }] })),
+    /not an <svg> element/,
+  );
 });
 
 test("rejects unsafe background URLs and oversized carousels", () => {
@@ -193,7 +320,9 @@ test("rejects unsafe background URLs and oversized carousels", () => {
 test("produces a copyable prompt with the supported config contract", () => {
   const prompt = aiPrompt(starterConfig);
   assert.match(prompt, /Return JSON only/);
-  assert.match(prompt, /cover \| content \| quote \| poster \| split \| closing/);
+  assert.match(prompt, /cover \| content \| note \| poster \| diagram \| photos \| closing/);
+  assert.match(prompt, /currentColor/);
+  assert.match(prompt, /Sentence case/);
   assert.match(prompt, /SOURCE TEXT:/);
 });
 
@@ -217,71 +346,15 @@ test("splits body copy on blank lines only", () => {
   assert.deepEqual(bodyParagraphs("   "), []);
 });
 
-test("keeps title and body sizes fixed as copy changes", () => {
-  assert.equal(titleSize("Short headline"), titleSize("A considerably longer headline that keeps going and going"));
-  assert.equal(titleSize("*Short headline*"), titleSize("Short headline"));
-  assert.equal(bodySize("Brief."), bodySize("x".repeat(250)));
-});
-
-test("keeps title tracking and leading fixed", () => {
-  assert.equal(titleTracking(6), titleTracking(13));
-  assert.equal(titleLeading(6, 2), titleLeading(13, 5));
-  assert.ok(titleTracking(8) < 0, "Helvetica titles should be set tightly");
-  assert.ok(titleLeading(8) > 0.9 && titleLeading(8) < 1, "Helvetica titles should use compact leading");
-});
-
-test("sets every carousel at one fixed title and body scale", () => {
-  const slides = [
-    { layout: "content", title: "Short", body: "Brief." },
-    { layout: "content", title: "A headline that runs a good deal longer than the first one", body: "x".repeat(250) },
-    { layout: "content", title: "Middling headline", body: "Also brief." },
-  ];
-  const scale = deckTypeScale(slides);
-
-  assert.equal(scale.title, titleSize(slides[0].title));
-  assert.equal(scale.body, bodySize(slides[0].body));
-  assert.equal(scale.tracking, titleTracking(scale.title));
-  assert.equal(scale.leading, titleLeading(scale.title));
-
-  const uniform = deckTypeScale([{ layout: "content", title: "Short", body: "Brief." }]);
-  assert.deepEqual(uniform, scale, "copy length must not change the type scale");
-});
-
-test("does not size visible body copy from a hidden cover body", () => {
+test("one type scale for every deck, set close to Signifier's natural fit", () => {
   const scale = deckTypeScale([
-    { layout: "cover", title: "Cover", body: "x".repeat(250) },
-    { layout: "content", title: "Visible copy", body: "Brief." },
+    { layout: "cover", title: "The skill that decides who ships. Nobody lists it.", body: "" },
+    { layout: "content", title: "Short", body: "x".repeat(250) },
   ]);
-
-  assert.equal(scale.body, bodySize("Brief."));
-});
-
-test("a long cover title sets one uniform title scale for the whole deck", () => {
-  const content = [
-    { layout: "content", title: "CodeRabbit", body: "Short." },
-    { layout: "content", title: "Greptile", body: "Short." },
-  ];
-  const withCover = deckTypeScale([
-    { layout: "cover", title: "Four AI reviewers worth your time", body: "" },
-    ...content,
-  ]);
-
-  assert.equal(withCover.cover, withCover.title, "cover and content use the same title size");
-  assert.equal(withCover.coverTracking, withCover.tracking, "cover and content use the same tracking");
-  assert.equal(withCover.coverLeading, withCover.leading, "cover and content use the same leading");
-
-  const coversOnly = deckTypeScale([{ layout: "cover", title: "Only a cover", body: "" }]);
-  assert.ok(coversOnly.title > 0 && coversOnly.cover === coversOnly.title, "a deck of covers still resolves");
-  const coverWithHiddenCopy = deckTypeScale([{ layout: "cover", title: "Only a cover", body: "x".repeat(250) }]);
-  assert.equal(coverWithHiddenCopy.body, bodySize(""), "hidden cover copy does not affect the unused body scale");
-});
-
-test("headline length cannot resize the carousel", () => {
-  for (let length = 6; length < 90; length += 1) {
-    const before = titleSize("x".repeat(length));
-    const after = titleSize("x".repeat(length + 1));
-    assert.equal(after, before, `character ${length + 1} changed the fixed title size`);
-  }
+  assert.deepEqual(scale, TYPE_SCALE, "copy length must not change the type scale");
+  assert.ok(scale.cover > scale.title && scale.poster > scale.title, "cover and poster run larger");
+  assert.ok(scale.tracking <= 0 && scale.tracking > -0.03, "tight enough to sit, loose enough that words stay apart");
+  assert.ok(scale.leading > 0.9 && scale.leading < 1.05, "display leading");
 });
 
 test("a hard break in a headline is honoured and does not count toward its length", () => {
@@ -291,9 +364,6 @@ test("a hard break in a headline is honoured and does not count toward its lengt
   assert.deepEqual(titleLines("Leading | | doubled |"), ["Leading", "doubled"]);
   assert.deepEqual(titleLines("|"), ["|"]);
 
-  // The marker is punctuation for the renderer, not copy, so it cannot push a title
-  // into a smaller size the way a real extra character would.
-  assert.equal(titleSize("A headline that breaks | in the middle"), titleSize("A headline that breaks in the middle"));
 });
 
 test("the scrim darkens a bright photograph and leaves a dark one alone", () => {
@@ -372,20 +442,20 @@ test("everything is branded AI Engineer unless a deck says otherwise", () => {
   assert.equal(plain.mark, BRAND_MARK, "an unmarked deck still carries the brand");
   assert.equal(plain.author, BRAND_FOOTER, "and the footer still carries the offer");
 
-  // An explicit mark wins, and is normalised the way the footer name is.
+  // An explicit mark wins. Case is kept: the furniture is sentence case now.
   const custom = parseCarouselConfig(JSON.stringify({
-    mark: "  something else  ",
-    author: "  owain lewis ",
+    mark: "  Something else  ",
+    author: "  Owain Lewis ",
     slides: [{ title: "Slide" }],
   }));
-  assert.equal(custom.mark, "SOMETHING ELSE");
-  assert.equal(custom.author, "OWAIN LEWIS");
+  assert.equal(custom.mark, "Something else");
+  assert.equal(custom.author, "Owain Lewis");
 
   // Blank falls back to the brand rather than drawing an empty strip.
   assert.equal(parseCarouselConfig(JSON.stringify({ mark: "   ", slides: [{ title: "Slide" }] })).mark, BRAND_MARK);
   assert.throws(
     () => parseCarouselConfig(JSON.stringify({ mark: "x".repeat(31), slides: [{ title: "Slide" }] })),
-    /Wordmark must be 30 characters or fewer/,
+    /Series label must be 30 characters or fewer/,
   );
 
   // A generated deck is branded too, not just a parsed one.
@@ -425,37 +495,6 @@ test("sets typographic quotes, dashes and ellipses at render time", () => {
   assert.equal(smartQuotes("Build the *context*"), "Build the *context*");
 });
 
-test("leading stays fixed as a headline takes more lines", () => {
-  const size = 8;
-  assert.equal(titleLeading(size, 4), titleLeading(size, 2));
-  assert.equal(titleLeading(size, 2), titleLeading(size, 1));
-  for (const lines of [1, 2, 3, 4, 6]) {
-    const value = titleLeading(size, lines);
-    assert.ok(value > 0.9 && value < 1, `${value} is not compact display leading`);
-  }
-  assert.equal(titleLeading(size), titleLeading(size, 2));
-});
-
-test("estimates line count from the copy, the size and the hard breaks", () => {
-  // A short headline at display size is one line; the same words at the same size
-  // with a break in them are two.
-  assert.equal(estimateLines("Taste is the moat", 10.6), 1);
-  assert.equal(estimateLines("Taste is | the moat", 10.6), 2);
-  // Long copy at a big size has to wrap several times.
-  assert.ok(estimateLines("The skill that decides who ships. Nobody lists it.", 10.6) >= 3);
-  // And the same copy set small fits in fewer.
-  assert.ok(
-    estimateLines("The skill that decides who ships. Nobody lists it.", 5) <
-    estimateLines("The skill that decides who ships. Nobody lists it.", 10.6),
-  );
-});
-
-test("short and long covers share one leading", () => {
-  const long = deckTypeScale([{ layout: "cover", title: "The skill that decides who ships. Nobody lists it.", body: "" }]);
-  const short = deckTypeScale([{ layout: "cover", title: "Taste is the moat", body: "" }]);
-  assert.equal(long.coverLeading, short.coverLeading);
-});
-
 test("legacy template names collapse into the image-capable Signifier system", () => {
   const config = parseCarouselConfig(JSON.stringify({
     template: "midnight",
@@ -470,8 +509,4 @@ test("legacy template names collapse into the image-capable Signifier system", (
   assert.equal(config.slides[1].template, undefined);
   assert.equal(slideTemplate(config.slides[0], config), "editorial");
   assert.equal(slideTemplate(config.slides[1], config), "editorial");
-  assert.equal(isLegacyTypeOnlyTemplate("midnight"), false);
-  assert.equal(isLegacyTypeOnlyTemplate("paper"), false);
-  assert.equal(isLegacyTypeOnlyTemplate("cinematic"), false);
-  assert.equal(isLegacyTypeOnlyTemplate("dark"), false);
 });

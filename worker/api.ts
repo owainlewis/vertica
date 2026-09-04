@@ -43,10 +43,12 @@ const MAX_CONFIG_BYTES = 400_000;
 
 function mediaKeys(config: string) {
   try {
-    const parsed = JSON.parse(config) as { slides?: Array<{ background?: unknown }> };
-    return [...new Set((parsed.slides ?? [])
-      .map((slide) => slide?.background)
-      .filter((value): value is string => typeof value === "string" && isMediaKey(value)))];
+    const parsed = JSON.parse(config) as { avatar?: unknown; slides?: Array<{ background?: unknown; images?: unknown }> };
+    const refs = [parsed.avatar, ...(parsed.slides ?? []).flatMap((slide) => [
+      slide?.background,
+      ...(Array.isArray(slide?.images) ? slide.images : []),
+    ])];
+    return [...new Set(refs.filter((value): value is string => typeof value === "string" && isMediaKey(value)))];
   } catch {
     return [];
   }
@@ -110,7 +112,7 @@ function readInput(body: unknown) {
     throw new InvalidInput("This carousel is too large to save. Background images belong in the image store, not the config.");
   }
 
-  let parsed: { title?: unknown; author?: unknown; template?: unknown; mark?: unknown; slides?: unknown };
+  let parsed: { title?: unknown; author?: unknown; template?: unknown; mark?: unknown; avatar?: unknown; slides?: unknown };
   try {
     parsed = JSON.parse(config);
   } catch {
@@ -142,6 +144,7 @@ function readInput(body: unknown) {
     cover: JSON.stringify({
       slide: cover ?? {},
       mark: typeof parsed.mark === "string" ? parsed.mark.slice(0, 30) : "",
+      ...(typeof parsed.avatar === "string" && isMediaKey(parsed.avatar) ? { avatar: parsed.avatar } : {}),
     }),
     config,
   };

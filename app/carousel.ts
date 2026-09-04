@@ -1,12 +1,27 @@
 import { isSupportedImageDataUrl } from "./image-formats.ts";
 
-/** Colour and ground only. It says nothing about where the text sits. */
+/** One visual system. Kept as a type so saved documents stay readable. */
 export type TemplateId = "editorial";
-export type SlideLayout = "cover" | "content" | "quote" | "poster" | "split" | "closing";
+/**
+ * Seven layouts, each with one job:
+ *   cover    big headline, one-line subtitle at the foot
+ *   content  headline and copy, the workhorse
+ *   note     one plain sans statement, no headline
+ *   poster   one short serif statement, oversized
+ *   diagram  an SVG figure with the headline as its caption
+ *   photos   pictures on the paper with the headline above; one, a strip, or a grid
+ *   closing  headline and one line
+ * Note, poster, diagram and photos draw the title only. Their body is kept but never
+ * rendered, so nothing can collide with the figure. Older names (quote, split, grid,
+ * strip, figure) map onto these when a document is read.
+ */
+export type SlideLayout = "cover" | "content" | "note" | "poster" | "diagram" | "photos" | "closing";
 export type EditorialTone = "paper" | "sage" | "black";
 /** Where the text block sits in the frame, independent of colour. */
 export type SlidePosition = "top" | "middle" | "bottom";
 export type SlideAlign = "left" | "center";
+/** "page" prints a bare "02"; "fraction" prints "02 / 06". */
+export type Numbering = "page" | "fraction";
 
 export type CarouselSlide = {
   id: string;
@@ -14,6 +29,18 @@ export type CarouselSlide = {
   title: string;
   body: string;
   background?: string;
+  /**
+   * Pictures for the grid, strip and figure layouts, in reading order. Each is a
+   * data URL or an `img:` key, exactly like `background`. Other layouts keep the
+   * list so switching layout and back loses nothing.
+   */
+  images?: string[];
+  /**
+   * Inline SVG for the diagram layout, drawn as a centred figure. Sanitised on the
+   * way in: no scripts, no event handlers, no external references. Draw with
+   * currentColor so the diagram takes the slide's ink on any ground.
+   */
+  diagram?: string;
   /**
    * Mean brightness of the background's top, middle and bottom third, each 0 to 1,
    * measured once when the image is chosen. The scrim is built from whichever third
@@ -27,29 +54,74 @@ export type CarouselSlide = {
    * keeps the picture legible around it.
    */
   plate?: boolean;
-  /** Overrides the carousel colour mode for one slide when a contrast is deliberate. */
+  /** Kept for old documents. Every value resolves to the one system. */
   template?: TemplateId;
   /** Both default from the slide type, so decks written before these existed are unchanged. */
   position?: SlidePosition;
   align?: SlideAlign;
-  /** An optional editorial ground. Other templates ignore it. */
+  /** An optional editorial ground. */
   tone?: EditorialTone;
 };
 
 /** Top, middle and bottom third of the image, each a mean brightness from 0 to 1. */
 export type LumaBands = [number, number, number];
 
+/** Layouts that draw the slide's `images` list. */
+export function usesImages(layout: SlideLayout) {
+  return layout === "photos";
+}
+
+/** How many pictures a layout can show. Extra ones are kept but not drawn. */
+export function imageCapacity(layout: SlideLayout) {
+  return layout === "photos" ? 9 : 0;
+}
+
+/** How a photos slide arranges its pictures: one figure, a strip of two or three, or a grid. */
+export function photoArrangement(count: number): "figure" | "strip" | "grid" {
+  if (count <= 1) return "figure";
+  if (count <= 3) return "strip";
+  return "grid";
+}
+
+/** Layouts whose supporting copy is drawn. The rest are title only, on purpose. */
+export function showsBody(layout: SlideLayout) {
+  return layout === "cover" || layout === "content" || layout === "closing";
+}
+
+const LEGACY_LAYOUTS: Record<string, SlideLayout> = {
+  quote: "content",
+  split: "content",
+  grid: "photos",
+  strip: "photos",
+  figure: "photos",
+};
+
+/** Reads any layout name a saved document might carry. Unknown names fall back. */
+export function normalizeLayout(value: unknown, fallback: SlideLayout): SlideLayout {
+  if (typeof value !== "string") return fallback;
+  if ((layouts as string[]).includes(value)) return value as SlideLayout;
+  return LEGACY_LAYOUTS[value] ?? fallback;
+}
+
 /**
  * Ground and placement stay separate: choosing a tone never moves the text.
  * These are only the starting points a slide type suggests. A cover or a closing line
- * reads centred; a content slide reads as a lower third over a photograph.
+ * reads centred, and so does a content slide. Picture layouts put the sentence above
+ * the pictures, so they read from the top.
  */
 export function slidePosition(slide: CarouselSlide): SlidePosition {
-  return slide.position ?? (slide.layout === "content" ? "bottom" : "middle");
+  if (slide.position) return slide.position;
+  // Pictures hang under their title, so that title starts high. Everything else
+  // sits in the middle of the page, the way the reference decks set their copy.
+  if (usesImages(slide.layout)) return "top";
+  // A diagram's headline reads as a caption under the figure, like a plate in a book.
+  if (slide.layout === "diagram") return "bottom";
+  return "middle";
 }
 
 export function slideAlign(slide: CarouselSlide): SlideAlign {
-  return slide.align ?? (slide.layout === "content" || slide.layout === "split" ? "left" : "center");
+  if (slide.align) return slide.align;
+  return slide.layout === "content" || slide.layout === "note" ? "left" : "center";
 }
 
 export type CarouselConfig = {
@@ -59,49 +131,50 @@ export type CarouselConfig = {
   /** The template a slide falls back to when it does not set its own. */
   template: TemplateId;
   /**
-   * A short wordmark set at the top of every slide. This is what makes a deck
+   * A short series label set at the top of every slide. This is what makes a deck
    * recognisable mid-scroll: same words, same place, every slide. Deck-level on
    * purpose, so it is set once rather than retyped per slide.
    */
   mark?: string;
+  /** A small round portrait drawn bottom-left on every slide. Data URL or `img:` key. */
+  avatar?: string;
+  /** Defaults to a bare page number, which is quieter than a fraction. */
+  numbering?: Numbering;
+  /** A swipe arrow bottom-right on every slide but the last. Defaults on. */
+  arrow?: boolean;
   slides: CarouselSlide[];
 };
 
-export function slideTemplate(slide: CarouselSlide, config: CarouselConfig) {
-  return normalizeTemplate(slide.template ?? config.template);
-}
-
-/**
- * Every saved template name now enters the same Signifier system. Accepting legacy
- * values keeps old documents readable without preserving competing visual styles.
- */
-export function normalizeTemplate(value: unknown): TemplateId {
-  void value;
+export function slideTemplate(slide: CarouselSlide, config: CarouselConfig): TemplateId {
+  void slide;
+  void config;
   return "editorial";
 }
 
-/** Legacy decks now use the same image-capable Signifier system. */
-export function isLegacyTypeOnlyTemplate(value: unknown) {
-  void value;
-  return false;
+/** Every image reference a slide can carry, whether painted or not. */
+export function slideImageRefs(slide: CarouselSlide) {
+  return [slide.background, ...(slide.images ?? [])].filter((value): value is string => Boolean(value));
 }
 
 /** Stops an export that would silently paint an unresolved local image as blank. */
 export function assertBackgroundsAvailableForExport(config: CarouselConfig) {
   const missing = config.slides
-    .map((slide, index) => (slide.background?.startsWith("img:") ? index + 1 : null))
+    .map((slide, index) => (slideImageRefs(slide).some((ref) => ref.startsWith("img:")) ? index + 1 : null))
     .filter((index): index is number => index !== null);
 
+  if (config.avatar?.startsWith("img:")) {
+    throw new Error("The deck avatar is not available in this browser. Choose it again from Media before exporting.");
+  }
   if (!missing.length) return;
-  const slides = missing.length === 1 ? `slide ${missing[0]}` : `slides ${missing.join(", ")}`;
+  const slides = missing.length === 1 ? `slide ${missing[0]} are` : `slides ${missing.join(", ")} are`;
   throw new Error(
-    `Background images for ${slides} are not available in this browser. Open this carousel where the images were uploaded, or replace them before exporting.`,
+    `Images for ${slides} not available in this browser. Open this carousel where the images were uploaded, or replace them before exporting.`,
   );
 }
 
-/** The offer every deck promotes. The mark is the category, the footer is where to go. */
-export const BRAND_MARK = "AI ENGINEER";
-export const BRAND_FOOTER = "AIENGINEER.CO";
+/** The offer every deck promotes. The mark is the series, the footer is where to go. */
+export const BRAND_MARK = "AI Engineer";
+export const BRAND_FOOTER = "aiengineer.co";
 
 export const starterConfig: CarouselConfig = {
   version: 1,
@@ -113,8 +186,8 @@ export const starterConfig: CarouselConfig = {
     {
       id: "starter-cover",
       layout: "cover",
-      title: "AI won’t *replace* developers",
-      body: "But the ones who learn to **direct** it will move much faster",
+      title: "AI won’t *replace* | developers",
+      body: "But the ones who learn to direct it will move much faster",
     },
     {
       id: "starter-context",
@@ -124,9 +197,10 @@ export const starterConfig: CarouselConfig = {
     },
     {
       id: "starter-method",
-      layout: "content",
-      title: "Direct. Inspect. Refine.",
-      body: "Give the model one concrete outcome.\n\nReview the work against evidence, not vibes.\n\nTighten the brief, then run it again.",
+      layout: "poster",
+      tone: "sage",
+      title: "Direct. Inspect. *Refine.*",
+      body: "",
     },
     {
       id: "starter-close",
@@ -137,10 +211,12 @@ export const starterConfig: CarouselConfig = {
   ],
 };
 
-const layouts: SlideLayout[] = ["cover", "content", "quote", "poster", "split", "closing"];
+const layouts: SlideLayout[] = ["cover", "content", "note", "poster", "diagram", "photos", "closing"];
+const MAX_DIAGRAM_CHARS = 60_000;
 const positions: SlidePosition[] = ["top", "middle", "bottom"];
 const aligns: SlideAlign[] = ["left", "center"];
 const editorialTones: EditorialTone[] = ["paper", "sage", "black"];
+const MAX_IMAGES = 9;
 
 function cleanText(value: unknown, fallback = "") {
   return typeof value === "string" ? value.trim() : fallback;
@@ -161,6 +237,14 @@ function readLuma(value: unknown): LumaBands | undefined {
   if (!Array.isArray(value) || value.length !== 3) return undefined;
   const bands = value.map((band) => (typeof band === "number" && Number.isFinite(band) ? clamp(band, 0, 1) : NaN));
   return bands.some(Number.isNaN) ? undefined : (bands as LumaBands);
+}
+
+/**
+ * An image is either freshly uploaded bytes or a key into the image store. Remote
+ * URLs stay rejected so export never depends on a third-party fetch.
+ */
+function isImageRef(value: string) {
+  return isSupportedImageDataUrl(value) || value.startsWith("img:");
 }
 
 /**
@@ -194,36 +278,47 @@ export function parseCarouselConfig(input: string): CarouselConfig {
     throw new Error("Keep the carousel to 20 slides or fewer.");
   }
 
-  // Template names from older documents are intentionally collapsed into the one
-  // current visual system instead of preserving hidden style modes.
-  const template: TemplateId = "editorial";
-
   const slides = record.slides.map((item, index) => {
     if (!item || typeof item !== "object" || Array.isArray(item)) {
       throw new Error(`Slide ${index + 1} must be an object.`);
     }
     const slide = item as Record<string, unknown>;
-    const title = limitedText(slide.title, `Slide ${index + 1} title`, 90);
+    // Room for a note, which is a whole sentence rather than a headline.
+    const title = limitedText(slide.title, `Slide ${index + 1} title`, 120);
     if (!title) throw new Error(`Slide ${index + 1} needs a title.`);
 
-    // A background is either freshly uploaded bytes or a key into the image store.
-    // Remote URLs stay rejected so export never depends on a third-party fetch.
     const background = cleanText(slide.background);
-    if (background && !isSupportedImageDataUrl(background) && !background.startsWith("img:")) {
+    if (background && !isImageRef(background)) {
       throw new Error(`Slide ${index + 1} has an unsupported background.`);
+    }
+
+    const images = Array.isArray(slide.images)
+      ? slide.images.map((entry) => cleanText(entry)).filter(Boolean)
+      : [];
+    if (images.some((entry) => !isImageRef(entry))) {
+      throw new Error(`Slide ${index + 1} has an unsupported image.`);
+    }
+    if (images.length > MAX_IMAGES) {
+      throw new Error(`Slide ${index + 1} has more than ${MAX_IMAGES} images.`);
     }
     const luma = readLuma(slide.luma);
 
+    const diagram = typeof slide.diagram === "string" ? sanitizeSvg(slide.diagram) : "";
+    if (typeof slide.diagram === "string" && slide.diagram.trim() && !diagram) {
+      throw new Error(`Slide ${index + 1} has a diagram that is not an <svg> element.`);
+    }
+    if (diagram.length > MAX_DIAGRAM_CHARS) {
+      throw new Error(`Slide ${index + 1} diagram must be ${MAX_DIAGRAM_CHARS} characters or fewer.`);
+    }
+
     return {
       id: cleanText(slide.id, makeId(index)),
-      layout: layouts.includes(slide.layout as SlideLayout)
-        ? (slide.layout as SlideLayout)
-        : index === 0
-          ? "cover"
-          : "content",
+      layout: normalizeLayout(slide.layout, index === 0 ? "cover" : "content"),
       title,
       body: limitedText(slide.body, `Slide ${index + 1} body`, 280),
       ...(background ? { background } : {}),
+      ...(images.length ? { images } : {}),
+      ...(diagram ? { diagram } : {}),
       ...(luma ? { luma } : {}),
       ...(slide.plate === true ? { plate: true } : {}),
       ...(positions.includes(slide.position as SlidePosition)
@@ -235,19 +330,55 @@ export function parseCarouselConfig(input: string): CarouselConfig {
   });
 
   // Defaults to the brand rather than to nothing: everything is branded AI Engineer
-  // unless a deck deliberately says otherwise.
-  // The fallback has to be applied after trimming, not instead of it. A value of
-  // "   " is a string, so it never reached the default and came back as nothing.
-  const mark = (limitedText(record.mark, "Wordmark", 30) || BRAND_MARK).toUpperCase();
+  // unless a deck deliberately says otherwise. Case is kept as written: the reference
+  // furniture is sentence case, and shouting it in capitals was the loudest thing on
+  // the page.
+  const mark = limitedText(record.mark, "Series label", 30) || BRAND_MARK;
+  const avatar = cleanText(record.avatar);
+  if (avatar && !isImageRef(avatar)) throw new Error("The avatar must be an uploaded image.");
 
   return {
     version: 1,
     title: limitedText(record.title, "Carousel title", 100, "Untitled carousel"),
-    author: (limitedText(record.author, "Author", 40) || BRAND_FOOTER).toUpperCase(),
-    template,
-    ...(mark ? { mark } : {}),
+    author: limitedText(record.author, "Author", 40) || BRAND_FOOTER,
+    template: "editorial",
+    mark,
+    ...(avatar ? { avatar } : {}),
+    ...(record.numbering === "fraction" ? { numbering: "fraction" as const } : {}),
+    ...(record.arrow === false ? { arrow: false } : {}),
     slides,
   };
+}
+
+/**
+ * Keeps an SVG drawable and nothing else. Scripts, event handlers, embedded HTML
+ * and any reference that would leave the document are removed, so a pasted diagram
+ * can draw but cannot run or fetch. Returns "" for anything that is not an <svg>.
+ *
+ * Regex rather than a DOM parser because this also runs on the server, where the
+ * gallery is rendered and there is no DOM. The rules are deliberately blunt.
+ */
+export function sanitizeSvg(input: string) {
+  const trimmed = input.trim();
+  if (!/^<svg[\s>]/i.test(trimmed) || !/<\/svg>\s*$/i.test(trimmed)) return "";
+  let svg = trimmed
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<\?xml[\s\S]*?\?>/gi, "")
+    .replace(/<!doctype[\s\S]*?>/gi, "")
+    // Elements that execute or embed. Paired and self-closing forms.
+    .replace(/<(script|foreignObject|iframe|object|embed|use|set|animate\w*)\b[\s\S]*?<\/\1\s*>/gi, "")
+    .replace(/<(script|foreignObject|iframe|object|embed|use|set|animate\w*)\b[^>]*\/?>/gi, "")
+    // Event handlers, and any attribute that carries a URL out of the document.
+    .replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/\s+(href|xlink:href|src)\s*=\s*("(?!#)[^"]*"|'(?!#)[^']*'|(?!#)[^\s>]+)/gi, "")
+    .replace(/javascript:/gi, "")
+    // Stylesheets that would fetch: url() and @import.
+    .replace(/url\s*\((?!\s*['"]?#)[^)]*\)/gi, "none")
+    .replace(/@import[^;]*;?/gi, "");
+  // The slide sizes the drawing, so a fixed width or height on the root only fights it.
+  svg = svg.replace(/^<svg\b([^>]*)>/i, (_, attrs: string) =>
+    `<svg${attrs.replace(/\s+(width|height)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")}>`);
+  return svg;
 }
 
 function sentenceChunks(text: string) {
@@ -294,6 +425,32 @@ function splitHeading(chunk: string) {
   };
 }
 
+function wordCount(text: string) {
+  return text.split(/\s+/).filter(Boolean).length;
+}
+
+/**
+ * Puts the one break an author gets where a balanced wrap rarely lands it: before the
+ * last two words of a five or six word title, before the last three of a longer one.
+ * The tail line then carries the sense rather than a stranded word. A title that
+ * already has a break is the author's, and is left alone.
+ */
+export function suggestBreak(title: string) {
+  if (title.includes("|")) return title;
+  const words = title.split(/\s+/).filter(Boolean);
+  if (words.length < 5) return title;
+  const tail = words.length >= 7 ? 3 : 2;
+  return `${words.slice(0, -tail).join(" ")} | ${words.slice(-tail).join(" ")}`;
+}
+
+/** A short, complete statement with nothing under it is a poster, not a content slide. */
+const POSTER_MAX_WORDS = 8;
+
+/**
+ * Builds the rhythm the reference decks have from plain paragraphs: a cover with a
+ * subtitle, content slides that explain, a short statement set as a poster now and
+ * then, one of them on a sage ground, and a close.
+ */
 export function generateCarouselFromText(
   source: string,
   options: Pick<CarouselConfig, "author" | "template"> = {
@@ -308,23 +465,30 @@ export function generateCarouselFromText(
   }
 
   const parsed = chunks.map(splitHeading);
-  const slides: CarouselSlide[] = parsed.map((chunk, index) => ({
-    id: makeId(index),
-    layout: index === 0 ? "cover" : "content",
-    title: chunk.title,
-    body: chunk.body,
-  }));
+  const last = parsed.length - 1;
+  let sageUsed = false;
 
-  if (slides.length > 1) {
-    slides[slides.length - 1] = { ...slides[slides.length - 1], layout: "closing" };
-  }
+  const slides: CarouselSlide[] = parsed.map((chunk, index) => {
+    const title = suggestBreak(chunk.title);
+    if (index === 0) return { id: makeId(index), layout: "cover", title, body: chunk.body };
+    if (index === last && parsed.length > 1) return { id: makeId(index), layout: "closing", title, body: chunk.body };
+
+    const poster = !chunk.body && wordCount(chunk.title) <= POSTER_MAX_WORDS;
+    if (!poster) return { id: makeId(index), layout: "content", title, body: chunk.body };
+
+    // The first big statement after the setup gets the colour, and only that one, so
+    // the sage slide stays an event rather than a pattern.
+    const tone = !sageUsed && index >= 2 ? "sage" : undefined;
+    if (tone) sageUsed = true;
+    return { id: makeId(index), layout: "poster", title, body: "", ...(tone ? { tone } : {}) };
+  });
 
   return {
     version: 1,
-    title: slides[0].title.replace(/[.!?]$/, ""),
-    author: options.author.trim().toUpperCase() || BRAND_FOOTER,
+    title: titleLines(slides[0].title).join(" ").replace(/[.!?]$/, ""),
+    author: options.author.trim() || BRAND_FOOTER,
     mark: BRAND_MARK,
-    template: normalizeTemplate(options.template),
+    template: "editorial",
     slides,
   };
 }
@@ -340,24 +504,24 @@ export function generateCarouselFromText(
 export function smartQuotes(text: string) {
   return text
     // Anything between two word characters is an apostrophe: don't, it's, '90s.
-    .replace(/(\w)'(\w)/g, "$1\u2019$2")
+    .replace(/(\w)'(\w)/g, "$1’$2")
     // Opening double, then closing double; order matters.
-    .replace(/"(?=\w)/g, "\u201c")
-    .replace(/"/g, "\u201d")
+    .replace(/"(?=\w)/g, "“")
+    .replace(/"/g, "”")
     // A leading single before a word is an opening quote unless it elides a year.
-    .replace(/(^|[\s([])'(?=\d)/g, "$1\u2019")
-    .replace(/(^|[\s([])'/g, "$1\u2018")
-    .replace(/'/g, "\u2019")
+    .replace(/(^|[\s([])'(?=\d)/g, "$1’")
+    .replace(/(^|[\s([])'/g, "$1‘")
+    .replace(/'/g, "’")
     // Ranges and dashes, so "2 - 3" and "so -- then" stop looking like code.
-    .replace(/(\d)\s*--?\s*(\d)/g, "$1\u2013$2")
-    .replace(/\s--\s/g, "\u2009\u2014\u2009")
-    .replace(/\.\.\./g, "\u2026");
+    .replace(/(\d)\s*--?\s*(\d)/g, "$1–$2")
+    .replace(/\s--\s/g, " — ")
+    .replace(/\.\.\./g, "…");
 }
 
 export type MarkedRun = { text: string; mark: "plain" | "italic" | "accent" };
 
 /**
- * `*word*` sets a phrase in italic, `**word**` tints it with the accent colour.
+ * `*word*` sets a phrase in italic, `**word**` paints a highlighter stroke behind it.
  * Both are the only styling authors can reach for, which keeps slides consistent.
  */
 export function parseInlineMarks(text: string): MarkedRun[] {
@@ -380,95 +544,51 @@ export function bodyParagraphs(body: string) {
   return body.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
 }
 
-/**
- * Counts what a reader sees, so the emphasis markers do not push a title into a
- * smaller size band. Tolerates a missing value because the server measures slides
- * straight from parsed JSON, where an absent body is normal.
- */
-function visibleLength(text: string | undefined) {
-  if (typeof text !== "string") return 0;
-  // What a reader sees, so neither the emphasis markers nor a break marker can push a
-  // title into a smaller size. A break takes its surrounding spaces with it, because
-  // "breaks | here" renders as two lines, not as a word with two spaces around it.
-  return text.replace(/\*/g, "").replace(/\s*\|\s*/g, " ").trim().length;
-}
-
 function clamp(value: number, low: number, high: number) {
   return Math.min(high, Math.max(low, value));
 }
 
-/** Type sizes are in container width, so preview and export agree exactly. */
-const TITLE = 8;
-const BODY = 3.1;
-const TITLE_TRACKING = -0.035;
-const TITLE_LEADING = 0.96;
-
-export function titleSize(title: string | undefined) {
-  void title;
-  return TITLE;
-}
-
-export function bodySize(body: string | undefined) {
-  void body;
-  return BODY;
-}
-
 /**
- * Every carousel shares the same title and body scale. Copy can wrap to more lines,
- * but it cannot make one cover look louder than the next in the gallery.
+ * One type scale for every carousel, in container width so the preview and the
+ * export are the same drawing at different sizes. Signifier is set close to its
+ * natural fit: the tight tracking it used to get made "How I built" read as one word.
  */
-export function deckTypeScale(slides: CarouselSlide[]) {
+export const TYPE_SCALE = {
+  /** Headline size on content and closing slides. */
+  title: 10.2,
+  /** The cover runs larger and is the only headline that does. */
+  cover: 12.4,
+  /** Posters treat the sentence as the picture. */
+  poster: 13.2,
+  body: 3.3,
+  tracking: -0.02,
+  leading: 0.98,
+} as const;
+
+export type TypeScale = typeof TYPE_SCALE;
+
+/** Every carousel shares the same scale. Kept as a function so callers stay unchanged. */
+export function deckTypeScale(slides: CarouselSlide[]): TypeScale {
   void slides;
-  return {
-    title: TITLE,
-    tracking: TITLE_TRACKING,
-    leading: TITLE_LEADING,
-    cover: TITLE,
-    coverTracking: TITLE_TRACKING,
-    coverLeading: TITLE_LEADING,
-    body: BODY,
-  };
+  return TYPE_SCALE;
 }
-
-export function titleTracking(size: number) {
-  void size;
-  return TITLE_TRACKING;
-}
-
-export function titleLeading(size: number, lines = 2) {
-  void size;
-  void lines;
-  return TITLE_LEADING;
-}
-
-/**
- * How many lines a title will take at a given size.
- *
- * Helvetica's mean advance across ordinary English display copy is about 0.46em.
- * This estimate is used for tests and line-count guidance, not for resizing type.
- */
-const AVG_ADVANCE = 0.46;
-
-export function estimateLines(title: string | undefined, size: number, measure = 0.88) {
-  const segments = titleLines(title ?? "");
-  const perLine = Math.max(1, Math.floor((100 * measure) / (size * AVG_ADVANCE)));
-  return segments.reduce((total, segment) => total + Math.max(1, Math.ceil(visibleLength(segment) / perLine)), 0);
-}
-
-/* The footer (1.4cqw) is fixed in CSS so it holds steady across every deck. */
 
 export function aiPrompt(config: CarouselConfig) {
   return `Create a minimal LinkedIn carousel from the source text below. Return JSON only, with no markdown fences.
 
 Rules:
 - 5 to 8 slides. One idea per slide.
-- Titles: 10 words or fewer. Plain, concrete language. No colons, no hype.
+- Titles: 10 words or fewer. Plain, concrete language. Sentence case, never capitals. No colons, no hype.
 - Put a "|" in a title to force a line break where the sense breaks. Use it on the cover and on any title of five words or more.
-- Bodies: 45 words or fewer. Separate paragraphs with a blank line.
-- Wrap one phrase per slide in *asterisks* for italic, or **double asterisks** for the accent colour. Use it sparingly.
-- There is one visual style: Signifier editorial typography on a visible column grid. Set "template" to "editorial" or omit it.
-- "poster" makes one short idea deliberately oversized. "split" places the title and body on opposing parts of the grid. Use each no more than once.
-- "tone" is optional. Use "sage" or "black" on one emphasis slide at most; otherwise omit it for paper. Every text element on a page uses the same ink colour.
+- Bodies: 45 words or fewer. Separate paragraphs with a blank line. The cover body is its subtitle: one short line.
+- Wrap one word in *asterisks* for italic. Do this on the cover and on at most two other slides. Wrap one short phrase in **double asterisks** for a highlighter stroke, on one slide at most.
+- Layouts: "cover" first, "closing" last. "content" is a headline with copy and does most of the work.
+- "poster" is one short serif statement, eight words or fewer. Title only. Use it for the strongest line, no more than twice.
+- "note" is one plain sans statement of two or three lines, for an aside or a turn in the story. Title only. Wrap the phrase that matters in **double asterisks** for bold. Use it up to twice.
+- "photos" holds photographs the author adds later, under a one-line title. Title only. Use it only when the source describes pictures.
+- "diagram" draws an inline SVG as a centred figure with the title as its one-line caption. Title only. Use it for architecture, flows and comparisons: one per deck, two at most. Put the SVG in "diagram". Rules for the drawing: viewBox="0 0 800 500", no width or height attributes, stroke="currentColor" and fill="none" for shapes, fill="currentColor" for text, stroke-width 2, rx 8 on boxes, font-family="Helvetica Neue, Helvetica, Arial, sans-serif", labels 24px and notes 18px, nothing smaller, at most six boxes, arrows drawn with a line plus a small polygon head, generous space, no colour, no gradients, no scripts.
+- "tone" is optional. Put "sage" on one poster at most; otherwise omit it for paper. Every text element on a page uses the same ink colour.
+- "mark" is the series label at the top of every slide. Keep it short and in sentence case.
 
 Use this exact shape:
 ${JSON.stringify(
@@ -476,14 +596,14 @@ ${JSON.stringify(
       version: 1,
       title: "Carousel title",
       author: config.author,
-      template: config.template,
+      mark: config.mark ?? BRAND_MARK,
       slides: [
         {
-          layout: "cover | content | quote | poster | split | closing",
-          template: "editorial",
+          layout: "cover | content | note | poster | diagram | photos | closing",
           tone: "paper | sage | black",
           title: "Slide headline",
           body: "Optional supporting copy",
+          diagram: "<svg viewBox=\"0 0 800 500\">…</svg> (diagram slides only)",
         },
       ],
     },

@@ -7,19 +7,30 @@ A minimal studio for creating LinkedIn document carousels.
 - saves every carousel to a database and lists them on a home gallery
 - turns pasted text into an editable slide sequence
 - imports and exports a small JSON format that Claude or Codex can generate
-- uses one Signifier editorial system with a strict twelve-column grid
+- uses one Signifier editorial system with a faint twelve-column grid
 - keeps colour, placement and slide type separate, so any text position works with any colour
-- accepts local background images per slide, and darkens each one to suit its own brightness
+- puts photographs on the paper as objects: a square grid, a filmstrip that bleeds off both edges, or one contained figure
+- accepts a background photograph per slide as well, veiled to suit the copy sitting over it
+- a deck avatar bottom-left, a series label top-left, a bare page number top-right, and a swipe arrow on every slide but the last
 - exports one PDF for LinkedIn, or numbered JPEGs zipped for Instagram, both at 2×
 - blocks an export rather than silently omitting a background that only exists in another browser
 - undo and redo across the whole deck, with ⌘Z and ⇧⌘Z
 - serializes autosaves and flushes queued edits before leaving the editor
 - a deck wordmark, understated quote callouts, and a text plate for copy that has to sit on a busy photograph
 
+## The shell
+
+One frame on every screen: a rail on the left with the mark, Carousels and Media, then
+the page. Opening a deck keeps the rail, so the editor is a room in the same house
+rather than a different app. Leaving a deck through the rail flushes its queued edits
+first. The chrome takes its palette from the slides: paper ground, ink type, sage for
+the one accent, Signifier for page titles and Helvetica for controls.
+
 ## The gallery
 
-Three across, four pixel gutters, no rounded corners and no card chrome anywhere a
-slide is drawn. Tiles show the slide at its own 4:5, which is what a carousel is.
+Three across, square corners and no card chrome anywhere a slide is drawn. Tiles show
+the slide at its own 4:5, which is what a carousel is. The editor's slide rail draws
+the same real slides small, so it is an honest table of contents.
 Instagram centre-crops a portrait post to a square on the profile grid; the editor's
 **Grid crop** toggle draws that cut over the full slide when you want to check it,
 which is better than designing against the crop all day.
@@ -64,10 +75,52 @@ Open the local URL shown in the terminal.
 
 ## Branding
 
-Every deck is branded AI Engineer unless it says otherwise: `AI ENGINEER` as the
-wordmark at the top of each slide, `AIENGINEER.CO` in the footer. Both are defaults in
-`app/carousel.ts`, so a new deck, a generated deck and a pasted config all get them
-without anyone typing them in.
+Every deck is branded AI Engineer unless it says otherwise: `AI Engineer` as the
+series label at the top of each slide, `aiengineer.co` in the footer. Both are defaults
+in `app/carousel.ts`, so a new deck, a generated deck and a pasted config all get them
+without anyone typing them in. Case is kept as written. The furniture is sentence case
+and a light weight on purpose: it holds the frame without competing with the headline.
+Both are editable under Design, along with the avatar, the page number style and the
+swipe arrow.
+
+## Layouts
+
+Seven, each with one job. Cover, content and closing draw the headline and the copy.
+Note, poster, diagram and photos draw the headline only, so nothing can collide with
+the figure. Their copy is kept in the document and comes back if the slide type
+changes.
+
+- `cover`: big headline, one-line subtitle at the foot
+- `content`: headline and copy, the workhorse
+- `note`: one plain sans statement, `**bold**` for the phrase that matters
+- `poster`: one short serif statement, oversized
+- `diagram`: an inline SVG figure with the headline as its caption
+- `photos`: pictures under a one-line title. One is a figure, two or three a filmstrip, four or more a grid
+- `closing`: headline and one line
+
+Older names still load: `quote` and `split` read as content, `grid`, `strip` and
+`figure` read as photos.
+
+## Pictures and diagrams
+
+`images` holds up to nine pictures for a photos slide. `diagram` holds inline SVG for a
+diagram slide, sanitised on the way in so it can draw but not run or fetch. Draw with
+`currentColor` and the figure takes the slide's ink on any ground. `background` still
+exists for a photograph behind the copy, veiled with one smooth gradient.
+
+## Writing a deck with Claude
+
+`.claude/skills/carousel/SKILL.md` is the house style: the seven-slide arc, the one
+sage character slide, copy rules, diagram rules and the JSON shape. In Claude Code,
+`/carousel` loads it. Paste the result under Generate, JSON config.
+
+## Generator
+
+Pasted text becomes slides with the rhythm of the reference decks: a cover whose
+second sentence is the subtitle, content slides that explain, a short statement of
+eight words or fewer set as a poster, the first poster after the setup on a sage
+ground, and a closing slide. Titles of five words or more get one suggested `|` break
+before their last two or three words.
 
 ## Typography
 
@@ -76,8 +129,14 @@ export are the same drawing at different scales. Every carousel uses the same ti
 body sizes. Put a `|` in a headline to break the line where the sense breaks; the words
 after it are still balanced.
 
-Titles use Helvetica Bold and body copy, labels and controls use Helvetica. Castoro is
-bundled for italic emphasis, so marked phrases keep their contrast without a network
+Headlines are Signifier, loaded from the machine because its web licence is separate
+from the desktop one. Body copy is Helvetica at regular weight with a touch of
+negative tracking, the way the reference decks pair a serif headline with a plain
+paragraph. The editor warns when it is missing, since
+the export would otherwise ship Georgia without anyone noticing. Labels and controls
+use Helvetica. `*word*` sets a phrase in italic and `**word**` paints a sage
+highlighter stroke behind it. Castoro is
+bundled for italic emphasis in the interface, so marked phrases keep their contrast without a network
 font request.
 
 The **Signifier** system uses the locally installed Signifier regular and italic cuts
