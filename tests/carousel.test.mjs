@@ -284,7 +284,6 @@ test("keeps a diagram drawable and strips anything that could run or fetch", () 
   assert.doesNotMatch(clean, /script|foreignObject|onload|onclick|evil\.example|@import|<use/);
   assert.equal(sanitizeSvg("<div>not svg</div>"), "");
   assert.equal(sanitizeSvg(""), "");
-
   const config = parseCarouselConfig(JSON.stringify({
     slides: [{ title: "Flow", layout: "diagram", diagram: dirty }, { title: "Plain", diagram: "   " }],
   }));
@@ -295,6 +294,32 @@ test("keeps a diagram drawable and strips anything that could run or fetch", () 
   assert.throws(
     () => parseCarouselConfig(JSON.stringify({ slides: [{ title: "Bad", layout: "diagram", diagram: "<p>no</p>" }] })),
     /not an <svg> element/,
+  );
+});
+
+
+test("a diagram cannot hide a handler or a fetch behind parser quirks", () => {
+  // An HTML parser treats "/" as an attribute separator and decodes entities inside
+  // inline SVG, so a whitespace-only check or a raw url( check is not enough.
+  const cases = [
+    '<svg viewBox="0 0 1 1"><a/onclick="alert(1)"><text>x</text></a></svg>',
+    '<svg viewBox="0 0 1 1"><a onClick=alert(1)><text>x</text></a></svg>',
+    '<svg viewBox="0 0 1 1"><image/href="https://evil.example/x.png"/></svg>',
+    '<svg viewBox="0 0 1 1"><a href="&#106;avascript:alert(1)"><text>x</text></a></svg>',
+    '<svg viewBox="0 0 1 1"><style>rect{fill:url&#40;https://evil.example/t)}</style><rect/></svg>',
+    '<svg viewBox="0 0 1 1"><style>rect{fill:\\75 rl(https://evil.example/t)}</style><rect/></svg>',
+    '<svg viewBox="0 0 1 1"><rect style="fill:url(https://evil.example/t)"/></svg>',
+    '<svg viewBox="0 0 1 1"><scr<script>ipt>alert(1)</script></svg>',
+  ];
+  for (const dirty of cases) {
+    const clean = sanitizeSvg(dirty);
+    assert.match(clean, /^<svg viewBox="0 0 1 1">/, dirty);
+    assert.doesNotMatch(clean, /on[a-z]+=|evil\.example|javascript|script|url\(/i, `${dirty} -> ${clean}`);
+  }
+  assert.equal(
+    sanitizeSvg('<svg viewBox="0 0 1 1"><a href="#here"><text x="1">a &amp; b</text></a></svg>'),
+    '<svg viewBox="0 0 1 1"><a href="#here"><text x="1">a &amp; b</text></a></svg>',
+    "local links, text and entities survive",
   );
 });
 

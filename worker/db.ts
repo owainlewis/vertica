@@ -153,31 +153,30 @@ WHERE cover = ''
   AND json_type(config, '$.slides[0]') = 'object'
 `;
 
-/** Turn backgrounds from saved decks into reusable library items after migration. */
+/** Turn every image a saved deck refers to into a reusable library item after migration. */
 const BACKFILL_MEDIA_ASSETS = `
 INSERT OR IGNORE INTO media_assets (
   key, kind, name, mime_type, width, height, byte_size, created_at, updated_at
 )
-SELECT
-  json_extract(slide.value, '$.background') AS background,
-  'image',
-  'Imported image',
-  '',
-  NULL,
-  NULL,
-  NULL,
-  MAX(carousels.updated_at),
-  MAX(carousels.updated_at)
-FROM carousels,
-  json_each(
-    CASE WHEN json_valid(carousels.config) THEN carousels.config ELSE '{"slides":[]}' END,
-    '$.slides'
-  ) AS slide
-WHERE json_type(slide.value, '$.background') = 'text'
-  AND length(json_extract(slide.value, '$.background')) = 36
-  AND substr(json_extract(slide.value, '$.background'), 1, 4) = 'img:'
-  AND substr(json_extract(slide.value, '$.background'), 5) NOT GLOB '*[^0-9a-f]*'
-GROUP BY background
+SELECT ref, 'image', 'Imported image', '', NULL, NULL, NULL, MAX(updated_at), MAX(updated_at)
+FROM (
+  SELECT json_extract(slide.value, '$.background') AS ref, carousels.updated_at
+  FROM carousels, json_each(carousels.config, '$.slides') AS slide
+  WHERE json_valid(carousels.config)
+  UNION ALL
+  SELECT picture.value AS ref, carousels.updated_at
+  FROM carousels, json_each(carousels.config, '$.slides') AS slide, json_each(slide.value, '$.images') AS picture
+  WHERE json_valid(carousels.config) AND json_type(slide.value, '$.images') = 'array'
+  UNION ALL
+  SELECT json_extract(carousels.config, '$.avatar') AS ref, carousels.updated_at
+  FROM carousels
+  WHERE json_valid(carousels.config)
+)
+WHERE typeof(ref) = 'text'
+  AND length(ref) = 36
+  AND substr(ref, 1, 4) = 'img:'
+  AND substr(ref, 5) NOT GLOB '*[^0-9a-f]*'
+GROUP BY ref
 `;
 
 let ready: Promise<unknown> | null = null;

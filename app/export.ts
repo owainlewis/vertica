@@ -39,8 +39,11 @@ function stageNodes(expectedPages: number) {
  * what stops the occasional image-less page.
  */
 async function decodeBackgrounds(nodes: HTMLElement[]) {
+  // Pictures and the avatar are painted the same way as the background, and race
+  // the rasteriser the same way.
   const urls = nodes
-    .map((node) => getComputedStyle(node.querySelector<HTMLElement>(".slide-image")!).backgroundImage)
+    .flatMap((node) => Array.from(node.querySelectorAll<HTMLElement>(".slide-image, .slide-picture, .slide-avatar")))
+    .map((element) => getComputedStyle(element).backgroundImage)
     .map((value) => value.match(/url\(["']?(.+?)["']?\)/)?.[1])
     .filter((url): url is string => Boolean(url));
 

@@ -350,35 +350,157 @@ export function parseCarouselConfig(input: string): CarouselConfig {
   };
 }
 
+/** Elements a diagram may use. Anything else is dropped with everything inside it. */
+const SVG_ELEMENTS = new Set([
+  "svg", "g", "defs", "symbol", "title", "desc", "path", "rect", "circle", "ellipse", "line",
+  "polyline", "polygon", "text", "tspan", "textpath", "a", "marker", "pattern", "clippath",
+  "mask", "lineargradient", "radialgradient", "stop", "style", "switch", "filter", "feblend",
+  "fecolormatrix", "fecomponenttransfer", "fecomposite", "feconvolvematrix", "fediffuselighting",
+  "fedisplacementmap", "fedistantlight", "fedropshadow", "feflood", "fefunca", "fefuncb", "fefuncg",
+  "fefuncr", "fegaussianblur", "femerge", "femergenode", "femorphology", "feoffset", "fepointlight",
+  "fespecularlighting", "fespotlight", "fetile", "feturbulence",
+]);
+/** Attributes that can carry a reference out of the document. Only local `#` targets survive. */
+const SVG_LINK_ATTRIBUTES = new Set(["href", "xlink:href", "src"]);
+
+const NAMED_ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'" };
+
+function decodeEntities(value: string) {
+  return value.replace(/&(?:#x([0-9a-f]+)|#(\d+)|(amp|lt|gt|quot|apos));/gi, (whole, hex: string, dec: string, name: string) => {
+    if (name) return NAMED_ENTITIES[name.toLowerCase()];
+    const code = hex ? parseInt(hex, 16) : parseInt(dec, 10);
+    return Number.isFinite(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
+  });
+}
+
+function encodeText(value: string) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function encodeAttribute(value: string) {
+  return encodeText(value).replace(/"/g, "&quot;");
+}
+
+/**
+ * Stylesheets that would fetch: url() and @import. CSS escapes are resolved first so
+ * `\75 rl(` cannot spell `url(` past the check, and the result is re-emitted as plain
+ * text, so nothing decoded here can turn back into markup.
+ */
+function sanitizeCss(css: string) {
+  return decodeEntities(css)
+    .replace(/\\([0-9a-f]{1,6})\s?/gi, (_, hex: string) => String.fromCodePoint(Math.min(parseInt(hex, 16), 0x10ffff)))
+    .replace(/\\(.)/g, "$1")
+    .replace(/url\s*\((?!\s*['"]?#)[^)]*\)/gi, "none")
+    .replace(/@import[^;]*;?/gi, "")
+    .replace(/expression\s*\(/gi, "none(");
+}
+
+type SvgAttribute = { name: string; value: string };
+
+/**
+ * Reads one start tag the way an HTML parser would: attributes are separated by
+ * whitespace or by `/`, values may be quoted or bare. Rebuilding the tag from this
+ * list is what keeps `<a/onclick=…>` from sneaking past a whitespace-only check.
+ */
+function readTag(source: string, from: number) {
+  const open = /^<(\/?)([A-Za-z][\w:.-]*)/.exec(source.slice(from));
+  if (!open) return null;
+  const closing = open[1] === "/";
+  const name = open[2].toLowerCase();
+  const attributes: SvgAttribute[] = [];
+  let index = from + open[0].length;
+  let selfClosing = false;
+
+  while (index < source.length) {
+    const char = source[index];
+    if (char === ">") return { name, closing, attributes, selfClosing, end: index + 1 };
+    if (/[\s/]/.test(char)) {
+      selfClosing = char === "/";
+      index += 1;
+      continue;
+    }
+    selfClosing = false;
+    const attr = /^([^\s"'=/>]+)\s*(?:=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]*)))?/.exec(source.slice(index));
+    if (!attr) { index += 1; continue; }
+    attributes.push({ name: attr[1], value: decodeEntities(attr[2] ?? attr[3] ?? attr[4] ?? "") });
+    index += attr[0].length;
+  }
+  return null;
+}
+
+function cleanAttribute({ name, value }: SvgAttribute, isRoot: boolean): SvgAttribute | null {
+  // Case is kept (viewBox, clipPathRule) but never trusted for the checks.
+  const key = name.toLowerCase();
+  if (key.startsWith("on")) return null;
+  // The slide sizes the drawing, so a fixed width or height on the root only fights it.
+  if (isRoot && (key === "width" || key === "height")) return null;
+  if (SVG_LINK_ATTRIBUTES.has(key)) return value.trim().startsWith("#") ? { name, value: value.trim() } : null;
+  if (key === "style") return { name, value: sanitizeCss(value) };
+  if (/javascript:/i.test(value.replace(/\s/g, ""))) return null;
+  return { name, value };
+}
+
 /**
  * Keeps an SVG drawable and nothing else. Scripts, event handlers, embedded HTML
  * and any reference that would leave the document are removed, so a pasted diagram
  * can draw but cannot run or fetch. Returns "" for anything that is not an <svg>.
  *
- * Regex rather than a DOM parser because this also runs on the server, where the
- * gallery is rendered and there is no DOM. The rules are deliberately blunt.
+ * A small scanner rather than a DOM parser because this also runs where there is no
+ * DOM. Every tag is rebuilt from its parsed attributes, so what is emitted is only
+ * what was explicitly allowed, however the input was spelled.
  */
 export function sanitizeSvg(input: string) {
   const trimmed = input.trim();
   if (!/^<svg[\s>]/i.test(trimmed) || !/<\/svg>\s*$/i.test(trimmed)) return "";
-  let svg = trimmed
+  const source = trimmed
     .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/<\?xml[\s\S]*?\?>/gi, "")
-    .replace(/<!doctype[\s\S]*?>/gi, "")
-    // Elements that execute or embed. Paired and self-closing forms.
-    .replace(/<(script|foreignObject|iframe|object|embed|use|set|animate\w*)\b[\s\S]*?<\/\1\s*>/gi, "")
-    .replace(/<(script|foreignObject|iframe|object|embed|use|set|animate\w*)\b[^>]*\/?>/gi, "")
-    // Event handlers, and any attribute that carries a URL out of the document.
-    .replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
-    .replace(/\s+(href|xlink:href|src)\s*=\s*("(?!#)[^"]*"|'(?!#)[^']*'|(?!#)[^\s>]+)/gi, "")
-    .replace(/javascript:/gi, "")
-    // Stylesheets that would fetch: url() and @import.
-    .replace(/url\s*\((?!\s*['"]?#)[^)]*\)/gi, "none")
-    .replace(/@import[^;]*;?/gi, "");
-  // The slide sizes the drawing, so a fixed width or height on the root only fights it.
-  svg = svg.replace(/^<svg\b([^>]*)>/i, (_, attrs: string) =>
-    `<svg${attrs.replace(/\s+(width|height)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")}>`);
-  return svg;
+    .replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, "")
+    .replace(/<\?[\s\S]*?\?>/g, "")
+    .replace(/<![\s\S]*?>/g, "");
+
+  let out = "";
+  let index = 0;
+  // Elements being dropped, with everything inside them, are counted rather than emitted.
+  let dropDepth = 0;
+  let inStyle = false;
+  let root = true;
+
+  while (index < source.length) {
+    const next = source.indexOf("<", index);
+    if (next === -1 || next > index) {
+      const text = source.slice(index, next === -1 ? source.length : next);
+      if (!dropDepth) out += inStyle ? encodeText(sanitizeCss(text)) : encodeText(decodeEntities(text));
+      if (next === -1) break;
+      index = next;
+    }
+    const tag = readTag(source, index);
+    if (!tag) {
+      if (!dropDepth) out += "&lt;";
+      index += 1;
+      continue;
+    }
+    index = tag.end;
+    if (tag.closing) {
+      if (dropDepth) { dropDepth -= 1; continue; }
+      if (!SVG_ELEMENTS.has(tag.name)) continue;
+      if (tag.name === "style") inStyle = false;
+      out += `</${tag.name}>`;
+      continue;
+    }
+    if (dropDepth || !SVG_ELEMENTS.has(tag.name) || (tag.name === "svg" && !root)) {
+      if (!tag.selfClosing) dropDepth += 1;
+      continue;
+    }
+    const attributes = tag.attributes
+      .map((attribute) => cleanAttribute(attribute, root && tag.name === "svg"))
+      .filter((attribute): attribute is SvgAttribute => attribute !== null)
+      .map(({ name, value }) => ` ${name}="${encodeAttribute(value)}"`)
+      .join("");
+    root = false;
+    if (tag.name === "style" && !tag.selfClosing) inStyle = true;
+    out += `<${tag.name}${attributes}${tag.selfClosing ? "/" : ""}>`;
+  }
+  return out;
 }
 
 function sentenceChunks(text: string) {

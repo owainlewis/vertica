@@ -40,5 +40,6 @@ yarn-error.log*
 /outputs/
 /work/
 
-# Local sample photographs, not part of the app
+# Local photographs and media library assets, not part of the app
 /public/samples/
+/public/images/

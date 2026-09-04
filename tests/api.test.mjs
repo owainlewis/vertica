@@ -78,8 +78,8 @@ function fakeDb() {
         for (const row of rows.values()) {
           try {
             const parsed = JSON.parse(row.config);
-            for (const slide of parsed.slides ?? []) {
-              const key = slide?.background;
+            const refs = [parsed.avatar, ...(parsed.slides ?? []).flatMap((slide) => [slide?.background, ...(slide?.images ?? [])])];
+            for (const key of refs) {
               if (typeof key !== "string" || !/^img:[a-f0-9]{32}$/.test(key) || assets.has(key)) continue;
               assets.set(key, {
                 key, kind: "image", name: "Imported image", mime_type: "",

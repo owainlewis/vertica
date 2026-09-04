@@ -91,11 +91,15 @@ type MediaTarget = "background" | "images" | "avatar";
 function useSignifierCheck() {
   const [missing, setMissing] = useState(false);
   useEffect(() => {
-    if (typeof document === "undefined" || !("fonts" in document)) return;
+    if (typeof FontFace === "undefined") return;
     let live = true;
-    document.fonts.ready.then(() => {
-      if (live) setMissing(!document.fonts.check("16px Signifier"));
-    }).catch(() => undefined);
+    // document.fonts.check() answers "is nothing still loading", which is true for a
+    // local() face that failed as well as one that loaded, so it cannot tell the two
+    // apart. Loading a probe face rejects when the machine has no such font.
+    new FontFace("Signifier Probe", 'local("Signifier Regular"), local("Signifier-Regular")')
+      .load()
+      .then(() => { if (live) setMissing(false); })
+      .catch(() => { if (live) setMissing(true); });
     return () => { live = false; };
   }, []);
   return missing;
@@ -145,6 +149,9 @@ export default function Editor({
   const [exiting, setExiting] = useState(false);
 
   const mounted = useRef(true);
+  // Set when the user chooses to reload out of a stale deck, so the unload warning
+  // does not fire on a departure they just asked for.
+  const leavingRef = useRef(false);
   const savedIdRef = useRef(carouselId);
   const savedVersionRef = useRef(initialVersion);
   const onSavedRef = useRef(onSaved);
@@ -279,7 +286,7 @@ export default function Editor({
   // warns instead of silently discarding a queued or in-flight edit.
   useEffect(() => {
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (!saveQueueRef.current?.dirty) return;
+      if (leavingRef.current || !saveQueueRef.current?.dirty) return;
       event.preventDefault();
       event.returnValue = "";
     };
@@ -441,6 +448,16 @@ export default function Editor({
     else setExiting(false);
   }
 
+  /**
+   * A stale deck can never save: every retry carries the version the server has
+   * already moved past, so the crumb, the rail and Back would all wait for ever.
+   * Reloading fetches the newer version, and the queued edits are given up.
+   */
+  function reloadStale() {
+    leavingRef.current = true;
+    window.location.reload();
+  }
+
   async function runExport(kind: "pdf" | "zip") {
     if (exporting) return;
     setExporting(kind);
@@ -474,6 +491,11 @@ export default function Editor({
         </label>
         <div className="topbar-actions">
           <span className="save-state">{SAVE_LABEL[saveState]}</span>
+          {saveState === "stale" && (
+            <button className="secondary-button" type="button" onClick={reloadStale} title="Someone else saved a newer version. Reloading discards the edits queued here.">
+              Reload
+            </button>
+          )}
           <button className="secondary-button icon-button" type="button" onClick={() => step("past")} disabled={depth.past === 0} title="Undo (⌘Z)" aria-label="Undo"><Undo2 size={15} /></button>
           <button className="secondary-button icon-button" type="button" onClick={() => step("future")} disabled={depth.future === 0} title="Redo (⇧⌘Z)" aria-label="Redo"><Redo2 size={15} /></button>
           <button className="secondary-button generate-button" type="button" onClick={() => openComposer("text")} aria-label="Generate carousel"><Sparkles size={15} /> <span>Generate</span></button>

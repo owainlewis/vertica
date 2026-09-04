@@ -133,7 +133,9 @@ function readInput(body: unknown) {
     : null;
 
   const input = {
-    id: text(record.id, ""),
+    // Only an id the /carousels/:id route can address. Anything else is dropped
+    // and a fresh one is generated, rather than saving a row no request can reach.
+    id: typeof record.id === "string" && /^[\w-]{1,200}$/.test(record.id) ? record.id : "",
     title: text(parsed.title, "Untitled carousel"),
     author: text(parsed.author, ""),
     template: text(parsed.template, "dark"),
