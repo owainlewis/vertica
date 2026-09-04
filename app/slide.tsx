@@ -69,7 +69,6 @@ export function Slide({
     "--title-leading": `${scale.leading}`,
     "--body-size": `${scale.body}cqw`,
     "--veil": String(slide.veil ?? DEFAULT_VEIL),
-    ...(background ? { "--slide-background": `url(${background})` } : {}),
   } as CSSProperties;
 
   // A headline opening on a quote mark sits visibly indented against the copy below
@@ -114,7 +113,9 @@ export function Slide({
 
   return (
     <article className={classes} style={style} data-export-slide={exportMode ? "true" : undefined}>
-      <div className="slide-image" />
+      {/* Pictures are <img> elements, not CSS backgrounds. Chrome silently drops a
+          style value past a few megabytes, and a data URL of a photograph is one. */}
+      {background && <img className="slide-image" src={background} alt="" />}
       <div className="slide-overlay" />
       <div className="slide-rules" />
       <header className="slide-head">
@@ -133,17 +134,15 @@ export function Slide({
       {pictures.length > 0 && (
         <div className="slide-pictures">
           {pictures.map((picture, pictureIndex) => (
-            <div
-              className={`slide-picture ${picture ? "" : "is-missing"}`}
-              key={pictureIndex}
-              style={picture ? { backgroundImage: `url(${picture})` } : undefined}
-            />
+            picture
+              ? <img className="slide-picture" src={picture} alt="" key={pictureIndex} />
+              : <div className="slide-picture is-missing" key={pictureIndex} />
           ))}
         </div>
       )}
       <footer className="slide-meta">
         <span className="meta-identity">
-          {avatar && <span className="slide-avatar" style={{ backgroundImage: `url(${avatar})` }} />}
+          {avatar && <img className="slide-avatar" src={avatar} alt="" />}
           <span className="meta-author">{config.author}</span>
         </span>
         {showArrow && <span className="slide-arrow" aria-hidden="true">→</span>}

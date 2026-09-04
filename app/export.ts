@@ -39,20 +39,9 @@ function stageNodes(expectedPages: number) {
 async function decodeBackgrounds(nodes: HTMLElement[]) {
   // Pictures and the avatar are painted the same way as the background, and race
   // the rasteriser the same way.
-  const urls = nodes
-    .flatMap((node) => Array.from(node.querySelectorAll<HTMLElement>(".slide-image, .slide-picture, .slide-avatar")))
-    .map((element) => getComputedStyle(element).backgroundImage)
-    .map((value) => value.match(/url\(["']?(.+?)["']?\)/)?.[1])
-    .filter((url): url is string => Boolean(url));
-
-  await Promise.all(
-    [...new Set(urls)].map(async (url) => {
-      const image = new Image();
-      image.src = url;
-      // A background that will not decode should not sink the whole export.
-      await image.decode().catch(() => undefined);
-    }),
-  );
+  const images = nodes.flatMap((node) => Array.from(node.querySelectorAll("img")));
+  // A picture that will not decode should not sink the whole export.
+  await Promise.all(images.map((image) => image.decode().catch(() => undefined)));
 }
 
 /** Rasterises every mounted export slide, in order, at full export resolution. */

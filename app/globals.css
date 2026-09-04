@@ -200,7 +200,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
    slide itself, so the 520px preview and the 1080px export are the same drawing.
    --------------------------------------------------------------------------- */
 .carousel-slide {
-  --slide-background: none;
   --title-size: 10.2cqw;
   --title-tracking: -.02em;
   --title-leading: .98;
@@ -242,7 +241,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 /* Photographs behind copy. A single smooth veil, heaviest under the text, so the
    picture reads as a wash rather than as a set of stripes. */
 .slide-image, .slide-overlay { position: absolute; inset: 0; display: none; }
-.has-background .slide-image { display: block; background-image: var(--slide-background); background-position: center; background-size: cover; }
+.has-background .slide-image { display: block; width: 100%; height: 100%; object-fit: cover; }
 /* A photograph is a photograph: no column rules over it, no wash across it. */
 .has-background .slide-rules, .has-pictures .slide-rules { display: none; }
 /* The veil's strength is the slide's own dial, 0 to 1. */
@@ -271,7 +270,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .slide-mark, .meta-author { overflow-wrap: anywhere; }
 .slide-counter { font-variant-numeric: tabular-nums; }
 .meta-identity { display: flex; align-items: center; gap: 1.6cqw; }
-.slide-avatar { flex: 0 0 auto; width: 7cqw; height: 7cqw; border-radius: 50%; background-position: center; background-size: cover; }
+.slide-avatar { flex: 0 0 auto; width: 7cqw; height: 7cqw; border-radius: 50%; object-fit: cover; }
 .slide-arrow { font-family: var(--font-sans); font-size: 4.8cqw; font-weight: 300; line-height: 1; }
 
 /* The copy. Vertical rhythm is in em against each element's own size. */
@@ -335,7 +334,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .has-pictures .slide-content { flex: 0 0 auto; padding-top: 22%; padding-bottom: 0; }
 .has-pictures .slide-content h2 { font-size: calc(var(--title-size) * .62); line-height: 1.08; letter-spacing: -.015em; }
 .slide-pictures { position: relative; z-index: 1; display: grid; flex: 1; min-height: 0; margin: 5% var(--margin) 20%; }
-.slide-picture { min-width: 0; min-height: 0; background-position: center; background-size: cover; background-color: rgb(26 26 23 / .08); }
+.slide-picture { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; object-fit: cover; background-color: rgb(26 26 23 / .08); }
 .slide-picture.is-missing { background: repeating-linear-gradient(135deg, rgb(26 26 23 / .06) 0 6px, transparent 6px 14px); }
 /* A square that fits whichever is tighter: the column width or the height left under
    the copy. The flex-resolved height is definite, so aspect-ratio sets the width. */
