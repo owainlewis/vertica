@@ -1,13 +1,14 @@
-import { ImagePlus, LoaderCircle, Trash2, Upload } from "lucide-react";
+import { ChevronDown, ImagePlus, LoaderCircle, Trash2, Upload } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { deleteMedia, listMedia, type MediaAsset } from "./api-client";
+import BusyLabel from "./busy-label";
 import { SUPPORTED_IMAGE_ACCEPT } from "./image-formats";
 import { mediaUrl, putImage } from "./image-store";
 import { prepareImages } from "./image-upload";
 
 function imageDetails(asset: MediaAsset) {
   if (asset.width && asset.height) return `${asset.width} × ${asset.height}`;
-  return "Image";
+  return "Dimensions unavailable";
 }
 
 export default function MediaGallery() {
@@ -119,12 +120,12 @@ export default function MediaGallery() {
         onChange={(event) => { if (event.target.files) void upload(event.target.files); }}
       />
 
-      <section className="dashboard-body media-body">
+      <section className="dashboard-body">
         <div className="dashboard-heading">
           <h1>Media library</h1>
-          <button className="export-button" type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>
+          <button className="export-button" type="button" onClick={() => inputRef.current?.click()} disabled={uploading} aria-busy={uploading}>
             {uploading ? <LoaderCircle className="spin" size={15} /> : <Upload size={15} />}
-            {uploading ? `Uploading ${uploadCount}…` : "Upload images"}
+            <BusyLabel busy={uploading} idle="Upload images" pending="Uploading…" />
           </button>
         </div>
 
@@ -143,20 +144,26 @@ export default function MediaGallery() {
           }}
         >
           <ImagePlus size={19} />
-          <span><strong>Drop images here</strong><small>They are resized for carousel backgrounds and stored in your library.</small></span>
+          <span><strong role="status">{uploading ? `Uploading… ${uploadCount} completed` : "Drop images here"}</strong><small>They are resized for carousel backgrounds and stored in your library.</small></span>
           <button className="secondary-button" type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>Choose files</button>
         </div>
+
+        {media === null && !error && <div className="library-loading" role="status"><LoaderCircle className="spin" size={20} /> Loading images…</div>}
 
         <ul className="media-grid">
           {(media ?? []).map((asset) => (
             <li className="media-card" key={asset.key}>
-              <img src={mediaUrl(asset.key)} alt={asset.name} loading="lazy" />
+              <img src={mediaUrl(asset.key)} alt={asset.name} loading="lazy" onLoad={(event) => {
+                if (asset.width && asset.height) return;
+                const { naturalWidth: width, naturalHeight: height } = event.currentTarget;
+                if (width && height) setMedia((current) => current?.map((item) => item.key === asset.key ? { ...item, width, height } : item) ?? null);
+              }} />
               <div className="media-card-meta">
                 <span><strong>{asset.name}</strong><small>{imageDetails(asset)}</small></span>
                 {confirmKey === asset.key ? (
                   <span className="media-confirm">
-                    <button type="button" className="danger-action" onClick={() => { void remove(asset); }} disabled={busyKey === asset.key}>
-                      {busyKey === asset.key ? <LoaderCircle className="spin" size={13} /> : null} Delete
+                    <button type="button" className="danger-action" onClick={() => { void remove(asset); }} disabled={busyKey === asset.key} aria-busy={busyKey === asset.key}>
+                      <BusyLabel busy={busyKey === asset.key} idle="Delete" pending="Deleting…" />
                     </button>
                     <button type="button" onClick={() => setConfirmKey(null)}>Keep</button>
                   </span>
@@ -168,8 +175,8 @@ export default function MediaGallery() {
           ))}
         </ul>
         {nextCursor && (
-          <button className="secondary-button media-load-more" type="button" onClick={() => { void loadMore(); }} disabled={loadingMore}>
-            {loadingMore ? <LoaderCircle className="spin" size={14} /> : null}{loadingMore ? "Loading…" : "Load more images"}
+          <button className="secondary-button media-load-more" type="button" onClick={() => { void loadMore(); }} disabled={loadingMore} aria-busy={loadingMore}>
+            {loadingMore ? <LoaderCircle className="spin" size={16} /> : <ChevronDown size={16} />}<BusyLabel busy={loadingMore} idle="Load more images" pending="Loading…" />
           </button>
         )}
       </section>
