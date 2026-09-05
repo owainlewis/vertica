@@ -1,5 +1,5 @@
 import { Images, LayoutGrid, LoaderCircle, Lock } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { getSession, loadCarousel, resolveMedia, signIn, type CarouselSummary } from "./api-client";
 import { BRAND_FOOTER, BRAND_MARK, CarouselConfig } from "./carousel";
 import Dashboard from "./dashboard";
@@ -97,6 +97,7 @@ function AppNav({ active, onNavigate }: { active: "gallery" | "media" | "editor"
 export default function App() {
   const [authorised, setAuthorised] = useState<boolean | null>(null);
   const editorRef = useRef<EditorHandle>(null);
+  const mainRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<View>({ kind: "gallery" });
   const [reloadToken, setReloadToken] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -106,6 +107,10 @@ export default function App() {
       .then((session) => setAuthorised(!session.gated || session.authorised))
       .catch(() => setAuthorised(true));
   }, []);
+
+  useLayoutEffect(() => {
+    mainRef.current?.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [view.kind]);
 
   // Nothing here touches state before the first await, so calling it straight from
   // an effect does not schedule a render inside that effect's body.
@@ -203,7 +208,7 @@ export default function App() {
     <div className="app">
       {error && <div className="toast error" role="status">{error}</div>}
       <AppNav active={view.kind} onNavigate={(kind) => { void navigate(kind); }} />
-      <div className="app-main">
+      <div className="app-main" ref={mainRef}>
         {view.kind === "editor" ? (
           <Editor
             ref={editorRef}

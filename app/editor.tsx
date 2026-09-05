@@ -21,6 +21,7 @@ import {
 import { Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { saveCarousel, StaleSaveError, type CarouselSummary, type MediaAsset } from "./api-client";
 import { isImageKey, loadImages } from "./image-store";
+import BusyLabel from "./busy-label";
 import MediaPicker from "./media-picker";
 import {
   aiPrompt,
@@ -460,27 +461,26 @@ export default function Editor({
           <ChevronRight className="crumb-sep" size={13} />
           <span>{exiting ? "Saving…" : `${config.slides.length} slide${config.slides.length === 1 ? "" : "s"}`}</span>
         </div>
-        <label className="project-name">
+        <div className="project-name">
           <span className={`status-dot ${saveState}`} title={SAVE_LABEL[saveState]} />
           <input aria-label="Carousel title" maxLength={100} value={config.title} onChange={(event) => commit({ ...config, title: event.target.value }, "deck-title")} />
-        </label>
+          <div className="save-indicator">
+            {saveState === "stale" ? (
+              <button className="secondary-button" type="button" onClick={reloadStale} title="Someone else saved a newer version. Reloading discards the edits queued here.">Reload</button>
+            ) : <span className="save-state" role="status">{SAVE_LABEL[saveState]}</span>}
+          </div>
+        </div>
         <div className="topbar-actions">
-          <span className="save-state">{SAVE_LABEL[saveState]}</span>
-          {saveState === "stale" && (
-            <button className="secondary-button" type="button" onClick={reloadStale} title="Someone else saved a newer version. Reloading discards the edits queued here.">
-              Reload
-            </button>
-          )}
           <button className="secondary-button icon-button" type="button" onClick={() => step("past")} disabled={depth.past === 0} title="Undo (⌘Z)" aria-label="Undo"><Undo2 size={15} /></button>
           <button className="secondary-button icon-button" type="button" onClick={() => step("future")} disabled={depth.future === 0} title="Redo (⇧⌘Z)" aria-label="Redo"><Redo2 size={15} /></button>
           <button className="secondary-button generate-button" type="button" onClick={() => openComposer("text")} aria-label="Generate carousel"><Sparkles size={15} /> <span>Generate</span></button>
-          <button className="secondary-button export-images-button" type="button" onClick={() => runExport("zip")} disabled={Boolean(exporting)} title="Numbered JPEGs, zipped, for Instagram">
+          <button className="secondary-button export-images-button" type="button" onClick={() => runExport("zip")} disabled={Boolean(exporting)} aria-busy={exporting === "zip"} title="Numbered JPEGs, zipped, for Instagram">
             {exporting === "zip" ? <LoaderCircle className="spin" size={15} /> : <Images size={15} />}
-            {exporting === "zip" ? "Zipping…" : "Images"}
+            <BusyLabel busy={exporting === "zip"} idle="Images" pending="Zipping…" />
           </button>
-          <button className="export-button" type="button" onClick={() => runExport("pdf")} disabled={Boolean(exporting)}>
+          <button className="export-button" type="button" onClick={() => runExport("pdf")} disabled={Boolean(exporting)} aria-busy={exporting === "pdf"}>
             {exporting === "pdf" ? <LoaderCircle className="spin" size={15} /> : <Download size={15} />}
-            {exporting === "pdf" ? "Exporting…" : "Export PDF"}
+            <BusyLabel busy={exporting === "pdf"} idle="Export PDF" pending="Exporting…" />
           </button>
         </div>
       </header>

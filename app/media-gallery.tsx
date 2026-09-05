@@ -1,6 +1,7 @@
-import { ImagePlus, LoaderCircle, Trash2, Upload } from "lucide-react";
+import { ChevronDown, ImagePlus, LoaderCircle, Trash2, Upload } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { deleteMedia, listMedia, type MediaAsset } from "./api-client";
+import BusyLabel from "./busy-label";
 import { SUPPORTED_IMAGE_ACCEPT } from "./image-formats";
 import { mediaUrl, putImage } from "./image-store";
 import { prepareImages } from "./image-upload";
@@ -119,12 +120,12 @@ export default function MediaGallery() {
         onChange={(event) => { if (event.target.files) void upload(event.target.files); }}
       />
 
-      <section className="dashboard-body media-body">
+      <section className="dashboard-body">
         <div className="dashboard-heading">
           <h1>Media library</h1>
-          <button className="export-button" type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>
+          <button className="export-button" type="button" onClick={() => inputRef.current?.click()} disabled={uploading} aria-busy={uploading}>
             {uploading ? <LoaderCircle className="spin" size={15} /> : <Upload size={15} />}
-            {uploading ? `Uploading ${uploadCount}…` : "Upload images"}
+            <BusyLabel busy={uploading} idle="Upload images" pending="Uploading…" />
           </button>
         </div>
 
@@ -143,9 +144,11 @@ export default function MediaGallery() {
           }}
         >
           <ImagePlus size={19} />
-          <span><strong>Drop images here</strong><small>They are resized for carousel backgrounds and stored in your library.</small></span>
+          <span><strong role="status">{uploading ? `Uploaded ${uploadCount} image${uploadCount === 1 ? "" : "s"}…` : "Drop images here"}</strong><small>They are resized for carousel backgrounds and stored in your library.</small></span>
           <button className="secondary-button" type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>Choose files</button>
         </div>
+
+        {media === null && !error && <div className="library-loading" role="status"><LoaderCircle className="spin" size={20} /> Loading images…</div>}
 
         <ul className="media-grid">
           {(media ?? []).map((asset) => (
@@ -156,7 +159,7 @@ export default function MediaGallery() {
                 {confirmKey === asset.key ? (
                   <span className="media-confirm">
                     <button type="button" className="danger-action" onClick={() => { void remove(asset); }} disabled={busyKey === asset.key}>
-                      {busyKey === asset.key ? <LoaderCircle className="spin" size={13} /> : null} Delete
+                      Delete
                     </button>
                     <button type="button" onClick={() => setConfirmKey(null)}>Keep</button>
                   </span>
@@ -168,8 +171,8 @@ export default function MediaGallery() {
           ))}
         </ul>
         {nextCursor && (
-          <button className="secondary-button media-load-more" type="button" onClick={() => { void loadMore(); }} disabled={loadingMore}>
-            {loadingMore ? <LoaderCircle className="spin" size={14} /> : null}{loadingMore ? "Loading…" : "Load more images"}
+          <button className="secondary-button media-load-more" type="button" onClick={() => { void loadMore(); }} disabled={loadingMore} aria-busy={loadingMore}>
+            {loadingMore ? <LoaderCircle className="spin" size={16} /> : <ChevronDown size={16} />}<BusyLabel busy={loadingMore} idle="Load more images" pending="Loading…" />
           </button>
         )}
       </section>

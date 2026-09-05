@@ -1,6 +1,7 @@
-import { Check, Images, LoaderCircle, X } from "lucide-react";
+import { ChevronDown, Check, Images, LoaderCircle, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { listMedia, type MediaAsset } from "./api-client";
+import BusyLabel from "./busy-label";
 import { mediaUrl } from "./image-store";
 
 export default function MediaPicker({
@@ -74,7 +75,7 @@ export default function MediaPicker({
         </div>
         <div className="media-picker-body">
           {error && <p className="dashboard-error" role="status">{error}</p>}
-          {media === null && !error && <div className="picker-loading"><LoaderCircle className="spin" size={20} /> Loading media…</div>}
+          {media === null && !error && <div className="picker-loading" role="status"><LoaderCircle className="spin" size={20} /> Loading media…</div>}
           {media?.length === 0 && (
             <div className="picker-empty"><Images size={24} /><strong>Your media library is empty</strong><span>Return to the dashboard, open Media, and upload your images there.</span></div>
           )}
@@ -89,8 +90,8 @@ export default function MediaPicker({
             ))}
           </div>
           {nextCursor && (
-            <button className="secondary-button media-load-more" type="button" onClick={() => { void loadMore(); }} disabled={loadingMore}>
-              {loadingMore ? <LoaderCircle className="spin" size={14} /> : null}{loadingMore ? "Loading…" : "Load more images"}
+            <button className="secondary-button media-load-more" type="button" onClick={() => { void loadMore(); }} disabled={loadingMore} aria-busy={loadingMore}>
+              {loadingMore ? <LoaderCircle className="spin" size={16} /> : <ChevronDown size={16} />}<BusyLabel busy={loadingMore} idle="Load more images" pending="Loading…" />
             </button>
           )}
         </div>
