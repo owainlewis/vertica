@@ -1,13 +1,14 @@
-import { ArrowUpRight, Download, Images, Layers, LoaderCircle, Plus, Search, Trash2, X } from "lucide-react";
+import { ArrowUpRight, Copy, Download, Images, Layers, LoaderCircle, Plus, Search, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   deleteCarousel,
+  saveCarousel,
   resolveMedia,
   listCarousels,
   loadCarousel,
   type CarouselSummary,
 } from "./api-client";
-import { assertBackgroundsAvailableForExport, CarouselConfig, CarouselSlide, normalizeLayout } from "./carousel";
+import { assertBackgroundsAvailableForExport, CarouselConfig, CarouselSlide, duplicateCarouselConfig, normalizeLayout } from "./carousel";
 import { exportStageToPdf, exportStageToZip, fileNameFor } from "./export";
 import { loadImages } from "./image-store";
 import { ExportStage, Slide } from "./slide";
@@ -90,6 +91,8 @@ export default function Dashboard({
   const [carousels, setCarousels] = useState<CarouselSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("updated");
@@ -106,6 +109,12 @@ export default function Dashboard({
   const [pending, setPending] = useState<{ config: CarouselConfig; title: string; kind: "pdf" | "zip" } | null>(null);
   // Cover media is loaded from the durable media store once the list arrives.
   const [covers, setCovers] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!message) return;
+    const timer = window.setTimeout(() => setMessage(null), 3200);
+    return () => window.clearTimeout(timer);
+  }, [message]);
 
   useEffect(() => {
     let live = true;
@@ -159,6 +168,25 @@ export default function Dashboard({
     }
   }
 
+  async function duplicate(carousel: CarouselSummary) {
+    if (busyId) return;
+    setBusyId(carousel.id);
+    setDuplicatingId(carousel.id);
+    setError(null);
+    setMessage(null);
+    try {
+      const { config } = await loadCarousel(carousel.id);
+      const copy = await saveCarousel(null, duplicateCarouselConfig(config), null);
+      setCarousels((current) => [copy, ...(current ?? [])]);
+      setMessage(`Created ${copy.title}.`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not duplicate that carousel. Try again.");
+    } finally {
+      setBusyId(null);
+      setDuplicatingId(null);
+    }
+  }
+
   async function remove(id: string) {
     setBusyId(id);
     try {
@@ -187,6 +215,7 @@ export default function Dashboard({
           </div>
         </div>
 
+        {message && <div className="toast" role="status">{message}</div>}
         {error && <p className="dashboard-error" role="status">{error}</p>}
 
         {carousels !== null && carousels.length === 0 && !error && (
@@ -223,7 +252,10 @@ export default function Dashboard({
                   {busyId === carousel.id && pending?.kind === "zip" ? <LoaderCircle className="spin" size={14} /> : <Images size={14} />}
                   JPEGs
                 </button>
-                <button className="danger-action" type="button" onClick={() => setConfirmId(carousel.id)} aria-label={`Delete ${carousel.title}`}>
+                <button type="button" disabled={busyId !== null} aria-busy={duplicatingId === carousel.id} onClick={() => { void duplicate(carousel); }} aria-label={`Duplicate ${carousel.title}`} title="Duplicate carousel">
+                  {duplicatingId === carousel.id ? <LoaderCircle className="spin" size={14} /> : <Copy size={14} />}
+                </button>
+                <button className="danger-action" type="button" disabled={busyId !== null} onClick={() => setConfirmId(carousel.id)} aria-label={`Delete ${carousel.title}`}>
                   <Trash2 size={14} />
                 </button>
                 {confirmId === carousel.id && (

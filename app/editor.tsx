@@ -3,16 +3,15 @@ import {
   ArrowUp,
   Check,
   ChevronDown,
-  ChevronRight,
   Copy,
   Download,
   Images,
   Layers3,
-  LoaderCircle,
   Plus,
   Redo2,
   Sparkles,
-  Square,
+  RectangleVertical,
+  Eye,
   Trash2,
   Undo2,
   UserRound,
@@ -21,7 +20,9 @@ import {
 import { Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { saveCarousel, StaleSaveError, type CarouselSummary, type MediaAsset } from "./api-client";
 import { isImageKey, loadImages } from "./image-store";
-import BusyLabel from "./busy-label";
+import Dialog from "./dialog";
+import ExportMenu from "./export-menu";
+import ReaderPreview from "./reader-preview";
 import MediaPicker from "./media-picker";
 import {
   aiPrompt,
@@ -112,7 +113,7 @@ function clockNow() {
 }
 function newSlideId() {
   // Event-time uniqueness keeps imported and duplicated slide ids distinct.
-  return `slide-${Date.now().toString(36)}`;
+  return `slide-${crypto.randomUUID()}`;
 }
 const HISTORY_LIMIT = 60;
 
@@ -136,6 +137,9 @@ export default function Editor({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [inspectorTab, setInspectorTab] = useState<"content" | "layout" | "design">("content");
   const [composeOpen, setComposeOpen] = useState(false);
+  const [readerOpen, setReaderOpen] = useState(false);
+  const [composeMessage, setComposeMessage] = useState<Notice>(null);
+  const sourceRef = useRef<HTMLTextAreaElement>(null);
   const [composeMode, setComposeMode] = useState<"text" | "json">("text");
   const [sourceText, setSourceText] = useState("");
   const [jsonText, setJsonText] = useState("");
@@ -243,15 +247,15 @@ export default function Editor({
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      // Escape closes the composer, the way the native media dialog already closes.
-      if (event.key === "Escape") { setComposeOpen(false); return; }
+      // Modal text fields own their native undo history, not the deck history.
+      if (composeOpen || mediaOpen || readerOpen) return;
       if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "z") return;
       event.preventDefault();
       step(event.shiftKey ? "future" : "past");
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [step]);
+  }, [step, composeOpen, mediaOpen, readerOpen]);
 
   // Set on the way in as well as cleared on the way out. With only the cleanup, a
   // StrictMode mount/cleanup/mount cycle would leave this false for good and every
@@ -387,6 +391,7 @@ export default function Editor({
   }
 
   function openComposer(mode: "text" | "json") {
+    setComposeMessage(null);
     setComposeMode(mode);
     setJsonText(JSON.stringify(config, null, 2));
     setComposeOpen(true);
@@ -403,13 +408,17 @@ export default function Editor({
       setComposeOpen(false);
       showNotice({ kind: "success", message: `Created ${next.slides.length} slides. They are ready to edit.` });
     } catch (error) {
-      showNotice({ kind: "error", message: error instanceof Error ? error.message : "Could not create the carousel." });
+      setComposeMessage({ kind: "error", message: error instanceof Error ? error.message : "Could not create the carousel." });
     }
   }
 
   async function copyAiPrompt() {
-    await navigator.clipboard.writeText(aiPrompt(config));
-    showNotice({ kind: "success", message: "AI prompt copied. Add your source text in Claude or Codex." });
+    try {
+      await navigator.clipboard.writeText(aiPrompt(config));
+      setComposeMessage({ kind: "success", message: "Prompt copied. Add your source text in Claude or Codex." });
+    } catch {
+      setComposeMessage({ kind: "error", message: "Could not copy the prompt. Check clipboard access and try again." });
+    }
   }
 
   function downloadJson() {
@@ -458,8 +467,7 @@ export default function Editor({
       <header className="topbar">
         <div className="topbar-crumbs">
           <button type="button" onClick={() => { void requestExit(); }} disabled={exiting}>Carousels</button>
-          <ChevronRight className="crumb-sep" size={13} />
-          <span>{exiting ? "Saving…" : `${config.slides.length} slide${config.slides.length === 1 ? "" : "s"}`}</span>
+
         </div>
         <div className="project-name">
           <span className={`status-dot ${saveState}`} title={SAVE_LABEL[saveState]} />
@@ -473,24 +481,18 @@ export default function Editor({
         <div className="topbar-actions">
           <button className="secondary-button icon-button" type="button" onClick={() => step("past")} disabled={depth.past === 0} title="Undo (⌘Z)" aria-label="Undo"><Undo2 size={15} /></button>
           <button className="secondary-button icon-button" type="button" onClick={() => step("future")} disabled={depth.future === 0} title="Redo (⇧⌘Z)" aria-label="Redo"><Redo2 size={15} /></button>
-          <button className="secondary-button generate-button" type="button" onClick={() => openComposer("text")} aria-label="Generate carousel"><Sparkles size={15} /> <span>Generate</span></button>
-          <button className="secondary-button export-images-button" type="button" onClick={() => runExport("zip")} disabled={Boolean(exporting)} aria-busy={exporting === "zip"} title="Numbered JPEGs, zipped, for Instagram">
-            {exporting === "zip" ? <LoaderCircle className="spin" size={15} /> : <Images size={15} />}
-            <BusyLabel busy={exporting === "zip"} idle="Images" pending="Zipping…" />
-          </button>
-          <button className="export-button" type="button" onClick={() => runExport("pdf")} disabled={Boolean(exporting)} aria-busy={exporting === "pdf"}>
-            {exporting === "pdf" ? <LoaderCircle className="spin" size={15} /> : <Download size={15} />}
-            <BusyLabel busy={exporting === "pdf"} idle="Export PDF" pending="Exporting…" />
-          </button>
+          <button className="secondary-button generate-button" type="button" onClick={() => openComposer("text")} aria-label="Create from text" title="Create from text"><Sparkles size={15} /> <span>Create from text</span></button>
+          <button className="secondary-button icon-button" type="button" onClick={() => setReaderOpen(true)} aria-label="Reader preview" title="Reader preview"><Eye size={16} /></button>
+          <ExportMenu busy={Boolean(exporting)} onExport={(kind) => { void runExport(kind); }} />
         </div>
       </header>
 
       <section className="workspace">
         <aside className="rail">
-          <div className="rail-heading"><span>Slides · {config.slides.length}</span><button type="button" onClick={addSlide} aria-label="Add slide"><Plus size={15} /></button></div>
+          <div className="rail-heading"><span>Slides</span><button type="button" onClick={addSlide} aria-label="Add slide"><Plus size={15} /></button></div>
           <div className="slide-list">
             {config.slides.map((slide, index) => (
-              <button className={`slide-thumb ${index === selectedIndex ? "selected" : ""}`} type="button" key={slide.id} onClick={() => setSelectedIndex(index)} aria-label={`Slide ${index + 1}: ${slide.title}`}>
+              <button className={`slide-thumb ${index === selectedIndex ? "selected" : ""}`} type="button" key={slide.id} onClick={() => setSelectedIndex(index)} aria-pressed={index === selectedIndex} aria-label={`Slide ${index + 1}: ${titleLines(slide.title).join(" ").replace(/\*/g, "")}`}>
                 <span className="thumb-number">{String(index + 1).padStart(2, "0")}</span>
                 <span className="thumb-frame" aria-hidden="true"><Slide slide={slide} config={config} index={index} /></span>
                 <span className="thumb-label">
@@ -509,9 +511,9 @@ export default function Editor({
             </p>
           )}
           <div className="canvas-toolbar">
-            <span>LinkedIn portrait · 1080 × 1350</span>
-            <button className="crop-toggle" type="button" aria-pressed={showCrop} onClick={() => setShowCrop(!showCrop)} title="Instagram crops the profile grid to a square">
-              <Square size={11} /> Grid crop
+            <span>Portrait · 4:5</span>
+            <button className="crop-toggle" type="button" aria-pressed={showCrop} onClick={() => setShowCrop(!showCrop)} title="Centered 3:4 profile crop; the exported slide stays 4:5">
+              <RectangleVertical size={13} /> Profile crop
             </button>
             <span>{selectedIndex + 1} of {config.slides.length}</span>
           </div>
@@ -528,10 +530,10 @@ export default function Editor({
         </section>
 
         <aside className="inspector">
-          <div className="inspector-tabs">
-            <button className={inspectorTab === "content" ? "active" : ""} onClick={() => setInspectorTab("content")} type="button">Content</button>
-            <button className={inspectorTab === "layout" ? "active" : ""} onClick={() => setInspectorTab("layout")} type="button">Layout</button>
-            <button className={inspectorTab === "design" ? "active" : ""} onClick={() => setInspectorTab("design")} type="button">Design</button>
+          <div className="inspector-tabs" role="group" aria-label="Slide settings">
+            <button aria-pressed={inspectorTab === "content"} className={inspectorTab === "content" ? "active" : ""} onClick={() => setInspectorTab("content")} type="button">Content</button>
+            <button aria-pressed={inspectorTab === "layout"} className={inspectorTab === "layout" ? "active" : ""} onClick={() => setInspectorTab("layout")} type="button">Layout</button>
+            <button aria-pressed={inspectorTab === "design"} className={inspectorTab === "design" ? "active" : ""} onClick={() => setInspectorTab("design")} type="button">Design</button>
           </div>
 
           {inspectorTab === "layout" ? (
@@ -542,7 +544,7 @@ export default function Editor({
               <span className="field-label">Text position</span>
               <div className="segmented">
                 {(["top", "middle", "bottom"] as SlidePosition[]).map((position) => (
-                  <button type="button" key={position} className={activePosition === position ? "active" : ""} onClick={() => updateSlide({ position })}>
+                  <button type="button" key={position} aria-pressed={activePosition === position} className={activePosition === position ? "active" : ""} onClick={() => updateSlide({ position })}>
                     {position === "top" ? "Top" : position === "middle" ? "Middle" : "Bottom"}
                   </button>
                 ))}
@@ -551,14 +553,14 @@ export default function Editor({
               <span className="field-label">Alignment</span>
               <div className="segmented">
                 {(["left", "center"] as SlideAlign[]).map((align) => (
-                  <button type="button" key={align} className={activeAlign === align ? "active" : ""} onClick={() => updateSlide({ align })}>
+                  <button type="button" key={align} aria-pressed={activeAlign === align} className={activeAlign === align ? "active" : ""} onClick={() => updateSlide({ align })}>
                     {align === "left" ? "Left" : "Centred"}
                   </button>
                 ))}
               </div>
 
               <button type="button" className="text-button subtle" onClick={() => commit({ ...config, slides: config.slides.map((slide) => ({ ...slide, position: activePosition, align: activeAlign })) })}>
-                Apply this layout to every slide
+                Apply position and alignment to all slides
               </button>
 
               <p className="field-hint">{layoutHints[selectedSlide.layout]}</p>
@@ -567,16 +569,13 @@ export default function Editor({
             <div className="inspector-panel">
               <label className="field-label" htmlFor="headline">Headline</label>
               <textarea id="headline" maxLength={120} rows={5} value={selectedSlide.title} onChange={(event) => updateSlide({ title: event.target.value }, "title")} />
-              <div className="character-count">{selectedSlide.title.length} / 120</div>
-              <p className="field-hint">Put a <em>|</em> where the headline should break. Without one the lines are evened automatically, which rarely breaks where the sense does.</p>
+              <div className="character-count" style={{ visibility: selectedSlide.title.length >= 100 ? "visible" : "hidden" }}>{selectedSlide.title.length} / 120</div>
+              <details className="format-help"><summary>Formatting help</summary><p className="field-hint"><em>|</em> starts a headline line. <em>*italic*</em> adds emphasis. <em>**highlight**</em> marks a phrase. A blank line starts a paragraph.</p></details>
               {showsBody(selectedSlide.layout) ? (
                 <>
                   <label className="field-label" htmlFor="body">Supporting copy</label>
                   <textarea id="body" maxLength={280} rows={6} value={selectedSlide.body} onChange={(event) => updateSlide({ body: event.target.value }, "body")} />
-                  <p className="field-hint"><em>*word*</em> sets a phrase in italic. <em>**word**</em> draws a highlighter stroke behind it. Leave a blank line to start a new paragraph.</p>
-                  {selectedSlide.layout === "cover" && (
-                    <p className="field-hint">On a cover the supporting copy is the subtitle. Keep it to one line.</p>
-                  )}
+
                 </>
               ) : (
                 <p className="field-hint">
@@ -588,7 +587,7 @@ export default function Editor({
                 <>
                   <label className="field-label" htmlFor="diagram">Diagram SVG</label>
                   <textarea className="svg-editor" id="diagram" rows={8} spellCheck={false} value={selectedSlide.diagram ?? ""} onChange={(event) => updateSlide({ diagram: event.target.value || undefined }, "diagram")} placeholder='<svg viewBox="0 0 800 500">…</svg>' />
-                  <p className="field-hint">Paste inline SVG. Use <em>currentColor</em> for strokes and text so it takes the slide’s ink on any ground. Scripts and external references are stripped. The Copy AI prompt under Design explains how to ask Claude for one.</p>
+                  <p className="field-hint">Paste inline SVG. Use <em>currentColor</em> for strokes and text so it takes the slide’s ink on any ground. Scripts and external references are stripped. Find Copy AI prompt in Design → Project data → Edit JSON config.</p>
                 </>
               )}
               {usesImages(selectedSlide.layout) && (
@@ -619,11 +618,12 @@ export default function Editor({
             </div>
           ) : (
             <div className="inspector-panel">
-              <span className="field-label">Ground · slide {selectedIndex + 1}</span>
+              <h3 className="settings-heading">This slide</h3>
+              <span className="field-label">Background colour</span>
               <div className="segmented" aria-label="Slide ground colour">
-                <button type="button" className={(selectedSlide.tone ?? "paper") === "paper" ? "active" : ""} onClick={() => updateSlide({ tone: "paper" })}>Paper</button>
-                <button type="button" className={selectedSlide.tone === "sage" ? "active" : ""} onClick={() => updateSlide({ tone: "sage" })}>Sage</button>
-                <button type="button" className={selectedSlide.tone === "black" ? "active" : ""} onClick={() => updateSlide({ tone: "black" })}>Black</button>
+                <button type="button" aria-pressed={(selectedSlide.tone ?? "paper") === "paper"} className={(selectedSlide.tone ?? "paper") === "paper" ? "active" : ""} onClick={() => updateSlide({ tone: "paper" })}>Paper</button>
+                <button type="button" aria-pressed={selectedSlide.tone === "sage"} className={selectedSlide.tone === "sage" ? "active" : ""} onClick={() => updateSlide({ tone: "sage" })}>Sage</button>
+                <button type="button" aria-pressed={selectedSlide.tone === "black"} className={selectedSlide.tone === "black" ? "active" : ""} onClick={() => updateSlide({ tone: "black" })}>Black</button>
               </div>
               <span className="field-label">Background photo</span>
               <button className="wide-upload" type="button" onClick={() => setMediaOpen("background")}><Images size={15} /> {selectedSlide.background ? "Choose another image" : "Choose from media"}</button>
@@ -645,7 +645,8 @@ export default function Editor({
                 </>
               )}
 
-              <label className="field-label" htmlFor="mark">Series label · every slide</label>
+              <h3 className="settings-heading settings-divider">All slides</h3>
+              <label className="field-label" htmlFor="mark">Series label</label>
               <input id="mark" maxLength={30} value={config.mark ?? ""} placeholder="AI Engineer" onChange={(event) => commit({ ...config, mark: event.target.value }, "mark")} />
               <label className="field-label" htmlFor="author">Footer name</label>
               <input id="author" maxLength={40} value={config.author} onChange={(event) => commit({ ...config, author: event.target.value }, "author")} />
@@ -657,15 +658,15 @@ export default function Editor({
               {config.avatar && <button type="button" className="text-button" onClick={() => commit({ ...config, avatar: undefined })}>Remove avatar</button>}
               <span className="field-label">Page number</span>
               <div className="segmented" aria-label="Page number style">
-                <button type="button" className={(config.numbering ?? "page") === "page" ? "active" : ""} onClick={() => commit({ ...config, numbering: undefined })}>02</button>
-                <button type="button" className={config.numbering === "fraction" ? "active" : ""} onClick={() => commit({ ...config, numbering: "fraction" })}>02 / 06</button>
+                <button type="button" aria-pressed={(config.numbering ?? "page") === "page"} className={(config.numbering ?? "page") === "page" ? "active" : ""} onClick={() => commit({ ...config, numbering: undefined })}>02</button>
+                <button type="button" aria-pressed={config.numbering === "fraction"} className={config.numbering === "fraction" ? "active" : ""} onClick={() => commit({ ...config, numbering: "fraction" })}>02 / 06</button>
               </div>
               <label className="check-row"><input type="checkbox" checked={config.arrow !== false} onChange={(event) => commit({ ...config, arrow: event.target.checked ? undefined : false })} /> Swipe arrow on every slide but the last</label>
-              <div className="config-tools">
-                <span className="field-label">Project data</span>
+              <details className="config-tools">
+                <summary>Project data</summary>
                 <button type="button" onClick={() => openComposer("json")}><Layers3 size={15} /> Edit JSON config</button>
                 <button type="button" onClick={downloadJson}><Download size={15} /> Download config</button>
-              </div>
+              </details>
             </div>
           )}
         </aside>
@@ -674,33 +675,36 @@ export default function Editor({
       <ExportStage config={config} />
 
       {composeOpen && (
-        <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) setComposeOpen(false); }}>
-          <section className="composer-dialog" role="dialog" aria-modal="true" aria-labelledby="composer-title">
+        <Dialog labelId="composer-title" onDismiss={() => setComposeOpen(false)} initialFocus={sourceRef}>
+          <section className="composer-dialog">
             <div className="dialog-header">
-              <div><span className="dialog-icon"><Sparkles size={17} /></span><div><h2 id="composer-title">Create a carousel</h2><p>Start with raw text or bring a config from Claude or Codex.</p></div></div>
+              <div><span className="dialog-icon"><Sparkles size={17} /></span><div><h2 id="composer-title">Create slides</h2></div></div>
               <button type="button" onClick={() => setComposeOpen(false)} aria-label="Close"><X size={18} /></button>
             </div>
             <div className="mode-tabs">
-              <button className={composeMode === "text" ? "active" : ""} type="button" onClick={() => setComposeMode("text")}>Paste text</button>
-              <button className={composeMode === "json" ? "active" : ""} type="button" onClick={() => setComposeMode("json")}>JSON config</button>
+              <button aria-pressed={composeMode === "text"} className={composeMode === "text" ? "active" : ""} type="button" onClick={() => setComposeMode("text")}>Paste text</button>
+              <button aria-pressed={composeMode === "json"} className={composeMode === "json" ? "active" : ""} type="button" onClick={() => setComposeMode("json")}>JSON config</button>
             </div>
             {composeMode === "text" ? (
               <div className="composer-body">
                 <label htmlFor="source-text">Source text</label>
-                <textarea id="source-text" rows={12} value={sourceText} onChange={(event) => setSourceText(event.target.value)} placeholder="Paste an article, notes, or a rough idea. Separate sections with blank lines for more control…" />
+                <textarea ref={sourceRef} id="source-text" rows={12} value={sourceText} onChange={(event) => setSourceText(event.target.value)} placeholder="Paste an article, notes, or a rough idea. Separate sections with blank lines for more control…" />
                 <p>Vertica turns each paragraph into a slide. You can edit every word afterward.</p>
               </div>
             ) : (
               <div className="composer-body">
                 <div className="json-label"><label htmlFor="json-config">Carousel config</label><button type="button" onClick={copyAiPrompt}><Copy size={13} /> Copy AI prompt</button></div>
-                <textarea className="json-editor" id="json-config" rows={15} value={jsonText} onChange={(event) => setJsonText(event.target.value)} spellCheck={false} />
+                <textarea ref={sourceRef} className="json-editor" id="json-config" rows={15} value={jsonText} onChange={(event) => setJsonText(event.target.value)} spellCheck={false} />
                 <p>Ask Claude or Codex to return this shape, then paste the result here.</p>
               </div>
             )}
+            {composeMessage && <p className={`composer-message ${composeMessage.kind}`} role="status">{composeMessage.message}</p>}
             <div className="dialog-footer"><button className="secondary-button" type="button" onClick={() => setComposeOpen(false)}>Cancel</button><button className="primary-button" type="button" onClick={applyComposer}><Sparkles size={15} /> {composeMode === "text" ? "Create slides" : "Apply config"}</button></div>
           </section>
-        </div>
+        </Dialog>
       )}
+
+      {readerOpen && <ReaderPreview config={config} initialIndex={selectedIndex} onClose={() => setReaderOpen(false)} />}
 
       {mediaOpen && <MediaPicker onChoose={chooseMedia} onClose={() => setMediaOpen(null)} />}
 

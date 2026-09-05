@@ -7,6 +7,7 @@ import {
   BRAND_MARK,
   bodyParagraphs,
   generateCarouselFromText,
+  duplicateCarouselConfig,
   imageCapacity,
   normalizeLayout,
   parseCarouselConfig,
@@ -349,4 +350,28 @@ test("everything is branded AI Engineer unless a deck says otherwise", () => {
   const generated = generateCarouselFromText("An opening idea.\n\nA supporting point that explains it.");
   assert.equal(generated.mark, BRAND_MARK);
   assert.equal(generated.author, BRAND_FOOTER);
+});
+
+
+test("duplicating a deck preserves its content and media with independent slide identities", () => {
+  const original = parseCarouselConfig(JSON.stringify({
+    title: "A".repeat(100), author: "Owain", avatar: "img:avatar", numbering: "fraction",
+    slides: [
+      { id: "cover", layout: "cover", title: "A headline", background: "img:photo", veil: 0.25 },
+      { id: "photos", layout: "photos", title: "Pictures", images: ["img:one", "img:two"] },
+    ],
+  }));
+  const before = structuredClone(original);
+  const copy = duplicateCarouselConfig(original);
+  const secondCopy = duplicateCarouselConfig(original);
+  assert.equal(copy.title.length, 100);
+  assert.ok(copy.title.endsWith(" (copy)"));
+  assert.equal(copy.avatar, original.avatar);
+  assert.equal(copy.numbering, original.numbering);
+  assert.deepEqual(copy.slides.map((slide) => ({ ...slide, id: undefined })), original.slides.map((slide) => ({ ...slide, id: undefined })));
+  const ids = [...original.slides, ...copy.slides, ...secondCopy.slides].map((slide) => slide.id);
+  assert.equal(new Set(ids).size, ids.length);
+  copy.slides[1].images.push("img:three");
+  copy.slides[0].title = "Changed";
+  assert.deepEqual(original, before, "editing the copy never changes the source deck");
 });

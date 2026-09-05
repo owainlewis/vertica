@@ -654,3 +654,11 @@ ${JSON.stringify(
 SOURCE TEXT:
 `;
 }
+
+/** A reusable deck gets independent slide IDs while durable image references stay shared. */
+export function duplicateCarouselConfig(config: CarouselConfig): CarouselConfig {
+  const copy = structuredClone(config);
+  copy.title = `${config.title.slice(0, 93)} (copy)`;
+  copy.slides = copy.slides.map((slide) => ({ ...slide, id: `slide-${crypto.randomUUID()}` }));
+  return copy;
+}
