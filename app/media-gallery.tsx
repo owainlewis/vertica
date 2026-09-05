@@ -107,30 +107,27 @@ export default function MediaGallery() {
   }
 
   return (
-    <div className="dashboard media-page">
-      <header className="dashboard-bar">
-        <div><strong>Media</strong><span>Reusable carousel backgrounds</span></div>
-        <button className="export-button" type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>
-          {uploading ? <LoaderCircle className="spin" size={15} /> : <Upload size={15} />}
-          {uploading ? `Uploading ${uploadCount}…` : "Upload images"}
-        </button>
-        <input
-          ref={inputRef}
-          className="visually-hidden"
-          type="file"
-          tabIndex={-1}
-          aria-hidden="true"
-          accept={SUPPORTED_IMAGE_ACCEPT}
-          multiple
-          onChange={(event) => { if (event.target.files) void upload(event.target.files); }}
-        />
-      </header>
+    <main className="dashboard media-page">
+      <input
+        ref={inputRef}
+        className="visually-hidden"
+        type="file"
+        tabIndex={-1}
+        aria-hidden="true"
+        accept={SUPPORTED_IMAGE_ACCEPT}
+        multiple
+        onChange={(event) => { if (event.target.files) void upload(event.target.files); }}
+      />
 
       <section className="dashboard-body media-body">
         <div className="dashboard-heading">
-          <div><h1>Media library</h1><p>Upload once, then reuse images across any carousel.</p></div>
-          <p>{media === null ? "Loading…" : `${media.length} image${media.length === 1 ? "" : "s"}`}</p>
+          <h1>Media library</h1>
+          <button className="export-button" type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>
+            {uploading ? <LoaderCircle className="spin" size={15} /> : <Upload size={15} />}
+            {uploading ? `Uploading ${uploadCount}…` : "Upload images"}
+          </button>
         </div>
+
 
         {error && <p className="dashboard-error" role="status">{error}</p>}
 
@@ -149,14 +146,6 @@ export default function MediaGallery() {
           <span><strong>Drop images here</strong><small>They are resized for carousel backgrounds and stored in your library.</small></span>
           <button className="secondary-button" type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>Choose files</button>
         </div>
-
-        {media !== null && media.length === 0 && !error && (
-          <div className="empty-state media-empty">
-            <h2>Build your background library</h2>
-            <p>Upload office shots, portraits, textures, and any other images you use often.</p>
-            <button className="export-button" type="button" onClick={() => inputRef.current?.click()}><Upload size={15} /> Upload images</button>
-          </div>
-        )}
 
         <ul className="media-grid">
           {(media ?? []).map((asset) => (
@@ -184,6 +173,6 @@ export default function MediaGallery() {
           </button>
         )}
       </section>
-    </div>
+    </main>
   );
 }

@@ -1,4 +1,4 @@
-import { Download, Images, LoaderCircle, Plus, Trash2 } from "lucide-react";
+import { ArrowUpRight, Download, Images, Layers, LoaderCircle, Plus, Search, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   deleteCarousel,
@@ -91,6 +91,16 @@ export default function Dashboard({
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState("updated");
+  const visibleCarousels = useMemo(() => {
+    const search = query.trim().toLocaleLowerCase();
+    return (carousels ?? [])
+      .filter((carousel) => carousel.title.toLocaleLowerCase().includes(search))
+      .sort((a, b) => sort === "title"
+        ? a.title.localeCompare(b.title)
+        : Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+  }, [carousels, query, sort]);
   // Downloading needs the slides on the page, so the chosen deck is mounted
   // offscreen and rasterised once React has painted it.
   const [pending, setPending] = useState<{ config: CarouselConfig; title: string; kind: "pdf" | "zip" } | null>(null);
@@ -164,50 +174,58 @@ export default function Dashboard({
 
   return (
     <main className="dashboard">
-      <header className="dashboard-bar">
-        <div><strong>Carousels</strong><span>Every deck, saved as you work</span></div>
-        <button className="export-button" type="button" onClick={onCreate}><Plus size={15} /> New carousel</button>
-      </header>
-
       <section className="dashboard-body">
         <div className="dashboard-heading">
           <h1>Your carousels</h1>
-          <p>{carousels === null ? "Loading…" : `${carousels.length} saved`}</p>
+          <button className="export-button" type="button" onClick={onCreate}><Plus size={18} /> New carousel</button>
+        </div>
+
+        <div className="library-toolbar">
+          <div className="library-filters">
+            <label className="library-search"><Search size={16} aria-hidden="true" /><input type="search" aria-label="Search carousels" placeholder="Search carousels…" value={query} onChange={(event) => setQuery(event.target.value)} />{query && <button type="button" aria-label="Clear search" onClick={() => setQuery("")}><X size={14} /></button>}</label>
+            <select aria-label="Sort carousels" value={sort} onChange={(event) => setSort(event.target.value)}><option value="updated">Last edited</option><option value="title">Name A–Z</option></select>
+          </div>
         </div>
 
         {error && <p className="dashboard-error" role="status">{error}</p>}
 
         {carousels !== null && carousels.length === 0 && !error && (
           <div className="empty-state">
+            <Layers size={36} strokeWidth={1.2} aria-hidden="true" />
             <h2>Nothing saved yet</h2>
-            <p>Make a carousel and it is kept here automatically. No files to manage.</p>
             <button className="export-button" type="button" onClick={onCreate}><Plus size={15} /> New carousel</button>
           </div>
         )}
 
+        {carousels === null && !error && <div className="library-loading" role="status"><LoaderCircle className="spin" size={20} /> Loading your library…</div>}
+        {carousels !== null && carousels.length > 0 && visibleCarousels.length === 0 && (
+          <div className="empty-state"><Search size={28} aria-hidden="true" /><h2>No matching carousels</h2><p>Try another title or clear your search to see every deck.</p><button className="secondary-button" type="button" onClick={() => setQuery("")}>Clear search</button></div>
+        )}
+
         <ul className="gallery">
-          {(carousels ?? []).map((carousel) => (
+          {visibleCarousels.map((carousel) => (
             <li className="gallery-card" key={carousel.id}>
               <button className="card-open" type="button" onClick={() => onOpen(carousel.id)} aria-label={`Open ${carousel.title}`}>
                 <CardPreview carousel={carousel} images={covers} />
+                <span className="card-open-hint">Open carousel <ArrowUpRight size={16} /></span>
               </button>
               <div className="card-overlay">
                 <span className="card-meta">
-                  <strong>{carousel.title}</strong>
+                  <strong title={carousel.title}>{carousel.title}</strong>
                   <small>{carousel.slideCount} slide{carousel.slideCount === 1 ? "" : "s"} · edited {relativeDate(carousel.updatedAt)}</small>
                 </span>
                 <div className="card-actions">
-                <button type="button" onClick={() => download(carousel, "pdf")} disabled={busyId === carousel.id}>
+                <button type="button" onClick={() => download(carousel, "pdf")} disabled={busyId !== null} aria-label={`Download ${carousel.title} as PDF`}>
                   {busyId === carousel.id && pending?.kind === "pdf" ? <LoaderCircle className="spin" size={14} /> : <Download size={14} />}
                   PDF
                 </button>
-                <button type="button" onClick={() => download(carousel, "zip")} disabled={busyId === carousel.id} title="Numbered JPEGs, zipped, for Instagram">
+                <button type="button" onClick={() => download(carousel, "zip")} disabled={busyId !== null} aria-label={`Download ${carousel.title} as JPEGs`} title="Numbered JPEGs, zipped, for Instagram">
                   {busyId === carousel.id && pending?.kind === "zip" ? <LoaderCircle className="spin" size={14} /> : <Images size={14} />}
                   JPEGs
                 </button>
                 {confirmId === carousel.id ? (
                   <span className="confirm-delete">
-                    <button className="danger-action" type="button" onClick={() => remove(carousel.id)}>Delete</button>
+                    <button className="danger-action" type="button" disabled={busyId !== null} onClick={() => remove(carousel.id)}>Delete</button>
                     <button type="button" onClick={() => setConfirmId(null)}>Keep</button>
                   </span>
                 ) : (

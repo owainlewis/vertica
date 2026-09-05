@@ -81,14 +81,15 @@ function SignIn({ onDone }: { onDone: () => void }) {
 function AppNav({ active, onNavigate }: { active: "gallery" | "media" | "editor"; onNavigate: (kind: "gallery" | "media") => void }) {
   return (
     <nav className="app-nav" aria-label="Main navigation">
-      <button className="app-mark" type="button" onClick={() => onNavigate("gallery")} aria-label="Vertica home">V</button>
-      <button type="button" className={`app-nav-item ${active === "gallery" || active === "editor" ? "active" : ""}`} aria-current={active === "gallery" ? "page" : undefined} onClick={() => onNavigate("gallery")}>
-        <LayoutGrid size={18} /> Carousels
-      </button>
-      <button type="button" className={`app-nav-item ${active === "media" ? "active" : ""}`} aria-current={active === "media" ? "page" : undefined} onClick={() => onNavigate("media")}>
-        <Images size={18} /> Media
-      </button>
-      <span className="app-nav-foot">Vertica</span>
+      <button className="app-mark" type="button" onClick={() => onNavigate("gallery")} aria-label="Vertica home"><span className="app-symbol" aria-hidden="true">V</span><span>Vertica</span></button>
+      <div className="app-nav-links">
+        <button type="button" className={`app-nav-item ${active === "gallery" || active === "editor" ? "active" : ""}`} aria-current={active === "gallery" ? "page" : undefined} onClick={() => onNavigate("gallery")}>
+          <LayoutGrid size={18} /> Carousels
+        </button>
+        <button type="button" className={`app-nav-item ${active === "media" ? "active" : ""}`} aria-current={active === "media" ? "page" : undefined} onClick={() => onNavigate("media")}>
+          <Images size={18} /> Media
+        </button>
+      </div>
     </nav>
   );
 }
