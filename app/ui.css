@@ -1,0 +1,37 @@
+/* Utilities only: Tailwind's global reset would alter the exported slide artwork. */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/* shadcn semantic colours inherit Vertica's existing studio tokens. */
+@theme inline {
+  --color-background: var(--panel);
+  --color-foreground: var(--ink);
+  --color-primary: var(--accent);
+  --color-primary-foreground: #fff;
+  --color-secondary: var(--panel-2);
+  --color-secondary-foreground: var(--ink);
+  --color-muted: var(--panel-2);
+  --color-muted-foreground: var(--muted);
+  --color-accent: var(--accent-soft);
+  --color-accent-foreground: var(--accent-ink);
+  --color-destructive: var(--danger);
+  --color-input: var(--line-strong);
+  --color-ring: var(--accent);
+  --radius-md: var(--radius);
+}
+
+/* The small reset shadcn controls need, scoped away from the slide renderer. */
+@layer base {
+  [data-slot="button"], [data-slot="toggle"], [data-slot="toggle-group-item"] {
+    border: 0 solid transparent;
+    cursor: pointer;
+    font: inherit;
+    text-decoration: none;
+  }
+  [data-slot="button"][data-variant="outline"] { border: 1px solid var(--line-strong); }
+  [data-slot="button"] { height: var(--control-size); font-size: 13px; font-weight: 600; }
+  [data-slot="button"][data-size="icon"] { width: var(--control-size); }
+  [data-slot="button"][data-variant="ghost"] { background: transparent; }
+  [data-slot="input"] { border: 1px solid var(--line-strong); }
+}

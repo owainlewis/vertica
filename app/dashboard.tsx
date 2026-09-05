@@ -1,3 +1,4 @@
+import { Button } from "./components/ui/button";
 import { ArrowUpRight, Copy, Download, Images, Layers, LoaderCircle, Plus, Search, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -205,7 +206,7 @@ export default function Dashboard({
       <section className="dashboard-body">
         <div className="dashboard-heading">
           <h1>Your carousels</h1>
-          <button className="export-button" type="button" onClick={onCreate}><Plus size={18} /> New carousel</button>
+          <Button className="export-button" type="button" onClick={onCreate}><Plus size={18} /> New carousel</Button>
         </div>
 
         <div className="library-toolbar">
@@ -222,13 +223,13 @@ export default function Dashboard({
           <div className="empty-state">
             <Layers size={36} strokeWidth={1.2} aria-hidden="true" />
             <h2>Nothing saved yet</h2>
-            <button className="export-button" type="button" onClick={onCreate}><Plus size={15} /> New carousel</button>
+            <Button className="export-button" type="button" onClick={onCreate}><Plus size={15} /> New carousel</Button>
           </div>
         )}
 
         {carousels === null && !error && <div className="library-loading" role="status"><LoaderCircle className="spin" size={20} /> Loading your library…</div>}
         {carousels !== null && carousels.length > 0 && visibleCarousels.length === 0 && (
-          <div className="empty-state"><Search size={28} aria-hidden="true" /><h2>No matching carousels</h2><p>Try another title or clear your search to see every deck.</p><button className="secondary-button" type="button" onClick={() => setQuery("")}>Clear search</button></div>
+          <div className="empty-state"><Search size={28} aria-hidden="true" /><h2>No matching carousels</h2><p>Try another title or clear your search to see every deck.</p><Button variant="outline" className="secondary-button" type="button" onClick={() => setQuery("")}>Clear search</Button></div>
         )}
 
         <ul className="gallery">
