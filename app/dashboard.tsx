@@ -223,15 +223,14 @@ export default function Dashboard({
                   {busyId === carousel.id && pending?.kind === "zip" ? <LoaderCircle className="spin" size={14} /> : <Images size={14} />}
                   JPEGs
                 </button>
-                {confirmId === carousel.id ? (
+                <button className="danger-action" type="button" onClick={() => setConfirmId(carousel.id)} aria-label={`Delete ${carousel.title}`}>
+                  <Trash2 size={14} />
+                </button>
+                {confirmId === carousel.id && (
                   <span className="confirm-delete">
                     <button className="danger-action" type="button" disabled={busyId !== null} onClick={() => remove(carousel.id)}>Delete</button>
                     <button type="button" onClick={() => setConfirmId(null)}>Keep</button>
                   </span>
-                ) : (
-                  <button className="danger-action" type="button" onClick={() => setConfirmId(carousel.id)} aria-label={`Delete ${carousel.title}`}>
-                    <Trash2 size={14} />
-                  </button>
                 )}
                 </div>
               </div>

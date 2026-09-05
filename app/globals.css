@@ -572,6 +572,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .topbar-crumbs { display: none; }
 }
 @media (max-width: 840px) and (min-width: 641px) {
+  .studio-shell { grid-template-rows: 100px minmax(0, 1fr); }
+  .topbar { grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 8px 16px; }
+  .canvas-area { min-height: calc(100dvh - 100px); }
   .topbar-actions .generate-button span { display: none; }
   .topbar-actions button:not(.icon-button) { padding-inline: 10px; }
 }
