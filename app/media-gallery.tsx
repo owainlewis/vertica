@@ -107,30 +107,28 @@ export default function MediaGallery() {
   }
 
   return (
-    <div className="dashboard media-page">
-      <header className="dashboard-bar">
-        <div><strong>Media</strong><span>Reusable carousel backgrounds</span></div>
-        <button className="export-button" type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>
-          {uploading ? <LoaderCircle className="spin" size={15} /> : <Upload size={15} />}
-          {uploading ? `Uploading ${uploadCount}…` : "Upload images"}
-        </button>
-        <input
-          ref={inputRef}
-          className="visually-hidden"
-          type="file"
-          tabIndex={-1}
-          aria-hidden="true"
-          accept={SUPPORTED_IMAGE_ACCEPT}
-          multiple
-          onChange={(event) => { if (event.target.files) void upload(event.target.files); }}
-        />
-      </header>
+    <main className="dashboard media-page">
+      <input
+        ref={inputRef}
+        className="visually-hidden"
+        type="file"
+        tabIndex={-1}
+        aria-hidden="true"
+        accept={SUPPORTED_IMAGE_ACCEPT}
+        multiple
+        onChange={(event) => { if (event.target.files) void upload(event.target.files); }}
+      />
 
       <section className="dashboard-body media-body">
         <div className="dashboard-heading">
           <div><h1>Media library</h1><p>Upload once, then reuse images across any carousel.</p></div>
-          <p>{media === null ? "Loading…" : `${media.length} image${media.length === 1 ? "" : "s"}`}</p>
+          <button className="export-button" type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>
+            {uploading ? <LoaderCircle className="spin" size={15} /> : <Upload size={15} />}
+            {uploading ? `Uploading ${uploadCount}…` : "Upload images"}
+          </button>
         </div>
+
+        <div className="library-toolbar"><span className="library-count" role="status">{media === null ? (error ? "Library unavailable" : "Loading images…") : `${media.length} image${media.length === 1 ? "" : "s"}`}</span><span className="library-count">PNG, JPEG, GIF, AVIF & WebP</span></div>
 
         {error && <p className="dashboard-error" role="status">{error}</p>}
 
@@ -184,6 +182,6 @@ export default function MediaGallery() {
           </button>
         )}
       </section>
-    </div>
+    </main>
   );
 }
