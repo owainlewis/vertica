@@ -4,6 +4,8 @@ import { getSession, loadCarousel, resolveMedia, signIn, type CarouselSummary } 
 import { BRAND_FOOTER, BRAND_MARK, CarouselConfig } from "./carousel";
 import Dashboard from "./dashboard";
 import Editor, { type EditorHandle } from "./editor";
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
 import MediaGallery from "./media-gallery";
 
 type View =
@@ -57,7 +59,7 @@ function SignIn({ onDone }: { onDone: () => void }) {
         <span className="dialog-icon"><Lock size={17} /></span>
         <h1>Vertica</h1>
         <p>Enter the password to open your carousels.</p>
-        <input
+        <Input
           type="password"
           aria-label="Password"
           autoComplete="current-password"
@@ -65,9 +67,10 @@ function SignIn({ onDone }: { onDone: () => void }) {
           onChange={(event) => setPassword(event.target.value)}
         />
         {error && <span className="signin-error" role="status">{error}</span>}
-        <button className="export-button" type="submit" disabled={busy || !password}>
+        <Button className="export-button" type="submit" disabled={busy || !password}>
           {busy ? <LoaderCircle className="spin" size={15} /> : null} Sign in
-        </button>
+        </Button>
+        <a className="signin-home" href="/">Back to homepage</a>
       </form>
     </main>
   );
@@ -164,19 +167,19 @@ export default function App() {
 
   function createCarousel() {
     setView({ kind: "editor", key: `new-${Date.now().toString(36)}`, id: null, config: emptyConfig(), version: null });
-    window.history.pushState({}, "", "/");
+    window.history.pushState({}, "", "/?view=carousels");
   }
 
   function exitToGallery() {
     setView({ kind: "gallery" });
     setReloadToken((token) => token + 1);
-    window.history.pushState({}, "", "/");
+    window.history.pushState({}, "", "/?view=carousels");
   }
 
   function showLibrary(kind: "gallery" | "media") {
     setView({ kind });
     if (kind === "gallery") setReloadToken((token) => token + 1);
-    window.history.pushState({}, "", kind === "media" ? "/?view=media" : "/");
+    window.history.pushState({}, "", kind === "media" ? "/?view=media" : "/?view=carousels");
   }
 
   // Leaving an open deck through the rail flushes its queued edits first, the same

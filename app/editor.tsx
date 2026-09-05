@@ -1,3 +1,4 @@
+import { Button } from "./components/ui/button";
 import {
   ArrowDown,
   ArrowUp,
@@ -300,7 +301,7 @@ export default function Editor({
     const onPop = (event: PopStateEvent) => {
       if (!saveQueueRef.current?.dirty) return;
       event.stopImmediatePropagation();
-      const editorUrl = savedIdRef.current ? `/?id=${encodeURIComponent(savedIdRef.current)}` : "/";
+      const editorUrl = savedIdRef.current ? `/?id=${encodeURIComponent(savedIdRef.current)}` : "/?view=carousels";
       window.history.pushState(savedIdRef.current ? { id: savedIdRef.current } : {}, "", editorUrl);
       void flushSave().then((saved) => {
         if (saved && mounted.current) window.history.back();
@@ -474,15 +475,15 @@ export default function Editor({
           <input aria-label="Carousel title" maxLength={100} value={config.title} onChange={(event) => commit({ ...config, title: event.target.value }, "deck-title")} />
           <div className="save-indicator">
             {saveState === "stale" ? (
-              <button className="secondary-button" type="button" onClick={reloadStale} title="Someone else saved a newer version. Reloading discards the edits queued here.">Reload</button>
+              <Button variant="outline" className="secondary-button" type="button" onClick={reloadStale} title="Someone else saved a newer version. Reloading discards the edits queued here.">Reload</Button>
             ) : <span className="save-state" role="status">{SAVE_LABEL[saveState]}</span>}
           </div>
         </div>
         <div className="topbar-actions">
-          <button className="secondary-button icon-button" type="button" onClick={() => step("past")} disabled={depth.past === 0} title="Undo (⌘Z)" aria-label="Undo"><Undo2 size={15} /></button>
-          <button className="secondary-button icon-button" type="button" onClick={() => step("future")} disabled={depth.future === 0} title="Redo (⇧⌘Z)" aria-label="Redo"><Redo2 size={15} /></button>
-          <button className="secondary-button generate-button" type="button" onClick={() => openComposer("text")} aria-label="Create from text" title="Create from text"><Sparkles size={15} /> <span>Create from text</span></button>
-          <button className="secondary-button icon-button" type="button" onClick={() => setReaderOpen(true)} aria-label="Reader preview" title="Reader preview"><Eye size={16} /></button>
+          <Button variant="outline" className="secondary-button icon-button" type="button" onClick={() => step("past")} disabled={depth.past === 0} title="Undo (⌘Z)" aria-label="Undo"><Undo2 size={15} /></Button>
+          <Button variant="outline" className="secondary-button icon-button" type="button" onClick={() => step("future")} disabled={depth.future === 0} title="Redo (⇧⌘Z)" aria-label="Redo"><Redo2 size={15} /></Button>
+          <Button variant="outline" className="secondary-button generate-button" type="button" onClick={() => openComposer("text")} aria-label="Create from text" title="Create from text"><Sparkles size={15} /> <span>Create from text</span></Button>
+          <Button variant="outline" className="secondary-button icon-button" type="button" onClick={() => setReaderOpen(true)} aria-label="Reader preview" title="Reader preview"><Eye size={16} /></Button>
           <ExportMenu busy={Boolean(exporting)} onExport={(kind) => { void runExport(kind); }} />
         </div>
       </header>
@@ -699,7 +700,7 @@ export default function Editor({
               </div>
             )}
             {composeMessage && <p className={`composer-message ${composeMessage.kind}`} role="status">{composeMessage.message}</p>}
-            <div className="dialog-footer"><button className="secondary-button" type="button" onClick={() => setComposeOpen(false)}>Cancel</button><button className="primary-button" type="button" onClick={applyComposer}><Sparkles size={15} /> {composeMode === "text" ? "Create slides" : "Apply config"}</button></div>
+            <div className="dialog-footer"><Button variant="outline" className="secondary-button" type="button" onClick={() => setComposeOpen(false)}>Cancel</Button><Button className="primary-button" type="button" onClick={applyComposer}><Sparkles size={15} /> {composeMode === "text" ? "Create slides" : "Apply config"}</Button></div>
           </section>
         </Dialog>
       )}

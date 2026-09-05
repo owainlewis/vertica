@@ -1,3 +1,4 @@
+import { Button } from "./components/ui/button";
 import { ChevronDown, ImagePlus, LoaderCircle, Trash2, Upload } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { deleteMedia, listMedia, type MediaAsset } from "./api-client";
@@ -123,10 +124,10 @@ export default function MediaGallery() {
       <section className="dashboard-body">
         <div className="dashboard-heading">
           <h1>Media library</h1>
-          <button className="export-button" type="button" onClick={() => inputRef.current?.click()} disabled={uploading} aria-busy={uploading}>
+          <Button className="export-button" type="button" onClick={() => inputRef.current?.click()} disabled={uploading} aria-busy={uploading}>
             {uploading ? <LoaderCircle className="spin" size={15} /> : <Upload size={15} />}
             <BusyLabel busy={uploading} idle="Upload images" pending="Uploading…" />
-          </button>
+          </Button>
         </div>
 
 
@@ -145,7 +146,7 @@ export default function MediaGallery() {
         >
           <ImagePlus size={19} />
           <span><strong role="status">{uploading ? `Uploading… ${uploadCount} completed` : "Drop images here"}</strong><small>They are resized for carousel backgrounds and stored in your library.</small></span>
-          <button className="secondary-button" type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>Choose files</button>
+          <Button variant="outline" className="secondary-button" type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>Choose files</Button>
         </div>
 
         {media === null && !error && <div className="library-loading" role="status"><LoaderCircle className="spin" size={20} /> Loading images…</div>}
@@ -175,9 +176,9 @@ export default function MediaGallery() {
           ))}
         </ul>
         {nextCursor && (
-          <button className="secondary-button media-load-more" type="button" onClick={() => { void loadMore(); }} disabled={loadingMore} aria-busy={loadingMore}>
+          <Button variant="outline" className="secondary-button media-load-more" type="button" onClick={() => { void loadMore(); }} disabled={loadingMore} aria-busy={loadingMore}>
             {loadingMore ? <LoaderCircle className="spin" size={16} /> : <ChevronDown size={16} />}<BusyLabel busy={loadingMore} idle="Load more images" pending="Loading…" />
-          </button>
+          </Button>
         )}
       </section>
     </main>
