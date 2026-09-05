@@ -121,14 +121,13 @@ export default function MediaGallery() {
 
       <section className="dashboard-body media-body">
         <div className="dashboard-heading">
-          <div><h1>Media library</h1><p>Upload once, then reuse images across any carousel.</p></div>
+          <h1>Media library</h1>
           <button className="export-button" type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>
             {uploading ? <LoaderCircle className="spin" size={15} /> : <Upload size={15} />}
             {uploading ? `Uploading ${uploadCount}…` : "Upload images"}
           </button>
         </div>
 
-        <div className="library-toolbar"><span className="library-count" role="status">{media === null ? (error ? "Library unavailable" : "Loading images…") : `${media.length} image${media.length === 1 ? "" : "s"}`}</span><span className="library-count">PNG, JPEG, GIF, AVIF & WebP</span></div>
 
         {error && <p className="dashboard-error" role="status">{error}</p>}
 
@@ -147,14 +146,6 @@ export default function MediaGallery() {
           <span><strong>Drop images here</strong><small>They are resized for carousel backgrounds and stored in your library.</small></span>
           <button className="secondary-button" type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>Choose files</button>
         </div>
-
-        {media !== null && media.length === 0 && !error && (
-          <div className="empty-state media-empty">
-            <h2>Build your background library</h2>
-            <p>Upload office shots, portraits, textures, and any other images you use often.</p>
-            <button className="export-button" type="button" onClick={() => inputRef.current?.click()}><Upload size={15} /> Upload images</button>
-          </div>
-        )}
 
         <ul className="media-grid">
           {(media ?? []).map((asset) => (

@@ -176,12 +176,11 @@ export default function Dashboard({
     <main className="dashboard">
       <section className="dashboard-body">
         <div className="dashboard-heading">
-          <div><h1>Your carousels</h1><p>Every deck, saved as you work.</p></div>
+          <h1>Your carousels</h1>
           <button className="export-button" type="button" onClick={onCreate}><Plus size={18} /> New carousel</button>
         </div>
 
         <div className="library-toolbar">
-          <span className="library-count" role="status">{carousels === null ? (error ? "Library unavailable" : "Loading carousels…") : `${carousels.length} saved carousel${carousels.length === 1 ? "" : "s"}`}</span>
           <div className="library-filters">
             <label className="library-search"><Search size={16} aria-hidden="true" /><input type="search" aria-label="Search carousels" placeholder="Search carousels…" value={query} onChange={(event) => setQuery(event.target.value)} />{query && <button type="button" aria-label="Clear search" onClick={() => setQuery("")}><X size={14} /></button>}</label>
             <select aria-label="Sort carousels" value={sort} onChange={(event) => setSort(event.target.value)}><option value="updated">Last edited</option><option value="title">Name A–Z</option></select>
@@ -194,7 +193,6 @@ export default function Dashboard({
           <div className="empty-state">
             <Layers size={36} strokeWidth={1.2} aria-hidden="true" />
             <h2>Nothing saved yet</h2>
-            <p>Make a carousel and it is kept here automatically. No files to manage.</p>
             <button className="export-button" type="button" onClick={onCreate}><Plus size={15} /> New carousel</button>
           </div>
         )}

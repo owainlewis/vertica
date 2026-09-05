@@ -90,7 +90,6 @@ function AppNav({ active, onNavigate }: { active: "gallery" | "media" | "editor"
           <Images size={18} /> Media
         </button>
       </div>
-      <span className="app-nav-foot">Carousel studio</span>
     </nav>
   );
 }
