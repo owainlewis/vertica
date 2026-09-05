@@ -8,7 +8,7 @@ import { prepareImages } from "./image-upload";
 
 function imageDetails(asset: MediaAsset) {
   if (asset.width && asset.height) return `${asset.width} × ${asset.height}`;
-  return "Image";
+  return "Dimensions unavailable";
 }
 
 export default function MediaGallery() {
@@ -153,7 +153,11 @@ export default function MediaGallery() {
         <ul className="media-grid">
           {(media ?? []).map((asset) => (
             <li className="media-card" key={asset.key}>
-              <img src={mediaUrl(asset.key)} alt={asset.name} loading="lazy" />
+              <img src={mediaUrl(asset.key)} alt={asset.name} loading="lazy" onLoad={(event) => {
+                if (asset.width && asset.height) return;
+                const { naturalWidth: width, naturalHeight: height } = event.currentTarget;
+                if (width && height) setMedia((current) => current?.map((item) => item.key === asset.key ? { ...item, width, height } : item) ?? null);
+              }} />
               <div className="media-card-meta">
                 <span><strong>{asset.name}</strong><small>{imageDetails(asset)}</small></span>
                 {confirmKey === asset.key ? (
