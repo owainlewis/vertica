@@ -144,7 +144,7 @@ export default function MediaGallery() {
           }}
         >
           <ImagePlus size={19} />
-          <span><strong role="status">{uploading ? `Uploaded ${uploadCount} image${uploadCount === 1 ? "" : "s"}…` : "Drop images here"}</strong><small>They are resized for carousel backgrounds and stored in your library.</small></span>
+          <span><strong role="status">{uploading ? `Uploading… ${uploadCount} completed` : "Drop images here"}</strong><small>They are resized for carousel backgrounds and stored in your library.</small></span>
           <button className="secondary-button" type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>Choose files</button>
         </div>
 
@@ -158,8 +158,8 @@ export default function MediaGallery() {
                 <span><strong>{asset.name}</strong><small>{imageDetails(asset)}</small></span>
                 {confirmKey === asset.key ? (
                   <span className="media-confirm">
-                    <button type="button" className="danger-action" onClick={() => { void remove(asset); }} disabled={busyKey === asset.key}>
-                      Delete
+                    <button type="button" className="danger-action" onClick={() => { void remove(asset); }} disabled={busyKey === asset.key} aria-busy={busyKey === asset.key}>
+                      <BusyLabel busy={busyKey === asset.key} idle="Delete" pending="Deleting…" />
                     </button>
                     <button type="button" onClick={() => setConfirmKey(null)}>Keep</button>
                   </span>
