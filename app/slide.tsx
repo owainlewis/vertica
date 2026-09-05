@@ -117,7 +117,7 @@ export function Slide({
           style value past a few megabytes, and a data URL of a photograph is one. */}
       {background && <img className="slide-image" src={background} alt="" />}
       <div className="slide-overlay" />
-      <div className="slide-rules" />
+      <div className="slide-rules" aria-hidden="true">{Array.from({ length: 13 }, (_, index) => <span key={index} />)}</div>
       <header className="slide-head">
         {config.mark && <span className="slide-mark">{config.mark}</span>}
         <span className="slide-counter">{counter}</span>
