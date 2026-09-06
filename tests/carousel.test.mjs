@@ -42,13 +42,15 @@ test("themes survive JSON round trips and duplication without changing older dec
 
 test("AI Engineer chooses automatic grounds and alignment while preserving explicit choices", () => {
   const layouts = ["cover", "content", "note", "poster", "diagram", "photos", "closing"];
-  assert.deepEqual(layouts.map((layout) => slideTone({ layout }, "ai-engineer")), ["black", "paper", "paper", "black", "paper", "paper", "black"]);
+  assert.deepEqual(layouts.map((layout) => slideTone({ layout }, "ai-engineer")), ["black", "paper", "paper", "paper", "paper", "paper", "paper"]);
   assert.ok(layouts.every((layout) => slideTone({ layout }) === "paper"));
   assert.ok(layouts.every((layout) => slideAlign({ layout }, "ai-engineer") === "left"));
   assert.equal(slideAlign({ layout: "cover" }), "center");
   assert.equal(slideAlign({ layout: "cover", align: "center" }, "ai-engineer"), "center");
   assert.equal(slideTone({ layout: "cover", tone: "paper" }, "ai-engineer"), "paper");
   assert.equal(slideTone({ layout: "content", tone: "black" }, "ai-engineer"), "black");
+  assert.equal(slideTone({ layout: "poster", tone: "sage" }, "ai-engineer"), "paper");
+  assert.equal(slideTone({ layout: "poster", tone: "sage" }, "editorial"), "sage");
 });
 
 test("generating slides and copying the AI prompt preserve the chosen theme", () => {
@@ -57,7 +59,8 @@ test("generating slides and copying the AI prompt preserve the chosen theme", ()
   assert.ok(deck.slides.every((slide) => slide.tone === undefined));
   const prompt = aiPrompt(deck);
   assert.match(prompt, /"theme": "ai-engineer"/);
-  assert.match(prompt, /Geist type, forest, cream and sand/);
+  assert.match(prompt, /Geist type, a forest cover and soft-grey slides/);
+  assert.doesNotMatch(prompt, /"tone": "paper \| sage \| black"/);
   assert.match(prompt, /font-family="inherit"/);
   assert.doesNotMatch(prompt, /one short serif statement|for a highlighter stroke/);
   assert.match(aiPrompt({ ...deck, theme: "editorial" }), /one short serif statement/);

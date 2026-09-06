@@ -414,10 +414,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .carousel-slide.template-ai-engineer {
   --font-sans: "Geist", "Helvetica Neue", Arial, sans-serif;
   --ink: #0c110f;
-  --paper: #f2eee4;
+  --paper: #efeeea;
   --rule: rgb(12 17 15 / .18);
-  --phrase: #79552d;
-  --veil-rgb: 242 238 228;
+  --phrase: #424940;
+  --veil-rgb: 239 238 234;
   font-family: var(--font-sans);
 }
 .template-ai-engineer.tone-black {
@@ -426,13 +426,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   --rule: #29332f;
   --phrase: #cfad82;
   --veil-rgb: 12 17 15;
-}
-.template-ai-engineer.tone-sage {
-  --ink: #0c110f;
-  --paper: #cfad82;
-  --rule: rgb(12 17 15 / .22);
-  --phrase: #38291a;
-  --veil-rgb: 207 173 130;
 }
 .template-ai-engineer .slide-rules { display: none; }
 .template-ai-engineer .slide-head, .template-ai-engineer .slide-meta { font-size: 2.7cqw; }
