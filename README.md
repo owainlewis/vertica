@@ -117,13 +117,15 @@ Choose **Editorial** or **AI Engineer** in the editor's **Design → Carousel th
 The theme applies to the whole deck and is saved, duplicated, imported and exported
 with it. Existing decks default to Editorial.
 
-AI Engineer pairs bundled Geist regular and italic fonts with forest (`#0c110f`),
-cream (`#f2eee4`) and sand (`#cfad82`). Unset backgrounds use forest for covers,
-posters and closing slides, and cream for the other layouts. In this theme the
-stored tones `paper`, `sage` and `black` mean Cream, Sand and Forest. Explicit
-background and alignment choices survive switching themes. Automatic alignment is
-left. Italic and bold phrases use sand on forest and darker accents on light
-backgrounds. Body copy is larger, so keep teaching slides to about 30 words.
+AI Engineer pairs bundled Geist regular and italic fonts with a forest cover
+(`#0c110f`) and soft-grey slides (`#efeeea`, the same paper as Editorial). Unset
+backgrounds use forest for covers and soft grey for every other layout, including
+posters and closing slides. Choose Soft grey (`paper`) or Forest (`black`) for an
+explicit background. Older AI Engineer decks with `sage` tones also render soft
+grey; their stored choices are kept so switching to Editorial restores sage.
+Alignment choices survive switching themes. Automatic alignment is left. Forest
+slides keep cream text and sand emphasis; light slides use dark ink and muted
+green emphasis. Body copy is larger, so keep teaching slides to about 30 words.
 AI Engineer diagrams inherit the theme font unless their markup sets a font explicitly;
 use `font-family="inherit"` for labels that should follow the deck.
 

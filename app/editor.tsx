@@ -655,12 +655,12 @@ export default function Editor({
                 <option value="editorial">Editorial</option>
                 <option value="ai-engineer">AI Engineer</option>
               </select><ChevronDown size={14} /></div>
-              <p className="field-hint">{theme === "ai-engineer" ? "Geist type with forest, cream and sand. Applies to every slide." : "Signifier headlines on paper, sage and black. Applies to every slide."}</p>
+              <p className="field-hint">{theme === "ai-engineer" ? "Geist type with a dark cover and soft-grey slides. Applies to every slide." : "Signifier headlines on paper, sage and black. Applies to every slide."}</p>
               <h3 className="settings-heading settings-divider">This slide</h3>
               <span className="field-label">Background colour</span>
               <div className="segmented" aria-label="Slide ground colour">
-                <button type="button" aria-pressed={activeTone === "paper"} className={activeTone === "paper" ? "active" : ""} onClick={() => updateSlide({ tone: "paper" })}>{theme === "ai-engineer" ? "Cream" : "Paper"}</button>
-                <button type="button" aria-pressed={activeTone === "sage"} className={activeTone === "sage" ? "active" : ""} onClick={() => updateSlide({ tone: "sage" })}>{theme === "ai-engineer" ? "Sand" : "Sage"}</button>
+                <button type="button" aria-pressed={activeTone === "paper"} className={activeTone === "paper" ? "active" : ""} onClick={() => updateSlide({ tone: "paper" })}>{theme === "ai-engineer" ? "Soft grey" : "Paper"}</button>
+                {theme === "editorial" && <button type="button" aria-pressed={activeTone === "sage"} className={activeTone === "sage" ? "active" : ""} onClick={() => updateSlide({ tone: "sage" })}>Sage</button>}
                 <button type="button" aria-pressed={activeTone === "black"} className={activeTone === "black" ? "active" : ""} onClick={() => updateSlide({ tone: "black" })}>{theme === "ai-engineer" ? "Forest" : "Black"}</button>
               </div>
               {theme === "ai-engineer" && <button type="button" className="text-button subtle" disabled={!selectedSlide.tone} onClick={() => updateSlide({ tone: undefined })}>Use automatic background</button>}

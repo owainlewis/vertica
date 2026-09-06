@@ -25,8 +25,11 @@ export function carouselTheme(value: unknown): CarouselTheme {
 
 /** Stored tones stay intact when switching themes. Only an unset tone is automatic. */
 export function slideTone(slide: CarouselSlide, theme?: CarouselTheme): EditorialTone {
+  // Older AI Engineer decks used the sage slot for sand. Keep the stored choice
+  // for Editorial, but render it as the same soft grey as other light slides.
+  if (theme === "ai-engineer" && slide.tone === "sage") return "paper";
   if (slide.tone) return slide.tone;
-  return theme === "ai-engineer" && ["cover", "poster", "closing"].includes(slide.layout) ? "black" : "paper";
+  return theme === "ai-engineer" && slide.layout === "cover" ? "black" : "paper";
 }
 /** Where the text block sits in the frame, independent of colour. */
 export type SlidePosition = "top" | "middle" | "bottom";
@@ -683,7 +686,7 @@ Rules:
 - "note" is one plain sans statement of two or three lines, for an aside or a turn in the story. Title only. Wrap the phrase that matters in **double asterisks** for bold. Use it up to twice.
 - "photos" holds photographs the author adds later, under a one-line title. Title only. Use it only when the source describes pictures.
 - "diagram" draws an inline SVG as a centred figure with the title as its one-line caption. Title only. Use it for architecture, flows and comparisons: one per deck, two at most. Put the SVG in "diagram". Rules for the drawing: viewBox="0 0 800 500", no width or height attributes, stroke="currentColor" and fill="none" for shapes, fill="currentColor" for text, stroke-width 2, rx 8 on boxes, font-family="${branded ? "inherit" : "Helvetica Neue, Helvetica, Arial, sans-serif"}", labels ${branded ? "34px and notes 28px" : "24px and notes 18px"}, nothing smaller, at most six boxes, arrows drawn with a line plus a small polygon head, generous space, no colour, no gradients, no scripts.
-- ${branded ? 'The theme is "ai-engineer": Geist type, forest, cream and sand. Keep body copy to 30 words or fewer. Omit "tone" for automatic forest covers, posters and closings, and cream teaching slides. Explicit tones: "paper" is cream, "black" is forest, "sage" is sand with dark text. Italic and bold phrases use a contrasting accent.' : '"tone" is optional. Put "sage" on one poster at most; otherwise omit it for paper. Every text element on a page uses the same ink colour.'}
+- ${branded ? 'The theme is "ai-engineer": Geist type, a forest cover and soft-grey slides. Keep body copy to 30 words or fewer. Omit "tone" for an automatic forest cover and soft grey on every other layout. Explicit tones: "paper" is soft grey and "black" is forest. Do not use "sage" in this theme. Italic and bold phrases use a contrasting accent.' : '"tone" is optional. Put "sage" on one poster at most; otherwise omit it for paper. Every text element on a page uses the same ink colour.'}
 - "mark" is the series label at the top of every slide. Keep it short and in sentence case.
 - Per slide, "showHeader": false hides the series label and page number; "showFooter": false hides the author and swipe arrow. Both default to visible. Set both to false for main text only.
 
@@ -698,7 +701,7 @@ ${JSON.stringify(
       slides: [
         {
           layout: "cover | content | note | poster | diagram | photos | closing",
-          tone: "paper | sage | black",
+          tone: branded ? "paper | black" : "paper | sage | black",
           title: "Slide headline",
           body: "Optional supporting copy",
           showHeader: true,
