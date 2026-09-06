@@ -79,6 +79,8 @@ export function Slide({
     "--title-tracking": `${scale.tracking}em`,
     "--title-leading": `${scale.leading}`,
     "--body-size": `${scale.body}cqw`,
+    "--note-size": `${scale.note}cqw`,
+    "--metadata-size": `${scale.metadata}cqw`,
     "--veil": String(slide.veil ?? DEFAULT_VEIL),
   } as CSSProperties;
 
@@ -113,8 +115,8 @@ export function Slide({
     config.mark ? "has-mark" : "",
     pictures.length ? `has-pictures pictures-${pictures.length} photos-${photoArrangement(pictures.length)}` : "",
     diagram ? "has-diagram" : "",
-    // A one-word poster ("But…") is a beat, not a sentence, and gets set larger.
-    isPoster && slide.title.replace(/[*|]/g, "").trim().length <= 10 ? "title-short" : "",
+    // Only brief beats ("But…") get enlarged; longer words need room to stay whole.
+    isPoster && slide.title.replace(/[*|]/g, "").trim().length <= 6 ? "title-short" : "",
     exportMode ? "export-slide" : "",
   ].filter(Boolean).join(" ");
 

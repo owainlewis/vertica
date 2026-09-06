@@ -646,27 +646,30 @@ function clamp(value: number, low: number, high: number) {
 }
 
 /**
- * One type scale for every carousel, in container width so the preview and the
- * export are the same drawing at different sizes. Signifier is set close to its
- * natural fit: the tight tracking it used to get made "How I built" read as one word.
+ * Shared reading sizes keep both themes legible at phone width. Display sizes
+ * account for Signifier's lighter shapes and Geist's heavier weight. Container
+ * width units keep previews and exports the same drawing at different sizes.
  */
 export const TYPE_SCALE = {
   /** Headline size on content and closing slides. */
-  title: 10.2,
-  /** The cover runs larger and is the only headline that does. */
-  cover: 12.4,
+  title: 10.6,
+  /** The cover introduces the deck with a larger headline. */
+  cover: 12.8,
   /** Posters treat the sentence as the picture. */
-  poster: 13.2,
-  body: 3.3,
+  poster: 13.6,
+  /** About 16px at a 390px feed width; also used for cover subtitles. */
+  body: 4,
+  note: 6,
+  metadata: 2.7,
   tracking: -0.02,
   leading: 0.98,
 } as const;
 
 export const AI_ENGINEER_TYPE_SCALE = {
-  title: 9.6,
-  cover: 11,
-  poster: 12.4,
-  body: 4,
+  ...TYPE_SCALE,
+  title: 9.2,
+  cover: 10.6,
+  poster: 11.8,
   tracking: -0.035,
   leading: 1.06,
 } as const;
@@ -685,7 +688,7 @@ Rules:
 - "poster" is one short ${branded ? "sans" : "serif"} statement, eight words or fewer. Title only. Use it for the strongest line, no more than twice.
 - "note" is one plain sans statement of two or three lines, for an aside or a turn in the story. Title only. Wrap the phrase that matters in **double asterisks** for bold. Use it up to twice.
 - "photos" holds photographs the author adds later, under a one-line title. Title only. Use it only when the source describes pictures.
-- "diagram" draws an inline SVG as a centred figure with the title as its one-line caption. Title only. Use it for architecture, flows and comparisons: one per deck, two at most. Put the SVG in "diagram". Rules for the drawing: viewBox="0 0 800 500", no width or height attributes, stroke="currentColor" and fill="none" for shapes, fill="currentColor" for text, stroke-width 2, rx 8 on boxes, font-family="${branded ? "inherit" : "Helvetica Neue, Helvetica, Arial, sans-serif"}", labels ${branded ? "34px and notes 28px" : "24px and notes 18px"}, nothing smaller, at most six boxes, arrows drawn with a line plus a small polygon head, generous space, no colour, no gradients, no scripts.
+- "diagram" draws an inline SVG as a centred figure with the title as its one-line caption. Title only. Use it for architecture, flows and comparisons: one per deck, two at most. Put the SVG in "diagram". Rules for the drawing: viewBox="0 0 800 500", no width or height attributes, stroke="currentColor" and fill="none" for shapes, fill="currentColor" for text, stroke-width 2, rx 8 on boxes, font-family="${branded ? "inherit" : "Helvetica Neue, Helvetica, Arial, sans-serif"}", labels 34px and notes 28px, nothing smaller, at most six boxes, arrows drawn with a line plus a small polygon head, generous space, no colour, no gradients, no scripts.
 - ${branded ? 'The theme is "ai-engineer": Geist type, a forest cover and soft-grey slides. Keep body copy to 30 words or fewer. Omit "tone" for an automatic forest cover and soft grey on every other layout. Explicit tones: "paper" is soft grey and "black" is forest. Do not use "sage" in this theme. Italic and bold phrases use a contrasting accent.' : '"tone" is optional. Put "sage" on one poster at most; otherwise omit it for paper. Every text element on a page uses the same ink colour.'}
 - "mark" is the series label at the top of every slide. Keep it short and in sentence case.
 - Per slide, "showHeader": false hides the series label and page number; "showFooter": false hides the author and swipe arrow. Both default to visible. Set both to false for main text only.

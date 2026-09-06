@@ -231,10 +231,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
    slide itself, so the 520px preview and the 1080px export are the same drawing.
    --------------------------------------------------------------------------- */
 .carousel-slide {
-  --title-size: 10.2cqw;
-  --title-tracking: -.02em;
-  --title-leading: .98;
-  --body-size: 3.9cqw;
   --ink: #1a1a17;
   --paper: #efeeea;
   --rule: rgb(26 26 23 / .05);
@@ -296,7 +292,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 /* Furniture: series label top-left, page number top-right, identity bottom-left,
    swipe arrow bottom-right. Sentence case and a light weight, so it holds the frame
    without competing with the headline. */
-.slide-head, .slide-meta { position: absolute; z-index: 2; left: var(--margin); right: var(--margin); display: flex; align-items: center; justify-content: space-between; gap: 6%; color: var(--ink); font-family: var(--font-sans); font-size: 2.1cqw; font-weight: 500; line-height: 1; letter-spacing: 0; }
+.slide-head, .slide-meta { position: absolute; z-index: 2; left: var(--margin); right: var(--margin); display: flex; align-items: center; justify-content: space-between; gap: 6%; color: var(--ink); font-family: var(--font-sans); font-size: var(--metadata-size); font-weight: 500; line-height: 1; letter-spacing: 0; }
 .slide-head { top: 8.2%; }
 .slide-meta { bottom: 7.4%; }
 .slide-head span, .slide-meta span { min-width: 0; }
@@ -313,8 +309,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .title-hang .title-line:first-child { text-indent: -.36em; }
 /* Body copy is Helvetica, the way the reference decks pair a serif headline with a plain
    sans paragraph. Regular weight, a touch of negative tracking, open leading. */
-.slide-content p { max-width: 90%; margin: .8em 0 0; color: var(--ink); font-family: var(--font-sans); font-size: var(--body-size); font-weight: 400; line-height: 1.32; letter-spacing: -.022em; font-kerning: normal; text-wrap: pretty; overflow-wrap: anywhere; }
-.slide-content h2 + p { margin-top: 1.6em; }
+.slide-content p { max-width: 90%; margin: .8em 0 0; color: var(--ink); font-family: var(--font-sans); font-size: var(--body-size); font-weight: 400; line-height: 1.4; letter-spacing: -.015em; font-kerning: normal; text-wrap: pretty; overflow-wrap: anywhere; }
+.slide-content h2 + p { margin-top: 1.4em; }
 
 .mark-italic { font-style: italic; }
 /* A highlighter stroke behind the phrase, drawn as a slightly skewed box so it reads
@@ -340,7 +336,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 /* Cover: the headline is the page. Its copy is a subtitle in sans, set low. */
 .layout-cover .slide-content { padding-inline: 6%; }
 .layout-cover .slide-content h2 { max-width: 100%; line-height: .92; }
-.layout-cover .slide-content p { position: absolute; left: 0; right: 0; bottom: 16%; max-width: none; margin: 0; padding: 0 12%; font-family: var(--font-sans); font-size: 2.6cqw; font-weight: 500; line-height: 1.3; letter-spacing: -.01em; }
+.layout-cover .slide-content p { position: absolute; left: 0; right: 0; bottom: 16%; max-width: none; margin: 0; padding: 0 12%; font-family: var(--font-sans); font-size: var(--body-size); font-weight: 400; line-height: 1.4; letter-spacing: -.01em; }
 /* With the headline already at the foot there is no room under it for a pinned
    subtitle, so it follows the headline in flow instead. */
 .layout-cover.pos-bottom .slide-content p { position: static; margin-top: 1.8em; padding: 0; }
@@ -355,7 +351,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .layout-poster.title-short .slide-content h2 { font-size: calc(var(--title-size) * 1.75); }
 
 .layout-closing .slide-content { padding-inline: 12%; }
-.layout-closing .slide-content p { max-width: 74%; }
+.layout-closing .slide-content p { max-width: 100%; }
 .layout-closing .slide-content h2 { max-width: 90%; }
 
 
@@ -405,7 +401,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 /* Note: one sans statement, no headline, bold for the phrase that matters. The
    plainer voice the reference decks switch to for an aside. */
 .layout-note .slide-content { padding-inline: var(--margin); }
-.layout-note .slide-content h2 { max-width: 94%; font-family: var(--font-sans); font-size: 5.4cqw; font-weight: 400; line-height: 1.16; letter-spacing: -.03em; }
+.layout-note .slide-content h2 { max-width: 94%; font-family: var(--font-sans); font-size: var(--note-size); font-weight: 400; line-height: 1.22; letter-spacing: -.025em; }
 .layout-note .mark-accent { padding: 0; margin: 0; background: none; font-weight: 700; }
 .layout-note .mark-italic { font-style: italic; }
 
@@ -428,20 +424,18 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   --veil-rgb: 12 17 15;
 }
 .template-ai-engineer .slide-rules { display: none; }
-.template-ai-engineer .slide-head, .template-ai-engineer .slide-meta { font-size: 2.7cqw; }
 .template-ai-engineer .slide-head { padding-bottom: 3cqw; border-bottom: .15cqw solid var(--rule); }
 .template-ai-engineer.has-background .slide-head { border-bottom: 0; }
 .template-ai-engineer .slide-content h2 { font-weight: 600; line-height: var(--title-leading); letter-spacing: var(--title-tracking); }
-.template-ai-engineer .slide-content p { max-width: 100%; line-height: 1.45; letter-spacing: -.015em; }
-.template-ai-engineer .slide-content h2 + p { margin-top: 1.2em; }
+.template-ai-engineer .slide-content p { max-width: 100%; }
 .template-ai-engineer .mark-italic, .template-ai-engineer .mark-accent { color: var(--phrase); }
 .template-ai-engineer .mark-accent { padding: 0; margin: 0; background: none; font-weight: 700; }
 .template-ai-engineer.layout-cover .slide-content,
 .template-ai-engineer.layout-poster .slide-content,
 .template-ai-engineer.layout-closing .slide-content { padding-inline: var(--margin); }
-.template-ai-engineer.layout-cover .slide-content p { left: var(--margin); right: var(--margin); padding: 0; font-size: var(--body-size); font-weight: 400; }
+.template-ai-engineer.layout-cover .slide-content p { left: var(--margin); right: var(--margin); padding: 0; }
 .template-ai-engineer.layout-cover.pos-bottom .slide-content p { margin-top: 1.2em; }
-.template-ai-engineer.layout-note .slide-content h2 { font-size: 6.4cqw; font-weight: 400; line-height: 1.25; letter-spacing: -.025em; }
+.template-ai-engineer.layout-note .slide-content h2 { font-weight: 400; line-height: 1.22; letter-spacing: -.025em; }
 .template-ai-engineer.layout-diagram .slide-content h2 { line-height: 1.16; }
 .template-ai-engineer .slide-diagram-empty { border-color: var(--rule); color: var(--ink); }
 .template-ai-engineer.has-background.pos-top .slide-overlay { background: linear-gradient(180deg, rgb(var(--veil-rgb) / .94) 0%, rgb(var(--veil-rgb) / .86) 36%, rgb(var(--veil-rgb) / .2) 58%, rgb(var(--veil-rgb) / 0) 72%); }

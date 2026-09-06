@@ -125,13 +125,20 @@ explicit background. Older AI Engineer decks with `sage` tones also render soft
 grey; their stored choices are kept so switching to Editorial restores sage.
 Alignment choices survive switching themes. Automatic alignment is left. Forest
 slides keep cream text and sand emphasis; light slides use dark ink and muted
-green emphasis. Body copy is larger, so keep teaching slides to about 30 words.
+green emphasis.
 AI Engineer diagrams inherit the theme font unless their markup sets a font explicitly;
 use `font-family="inherit"` for labels that should follow the deck.
 
 Set `"theme": "ai-engineer"` in a JSON config to use it; omit the field or use
 `"editorial"` for the original theme. Both themes use the same seven layouts and
 renderer in the gallery, editor, reader preview and PDF/JPEG export.
+
+Both themes share body, subtitle, note and metadata sizes for phone reading.
+Body copy is 4% of the slide width, about 16px in a 390px Instagram feed. Editorial
+headlines run slightly larger to balance Signifier's lighter shapes against Geist's
+semibold weight. Keep teaching slides to about 30 words for a comfortable pace.
+Generated diagrams use the same minimum label sizes in both themes; existing SVG
+font choices remain intact.
 
 Signifier for headlines, Helvetica for copy and furniture, paper ground with sage
 and black as the two alternative grounds. A faint twelve-column field sits under
