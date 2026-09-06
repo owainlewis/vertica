@@ -16,6 +16,18 @@ import { parseVideoBackground, type VideoBackground } from "./video-formats.ts";
  */
 export type SlideLayout = "cover" | "content" | "note" | "poster" | "diagram" | "photos" | "closing";
 export type EditorialTone = "paper" | "sage" | "black";
+export type CarouselTheme = "editorial" | "ai-engineer";
+
+/** Unknown themes use the original artwork, including documents written before themes. */
+export function carouselTheme(value: unknown): CarouselTheme {
+  return value === "ai-engineer" ? "ai-engineer" : "editorial";
+}
+
+/** Stored tones stay intact when switching themes. Only an unset tone is automatic. */
+export function slideTone(slide: CarouselSlide, theme?: CarouselTheme): EditorialTone {
+  if (slide.tone) return slide.tone;
+  return theme === "ai-engineer" && ["cover", "poster", "closing"].includes(slide.layout) ? "black" : "paper";
+}
 /** Where the text block sits in the frame, independent of colour. */
 export type SlidePosition = "top" | "middle" | "bottom";
 export type SlideAlign = "left" | "center";
@@ -107,8 +119,9 @@ export function slidePosition(slide: CarouselSlide): SlidePosition {
   return "middle";
 }
 
-export function slideAlign(slide: CarouselSlide): SlideAlign {
+export function slideAlign(slide: CarouselSlide, theme?: CarouselTheme): SlideAlign {
   if (slide.align) return slide.align;
+  if (theme === "ai-engineer") return "left";
   return slide.layout === "content" || slide.layout === "note" ? "left" : "center";
 }
 
@@ -116,6 +129,8 @@ export type CarouselConfig = {
   version: 1;
   title: string;
   author: string;
+  /** Omitted on older decks, which keep the Editorial theme. */
+  theme?: CarouselTheme;
   /**
    * A short series label set at the top of every slide. This is what makes a deck
    * recognisable mid-scroll: same words, same place, every slide. Deck-level on
@@ -275,6 +290,7 @@ export function parseCarouselConfig(input: string): CarouselConfig {
     title: limitedText(record.title, "Carousel title", 100, "Untitled carousel"),
     author: limitedText(record.author, "Author", 40) || BRAND_FOOTER,
     mark,
+    ...(record.theme !== undefined ? { theme: carouselTheme(record.theme) } : {}),
     ...(record.arrow === false ? { arrow: false } : {}),
     slides,
   };
@@ -535,7 +551,7 @@ const POSTER_MAX_WORDS = 8;
  * subtitle, content slides that explain, a short statement set as a poster now and
  * then, one of them on a sage ground, and a close.
  */
-export function generateCarouselFromText(source: string, author = BRAND_FOOTER): CarouselConfig {
+export function generateCarouselFromText(source: string, author = BRAND_FOOTER, theme?: CarouselTheme): CarouselConfig {
   const chunks = sentenceChunks(source);
   if (!chunks.length) throw new Error("Paste some source text first.");
   if (chunks.length > 10) {
@@ -556,7 +572,7 @@ export function generateCarouselFromText(source: string, author = BRAND_FOOTER):
 
     // The first big statement after the setup gets the colour, and only that one, so
     // the sage slide stays an event rather than a pattern.
-    const tone = !sageUsed && index >= 2 ? "sage" : undefined;
+    const tone = theme !== "ai-engineer" && !sageUsed && index >= 2 ? "sage" : undefined;
     if (tone) sageUsed = true;
     return { id: makeId(index), layout: "poster", title, body: "", ...(tone ? { tone } : {}) };
   });
@@ -566,6 +582,7 @@ export function generateCarouselFromText(source: string, author = BRAND_FOOTER):
     title: titleLines(slides[0].title).join(" ").replace(/[.!?]$/, ""),
     author: author.trim() || BRAND_FOOTER,
     mark: BRAND_MARK,
+    ...(theme ? { theme } : {}),
     slides,
   };
 }
@@ -642,7 +659,17 @@ export const TYPE_SCALE = {
   leading: 0.98,
 } as const;
 
+export const AI_ENGINEER_TYPE_SCALE = {
+  title: 9.6,
+  cover: 11,
+  poster: 12.4,
+  body: 4,
+  tracking: -0.035,
+  leading: 1.06,
+} as const;
+
 export function aiPrompt(config: CarouselConfig) {
+  const branded = config.theme === "ai-engineer";
   return `Create a minimal LinkedIn carousel from the source text below. Return JSON only, with no markdown fences.
 
 Rules:
@@ -650,13 +677,13 @@ Rules:
 - Titles: 10 words or fewer. Plain, concrete language. Sentence case, never capitals. No colons, no hype.
 - Put a "|" in a title to force a line break where the sense breaks. Use it on the cover and on any title of five words or more.
 - Bodies: 45 words or fewer. Separate paragraphs with a blank line. The cover body is its subtitle: one short line.
-- Wrap one word in *asterisks* for italic. Do this on the cover and on at most two other slides. Wrap one short phrase in **double asterisks** for a highlighter stroke, on one slide at most.
+- Wrap one word in *asterisks* for italic. Do this on the cover and on at most two other slides. Wrap one short phrase in **double asterisks** for ${branded ? "bold accent text" : "a highlighter stroke"}, on one slide at most.
 - Layouts: "cover" first, "closing" last. "content" is a headline with copy and does most of the work.
-- "poster" is one short serif statement, eight words or fewer. Title only. Use it for the strongest line, no more than twice.
+- "poster" is one short ${branded ? "sans" : "serif"} statement, eight words or fewer. Title only. Use it for the strongest line, no more than twice.
 - "note" is one plain sans statement of two or three lines, for an aside or a turn in the story. Title only. Wrap the phrase that matters in **double asterisks** for bold. Use it up to twice.
 - "photos" holds photographs the author adds later, under a one-line title. Title only. Use it only when the source describes pictures.
-- "diagram" draws an inline SVG as a centred figure with the title as its one-line caption. Title only. Use it for architecture, flows and comparisons: one per deck, two at most. Put the SVG in "diagram". Rules for the drawing: viewBox="0 0 800 500", no width or height attributes, stroke="currentColor" and fill="none" for shapes, fill="currentColor" for text, stroke-width 2, rx 8 on boxes, font-family="Helvetica Neue, Helvetica, Arial, sans-serif", labels 24px and notes 18px, nothing smaller, at most six boxes, arrows drawn with a line plus a small polygon head, generous space, no colour, no gradients, no scripts.
-- "tone" is optional. Put "sage" on one poster at most; otherwise omit it for paper. Every text element on a page uses the same ink colour.
+- "diagram" draws an inline SVG as a centred figure with the title as its one-line caption. Title only. Use it for architecture, flows and comparisons: one per deck, two at most. Put the SVG in "diagram". Rules for the drawing: viewBox="0 0 800 500", no width or height attributes, stroke="currentColor" and fill="none" for shapes, fill="currentColor" for text, stroke-width 2, rx 8 on boxes, font-family="${branded ? "inherit" : "Helvetica Neue, Helvetica, Arial, sans-serif"}", labels ${branded ? "34px and notes 28px" : "24px and notes 18px"}, nothing smaller, at most six boxes, arrows drawn with a line plus a small polygon head, generous space, no colour, no gradients, no scripts.
+- ${branded ? 'The theme is "ai-engineer": Geist type, forest, cream and sand. Keep body copy to 30 words or fewer. Omit "tone" for automatic forest covers, posters and closings, and cream teaching slides. Explicit tones: "paper" is cream, "black" is forest, "sage" is sand with dark text. Italic and bold phrases use a contrasting accent.' : '"tone" is optional. Put "sage" on one poster at most; otherwise omit it for paper. Every text element on a page uses the same ink colour.'}
 - "mark" is the series label at the top of every slide. Keep it short and in sentence case.
 - Per slide, "showHeader": false hides the series label and page number; "showFooter": false hides the author and swipe arrow. Both default to visible. Set both to false for main text only.
 
@@ -667,6 +694,7 @@ ${JSON.stringify(
       title: "Carousel title",
       author: config.author,
       mark: config.mark ?? BRAND_MARK,
+      theme: carouselTheme(config.theme),
       slides: [
         {
           layout: "cover | content | note | poster | diagram | photos | closing",

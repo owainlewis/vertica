@@ -1,4 +1,20 @@
 @font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/geist/Geist-Variable.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Geist";
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/geist/Geist-Italic-Variable.woff2") format("woff2");
+}
+
+@font-face {
   font-family: "Signifier";
   font-style: normal;
   font-weight: 400;
@@ -390,6 +406,54 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .layout-note .slide-content h2 { max-width: 94%; font-family: var(--font-sans); font-size: 5.4cqw; font-weight: 400; line-height: 1.16; letter-spacing: -.03em; }
 .layout-note .mark-accent { padding: 0; margin: 0; background: none; font-weight: 700; }
 .layout-note .mark-italic { font-style: italic; }
+
+/* AI Engineer shares the slide geometry. Its fonts and palette stay inside the
+   artwork so the editor, thumbnails, reader and export use the same drawing. */
+.carousel-slide.template-ai-engineer {
+  --font-sans: "Geist", "Helvetica Neue", Arial, sans-serif;
+  --ink: #0c110f;
+  --paper: #f2eee4;
+  --rule: rgb(12 17 15 / .18);
+  --phrase: #79552d;
+  --veil-rgb: 242 238 228;
+  font-family: var(--font-sans);
+}
+.template-ai-engineer.tone-black {
+  --ink: #f2eee4;
+  --paper: #0c110f;
+  --rule: #29332f;
+  --phrase: #cfad82;
+  --veil-rgb: 12 17 15;
+}
+.template-ai-engineer.tone-sage {
+  --ink: #0c110f;
+  --paper: #cfad82;
+  --rule: rgb(12 17 15 / .22);
+  --phrase: #38291a;
+  --veil-rgb: 207 173 130;
+}
+.template-ai-engineer .slide-rules { display: none; }
+.template-ai-engineer .slide-head, .template-ai-engineer .slide-meta { font-size: 2.7cqw; }
+.template-ai-engineer .slide-head { padding-bottom: 3cqw; border-bottom: .15cqw solid var(--rule); }
+.template-ai-engineer.has-background .slide-head { border-bottom: 0; }
+.template-ai-engineer .slide-content h2 { font-weight: 600; line-height: var(--title-leading); letter-spacing: var(--title-tracking); }
+.template-ai-engineer .slide-content p { max-width: 100%; line-height: 1.45; letter-spacing: -.015em; }
+.template-ai-engineer .slide-content h2 + p { margin-top: 1.2em; }
+.template-ai-engineer .mark-italic, .template-ai-engineer .mark-accent { color: var(--phrase); }
+.template-ai-engineer .mark-accent { padding: 0; margin: 0; background: none; font-weight: 700; }
+.template-ai-engineer.layout-cover .slide-content,
+.template-ai-engineer.layout-poster .slide-content,
+.template-ai-engineer.layout-closing .slide-content { padding-inline: var(--margin); }
+.template-ai-engineer.layout-cover .slide-content p { left: var(--margin); right: var(--margin); padding: 0; font-size: var(--body-size); font-weight: 400; }
+.template-ai-engineer.layout-cover.pos-bottom .slide-content p { margin-top: 1.2em; }
+.template-ai-engineer.layout-note .slide-content h2 { font-size: 6.4cqw; font-weight: 400; line-height: 1.25; letter-spacing: -.025em; }
+.template-ai-engineer.layout-diagram .slide-content h2 { line-height: 1.16; }
+.template-ai-engineer .slide-diagram-empty { border-color: var(--rule); color: var(--ink); }
+.template-ai-engineer.has-background.pos-top .slide-overlay { background: linear-gradient(180deg, rgb(var(--veil-rgb) / .94) 0%, rgb(var(--veil-rgb) / .86) 36%, rgb(var(--veil-rgb) / .2) 58%, rgb(var(--veil-rgb) / 0) 72%); }
+.template-ai-engineer.has-background.pos-middle .slide-overlay { background: linear-gradient(180deg, rgb(var(--veil-rgb) / 0) 8%, rgb(var(--veil-rgb) / .9) 34%, rgb(var(--veil-rgb) / .9) 66%, rgb(var(--veil-rgb) / 0) 92%); }
+.template-ai-engineer.has-background.pos-bottom .slide-overlay { background: linear-gradient(180deg, rgb(var(--veil-rgb) / 0) 28%, rgb(var(--veil-rgb) / .2) 42%, rgb(var(--veil-rgb) / .86) 64%, rgb(var(--veil-rgb) / .94) 100%); }
+.template-ai-engineer.has-background .slide-head,
+.template-ai-engineer.has-background .slide-meta { text-shadow: 0 0 1.2cqw rgb(var(--veil-rgb) / .9); }
 
 .font-warning { width: min(52vh, 520px, 100%); margin: 0 0 12px; padding: 9px 12px; border: 1px solid #ddc9a2; border-radius: var(--radius); background: #fbf5e8; color: #6d5a2c; font-size: 11px; line-height: 1.5; }
 .picture-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }

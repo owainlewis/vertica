@@ -33,6 +33,8 @@ import {
   assertBackgroundsAvailableForExport,
   CarouselConfig,
   CarouselSlide,
+  carouselTheme,
+  CarouselTheme,
   generateCarouselFromText,
   imageCapacity,
   parseCarouselConfig,
@@ -42,6 +44,7 @@ import {
   showsBody,
   slidePosition,
   SlidePosition,
+  slideTone,
   titleLines,
   usesImages,
 } from "./carousel";
@@ -76,7 +79,7 @@ const layoutHints: Record<SlideLayout, string> = {
   cover: "The headline large, with the supporting copy as a one-line subtitle at the foot.",
   content: "A headline with copy underneath. The workhorse.",
   note: "One plain sans statement, no headline. The title is the statement; **bold** marks the phrase that matters.",
-  poster: "One short serif statement, oversized. Title only.",
+  poster: "One short statement, oversized. Title only.",
   diagram: "An SVG figure with the headline as its caption. Title only. Bottom puts the caption under the figure, Top above it.",
   photos: "Pictures under a one-line title. One picture is a figure, two or three a filmstrip, four or more a grid.",
   closing: "A headline and one line to finish on.",
@@ -183,7 +186,9 @@ export default function Editor({
   const selectedSlide = config.slides[selectedIndex] ?? config.slides[0];
   const signifierMissing = useSignifierCheck();
   const activePosition = slidePosition(selectedSlide);
-  const activeAlign = slideAlign(selectedSlide);
+  const theme = carouselTheme(config.theme);
+  const activeAlign = slideAlign(selectedSlide, theme);
+  const activeTone = slideTone(selectedSlide, theme);
   const exportFileName = useMemo(() => fileNameFor(config.title), [config.title]);
   const zipFileName = useMemo(() => fileNameFor(config.title, "zip"), [config.title]);
 
@@ -404,7 +409,7 @@ export default function Editor({
     try {
       const next = composeMode === "json"
         ? parseCarouselConfig(jsonText)
-        : generateCarouselFromText(sourceText, config.author);
+        : generateCarouselFromText(sourceText, config.author, config.theme);
       // Through commit, so replacing a whole deck by mistake is undoable.
       commit(next);
       setSelectedIndex(0);
@@ -515,7 +520,7 @@ export default function Editor({
         </aside>
 
         <section className="canvas-area" aria-label="Slide preview">
-          {signifierMissing && (
+          {signifierMissing && theme === "editorial" && (
             <p className="font-warning" role="status">
               Signifier is not installed on this machine, so slides are showing Georgia. Exports from here will ship Georgia too. Install Signifier or export from a machine that has it.
             </p>
@@ -645,13 +650,20 @@ export default function Editor({
             </div>
           ) : (
             <div className="inspector-panel">
-              <h3 className="settings-heading">This slide</h3>
+              <label className="field-label" htmlFor="carousel-theme">Carousel theme</label>
+              <div className="select-wrap"><select id="carousel-theme" value={theme} onChange={(event) => commit({ ...config, theme: event.target.value as CarouselTheme })}>
+                <option value="editorial">Editorial</option>
+                <option value="ai-engineer">AI Engineer</option>
+              </select><ChevronDown size={14} /></div>
+              <p className="field-hint">{theme === "ai-engineer" ? "Geist type with forest, cream and sand. Applies to every slide." : "Signifier headlines on paper, sage and black. Applies to every slide."}</p>
+              <h3 className="settings-heading settings-divider">This slide</h3>
               <span className="field-label">Background colour</span>
               <div className="segmented" aria-label="Slide ground colour">
-                <button type="button" aria-pressed={(selectedSlide.tone ?? "paper") === "paper"} className={(selectedSlide.tone ?? "paper") === "paper" ? "active" : ""} onClick={() => updateSlide({ tone: "paper" })}>Paper</button>
-                <button type="button" aria-pressed={selectedSlide.tone === "sage"} className={selectedSlide.tone === "sage" ? "active" : ""} onClick={() => updateSlide({ tone: "sage" })}>Sage</button>
-                <button type="button" aria-pressed={selectedSlide.tone === "black"} className={selectedSlide.tone === "black" ? "active" : ""} onClick={() => updateSlide({ tone: "black" })}>Black</button>
+                <button type="button" aria-pressed={activeTone === "paper"} className={activeTone === "paper" ? "active" : ""} onClick={() => updateSlide({ tone: "paper" })}>{theme === "ai-engineer" ? "Cream" : "Paper"}</button>
+                <button type="button" aria-pressed={activeTone === "sage"} className={activeTone === "sage" ? "active" : ""} onClick={() => updateSlide({ tone: "sage" })}>{theme === "ai-engineer" ? "Sand" : "Sage"}</button>
+                <button type="button" aria-pressed={activeTone === "black"} className={activeTone === "black" ? "active" : ""} onClick={() => updateSlide({ tone: "black" })}>{theme === "ai-engineer" ? "Forest" : "Black"}</button>
               </div>
+              {theme === "ai-engineer" && <button type="button" className="text-button subtle" disabled={!selectedSlide.tone} onClick={() => updateSlide({ tone: undefined })}>Use automatic background</button>}
               <span className="field-label">Background photo</span>
               <button className="wide-upload" type="button" onClick={() => setMediaOpen("background")}><Images size={15} /> {selectedSlide.background ? "Choose another image" : "Choose from media"}</button>
               <span className="field-label">Video background · Experimental</span>

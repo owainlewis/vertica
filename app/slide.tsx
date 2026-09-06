@@ -3,6 +3,8 @@ import VideoBackground from "./video-background";
 import { videoUrl } from "./video-formats";
 import {
   bodyParagraphs,
+  AI_ENGINEER_TYPE_SCALE,
+  carouselTheme,
   CarouselConfig,
   CarouselSlide,
   imageCapacity,
@@ -12,6 +14,7 @@ import {
   sanitizeSvg,
   slideAlign,
   slidePosition,
+  slideTone,
   smartQuotes,
   titleLines,
   TYPE_SCALE,
@@ -55,7 +58,8 @@ export function Slide({
   playing?: boolean;
   onVideoDuration?: (duration: number) => void;
 }) {
-  const scale = TYPE_SCALE;
+  const theme = carouselTheme(config.theme);
+  const scale = theme === "ai-engineer" ? AI_ENGINEER_TYPE_SCALE : TYPE_SCALE;
   const isCover = slide.layout === "cover";
   const isPoster = slide.layout === "poster";
   const position = slidePosition(slide);
@@ -81,7 +85,7 @@ export function Slide({
   // A headline opening on a quote mark sits visibly indented against the copy below
   // it unless the mark is hung into the margin. CSS hanging-punctuation is Safari
   // only, so the indent is set by hand, and only where there is a margin to hang into.
-  const hangs = /^["“”'‘’]/.test(smartQuotes(lines[0])) && slideAlign(slide) === "left";
+  const hangs = /^["“”'‘’]/.test(smartQuotes(lines[0])) && slideAlign(slide, theme) === "left";
 
   const copy = (
     <>
@@ -100,11 +104,11 @@ export function Slide({
 
   const classes = [
     "carousel-slide",
-    "template-editorial",
+    `template-${theme}`,
     `layout-${slide.layout}`,
     `pos-${position}`,
-    `align-${slideAlign(slide)}`,
-    slide.tone ? `tone-${slide.tone}` : "tone-paper",
+    `align-${slideAlign(slide, theme)}`,
+    `tone-${slideTone(slide, theme)}`,
     background || slide.video ? "has-background" : "",
     config.mark ? "has-mark" : "",
     pictures.length ? `has-pictures pictures-${pictures.length} photos-${photoArrangement(pictures.length)}` : "",

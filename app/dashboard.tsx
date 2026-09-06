@@ -8,7 +8,7 @@ import {
   loadCarousel,
   type CarouselSummary,
 } from "./api-client";
-import { assertBackgroundsAvailableForExport, CarouselConfig, CarouselSlide, duplicateCarouselConfig, normalizeLayout } from "./carousel";
+import { assertBackgroundsAvailableForExport, carouselTheme, CarouselConfig, CarouselSlide, duplicateCarouselConfig, normalizeLayout } from "./carousel";
 import { exportStageToPdf, exportStageToZip, fileNameFor } from "./export";
 import { loadImages } from "./image-store";
 import { ExportStage, Slide } from "./slide";
@@ -19,6 +19,7 @@ function readCover(cover: string) {
     return JSON.parse(cover || "{}") as {
       slide?: Partial<CarouselSlide>;
       mark?: string;
+      theme?: string;
     };
   } catch {
     return {};
@@ -65,6 +66,7 @@ function CardPreview({
       version: 1,
       title: carousel.title,
       author: carousel.author,
+      theme: carouselTheme(stored.theme),
       ...(stored.mark ? { mark: stored.mark } : {}),
       slides: Array.from({ length: Math.max(carousel.slideCount, 1) }, () => cover),
     };
