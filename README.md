@@ -1,6 +1,6 @@
 # Vertica
 
-A studio for LinkedIn and Instagram carousels. One editorial design system, seven
+A studio for LinkedIn and Instagram carousels. Two themes, seven
 slide layouts, a media library, and one-click export to PDF or numbered JPEGs.
 
 Every deck is a small JSON document. You can write it by hand, paste it from Claude,
@@ -113,6 +113,24 @@ on any machine. Deleting a library image is refused while a deck still uses it.
 
 ## The design system
 
+Choose **Editorial** or **AI Engineer** in the editor's **Design → Carousel theme**.
+The theme applies to the whole deck and is saved, duplicated, imported and exported
+with it. Existing decks default to Editorial.
+
+AI Engineer pairs bundled Geist regular and italic fonts with forest (`#0c110f`),
+cream (`#f2eee4`) and sand (`#cfad82`). Unset backgrounds use forest for covers,
+posters and closing slides, and cream for the other layouts. In this theme the
+stored tones `paper`, `sage` and `black` mean Cream, Sand and Forest. Explicit
+background and alignment choices survive switching themes. Automatic alignment is
+left. Italic and bold phrases use sand on forest and darker accents on light
+backgrounds. Body copy is larger, so keep teaching slides to about 30 words.
+SVG diagrams inherit the theme font unless their markup sets a font explicitly;
+use `font-family="inherit"` for labels that should follow the deck.
+
+Set `"theme": "ai-engineer"` in a JSON config to use it; omit the field or use
+`"editorial"` for the original theme. Both themes use the same seven layouts and
+renderer in the gallery, editor, reader preview and PDF/JPEG export.
+
 Signifier for headlines, Helvetica for copy and furniture, paper ground with sage
 and black as the two alternative grounds. A faint twelve-column field sits under
 every text slide. Series label top left, a two-digit page number top right, footer
@@ -204,6 +222,9 @@ With it unset the app is open, which is what local development wants. With `BUCK
 unset the server uses `.data/` on disk.
 
 ## Fonts
+
+The AI Engineer theme bundles Geist under the SIL Open Font License 1.1. Its fonts
+and license are in `public/fonts/geist/`; no font installation is needed.
 
 Signifier is a commercial face from Klim and is not bundled. The app loads it from
 the machine and warns in the editor when it is missing, since the export would

@@ -25,6 +25,25 @@ const jsonRequest = (path, body, method = "POST") =>
 const PIXEL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 const KEY = "img:1234567890abcdef1234567890abcdef";
 
+test("persists the theme in the deck and gallery cover, including a switch back to Editorial", async () => {
+  const { app } = api();
+  const config = { ...JSON.parse(deck()), theme: "ai-engineer" };
+  const response = await app.request(jsonRequest("/carousels", { config: JSON.stringify(config) }));
+  assert.equal(response.status, 201);
+  const { carousel } = await response.json();
+  const fetched = await (await app.request(`/carousels/${carousel.id}`)).json();
+  assert.equal(JSON.parse(fetched.carousel.config).theme, "ai-engineer");
+  const list = await (await app.request("/carousels")).json();
+  assert.equal(JSON.parse(list.carousels[0].cover).theme, "ai-engineer");
+  const updated = await app.request(jsonRequest(`/carousels/${carousel.id}`, {
+    version: carousel.version, config: JSON.stringify({ ...config, theme: "editorial" }),
+  }, "PUT"));
+  assert.equal(updated.status, 200);
+  const next = (await updated.json()).carousel;
+  assert.equal(JSON.parse(next.config).theme, "editorial");
+  assert.equal(JSON.parse(next.cover).theme, undefined);
+});
+
 test("saves a carousel, lists it, and refuses a stale write", async () => {
   const { app } = api();
   const created = await app.request(jsonRequest("/carousels", { config: deck() }));

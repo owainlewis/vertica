@@ -6,6 +6,7 @@ import {
   BRAND_FOOTER,
   BRAND_MARK,
   bodyParagraphs,
+  carouselTheme,
   generateCarouselFromText,
   duplicateCarouselConfig,
   imageCapacity,
@@ -18,11 +19,49 @@ import {
   slideAlign,
   slideImageRefs,
   slidePosition,
+  slideTone,
   smartQuotes,
   suggestBreak,
   titleLines,
   usesImages,
 } from "../app/carousel.ts";
+
+test("themes survive JSON round trips and duplication without changing older decks", () => {
+  const input = { slides: [{ title: "A clear design", tone: "sage", align: "center" }] };
+  const legacy = parseCarouselConfig(JSON.stringify(input));
+  assert.equal(legacy.theme, undefined);
+  assert.equal(carouselTheme(legacy.theme), "editorial");
+  const branded = parseCarouselConfig(JSON.stringify({ ...input, theme: "ai-engineer" }));
+  assert.equal(branded.theme, "ai-engineer");
+  assert.deepEqual(parseCarouselConfig(JSON.stringify(branded)), branded);
+  assert.equal(duplicateCarouselConfig(branded).theme, "ai-engineer");
+  assert.equal(branded.slides[0].tone, "sage");
+  assert.equal(branded.slides[0].align, "center");
+  assert.equal(parseCarouselConfig(JSON.stringify({ ...input, theme: "unknown" })).theme, "editorial");
+});
+
+test("AI Engineer chooses automatic grounds and alignment while preserving explicit choices", () => {
+  const layouts = ["cover", "content", "note", "poster", "diagram", "photos", "closing"];
+  assert.deepEqual(layouts.map((layout) => slideTone({ layout }, "ai-engineer")), ["black", "paper", "paper", "black", "paper", "paper", "black"]);
+  assert.ok(layouts.every((layout) => slideTone({ layout }) === "paper"));
+  assert.ok(layouts.every((layout) => slideAlign({ layout }, "ai-engineer") === "left"));
+  assert.equal(slideAlign({ layout: "cover" }), "center");
+  assert.equal(slideAlign({ layout: "cover", align: "center" }, "ai-engineer"), "center");
+  assert.equal(slideTone({ layout: "cover", tone: "paper" }, "ai-engineer"), "paper");
+  assert.equal(slideTone({ layout: "content", tone: "black" }, "ai-engineer"), "black");
+});
+
+test("generating slides and copying the AI prompt preserve the chosen theme", () => {
+  const deck = generateCarouselFromText("Start with design. Define the problem first.\n\nCheck the result\n\nKeep learning", "Owain", "ai-engineer");
+  assert.equal(deck.theme, "ai-engineer");
+  assert.ok(deck.slides.every((slide) => slide.tone === undefined));
+  const prompt = aiPrompt(deck);
+  assert.match(prompt, /"theme": "ai-engineer"/);
+  assert.match(prompt, /Geist type, forest, cream and sand/);
+  assert.match(prompt, /font-family="inherit"/);
+  assert.doesNotMatch(prompt, /one short serif statement|for a highlighter stroke/);
+  assert.match(aiPrompt({ ...deck, theme: "editorial" }), /one short serif statement/);
+});
 
 test("gives generated decks the reference rhythm", () => {
   const config = generateCarouselFromText([
