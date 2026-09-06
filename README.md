@@ -124,7 +124,7 @@ stored tones `paper`, `sage` and `black` mean Cream, Sand and Forest. Explicit
 background and alignment choices survive switching themes. Automatic alignment is
 left. Italic and bold phrases use sand on forest and darker accents on light
 backgrounds. Body copy is larger, so keep teaching slides to about 30 words.
-SVG diagrams inherit the theme font unless their markup sets a font explicitly;
+AI Engineer diagrams inherit the theme font unless their markup sets a font explicitly;
 use `font-family="inherit"` for labels that should follow the deck.
 
 Set `"theme": "ai-engineer"` in a JSON config to use it; omit the field or use
