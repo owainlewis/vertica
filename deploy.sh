@@ -16,6 +16,9 @@ gcloud run deploy "$SERVICE" \
   --no-invoker-iam-check \
   --set-env-vars "BUCKET=$BUCKET" \
   --set-secrets "APP_SECRET=$SECRET:latest" \
-  --memory 512Mi \
+  --memory 2Gi \
+  --cpu 2 \
+  --concurrency 4 \
+  --timeout 300 \
   --min-instances 0 \
   --max-instances 3

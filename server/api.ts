@@ -1,5 +1,6 @@
 /** The JSON API. Mounted under /api; the same routes the client has always called. */
 import { Hono } from "hono";
+import { videoRoutes } from "./video.ts";
 import { SUPPORTED_IMAGE_MIME_TYPES } from "../app/image-formats.ts";
 import { clearSessionCookie, createSessionCookie, isAuthorised, isSecureRequest, passwordMatches } from "./auth.ts";
 import type { Bucket } from "./bucket.ts";
@@ -132,6 +133,8 @@ export function createApi({ bucket, secret }: ApiOptions) {
   });
 
   api.get("/media", async (c) => c.json({ media: await listMediaAssets(bucket), nextCursor: null }));
+
+  api.route("/", videoRoutes(bucket));
 
   api.put("/media/:key", async (c) => {
     const key = c.req.param("key");

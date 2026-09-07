@@ -1,4 +1,5 @@
 import { isSupportedImageDataUrl } from "./image-formats.ts";
+import { parseVideoBackground, type VideoBackground } from "./video-formats.ts";
 
 /**
  * Seven layouts, each with one job:
@@ -27,6 +28,7 @@ export type CarouselSlide = {
   title: string;
   body: string;
   background?: string;
+  video?: VideoBackground;
   /**
    * Pictures for the grid, strip and figure layouts, in reading order. Each is a
    * data URL or an `img:` key, exactly like `background`. Other layouts keep the
@@ -226,6 +228,8 @@ export function parseCarouselConfig(input: string): CarouselConfig {
     if (background && !isImageRef(background)) {
       throw new Error(`Slide ${index + 1} has an unsupported background.`);
     }
+    const video = slide.video === undefined ? undefined : parseVideoBackground(slide.video);
+    if (video && background) throw new Error(`Slide ${index + 1} needs either a photo or a video background.`);
 
     const images = Array.isArray(slide.images)
       ? slide.images.map((entry) => cleanText(entry)).filter(Boolean)
@@ -252,6 +256,7 @@ export function parseCarouselConfig(input: string): CarouselConfig {
       title,
       body: limitedText(slide.body, `Slide ${index + 1} body`, 280),
       ...(background ? { background } : {}),
+      ...(video ? { video } : {}),
       ...(images.length ? { images } : {}),
       ...(diagram ? { diagram } : {}),
       ...(veil !== undefined ? { veil } : {}),

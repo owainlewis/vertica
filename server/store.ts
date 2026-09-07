@@ -6,6 +6,7 @@
  */
 import type { Bucket, ObjectMeta } from "./bucket.ts";
 import { PreconditionError } from "./bucket.ts";
+import { isVideoKey } from "../app/video-formats.ts";
 
 export type CarouselSummary = {
   id: string;
@@ -70,12 +71,13 @@ function mediaObjectKey(key: string) {
 /** Every media key a config refers to: backgrounds, pictures and the avatar. */
 export function mediaKeysIn(config: string) {
   try {
-    const parsed = JSON.parse(config) as { avatar?: unknown; slides?: Array<{ background?: unknown; images?: unknown }> };
+    const parsed = JSON.parse(config) as { avatar?: unknown; slides?: Array<{ background?: unknown; images?: unknown; video?: { key?: unknown } }> };
     const refs = [parsed.avatar, ...(parsed.slides ?? []).flatMap((slide) => [
       slide?.background,
+      slide?.video?.key,
       ...(Array.isArray(slide?.images) ? slide.images : []),
     ])];
-    return [...new Set(refs.filter((value): value is string => typeof value === "string" && isMediaKey(value)))];
+    return [...new Set(refs.filter((value): value is string => typeof value === "string" && (isMediaKey(value) || isVideoKey(value))))];
   } catch {
     return [];
   }

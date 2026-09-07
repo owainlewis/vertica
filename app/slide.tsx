@@ -1,4 +1,6 @@
 import { CSSProperties } from "react";
+import VideoBackground from "./video-background";
+import { videoUrl } from "./video-formats";
 import {
   bodyParagraphs,
   CarouselConfig,
@@ -41,11 +43,15 @@ export function Slide({
   config,
   index,
   exportMode = false,
+  videoPreview = false,
+  playing = true,
 }: {
   slide: CarouselSlide;
   config: CarouselConfig;
   index: number;
   exportMode?: boolean;
+  videoPreview?: boolean;
+  playing?: boolean;
 }) {
   const scale = TYPE_SCALE;
   const isCover = slide.layout === "cover";
@@ -101,7 +107,7 @@ export function Slide({
     `pos-${position}`,
     `align-${slideAlign(slide)}`,
     slide.tone ? `tone-${slide.tone}` : "tone-paper",
-    background ? "has-background" : "",
+    background || slide.video ? "has-background" : "",
     config.mark ? "has-mark" : "",
     avatar ? "has-avatar" : "",
     pictures.length ? `has-pictures pictures-${pictures.length} photos-${photoArrangement(pictures.length)}` : "",
@@ -115,7 +121,11 @@ export function Slide({
     <article className={classes} style={style} data-export-slide={exportMode ? "true" : undefined}>
       {/* Pictures are <img> elements, not CSS backgrounds. Chrome silently drops a
           style value past a few megabytes, and a data URL of a photograph is one. */}
-      {background && <img className="slide-image" src={background} alt="" />}
+      {slide.video
+        ? videoPreview
+          ? <VideoBackground key={slide.video.key} clip={slide.video} playing={playing} />
+          : <img key={`${slide.video.key}:${slide.video.start}`} className="slide-image" src={videoUrl(slide.video.key, "/poster")} data-video-key={slide.video.key} data-video-start={slide.video.start} alt="" />
+        : background && <img className="slide-image" src={background} alt="" />}
       <div className="slide-overlay" />
       <div className="slide-rules" aria-hidden="true">{Array.from({ length: 13 }, (_, index) => <span key={index} />)}</div>
       <header className="slide-head">

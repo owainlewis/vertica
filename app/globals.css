@@ -440,6 +440,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 
 .export-stage { position: fixed; left: -10000px; top: 0; width: 1080px; pointer-events: none; }
 .export-slide { width: 1080px; height: 1350px; }
+.video-clip-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.video-clip-fields input { margin-top: 8px; min-width: 0; width: 100%; }
+.video-export-status { position: fixed; z-index: 100; bottom: 24px; left: 50%; transform: translateX(-50%); padding: 14px 20px; border-radius: 8px; background: var(--ink, #1a1a17); color: white; box-shadow: 0 2px 16px #0002; }
+.video-preview-error { position: absolute; z-index: 3; bottom: 2%; left: 5%; right: 5%; padding: 8px; background: #fff; color: #a32222; font: 12px Helvetica, Arial, sans-serif; }
 
 /* Dialogs */
 .composer-dialog { width: min(640px, 100%); overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-lift); }
