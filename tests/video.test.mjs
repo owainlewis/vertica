@@ -90,8 +90,9 @@ test("real upload, trim, overlay, MP4 encoding, still frame, ranges, and persist
   const bytes = Buffer.alloc(VIDEO_CHUNK_BYTES + 1024);
   (await readFile(source)).copy(bytes);
   const video = await upload(app, bytes);
-  assert.equal(video.width, 1080);
-  assert.equal(video.height, 1920);
+  assert.equal(video.width, 360, "compatible previews keep their original resolution");
+  assert.equal(video.height, 640);
+  assert.deepEqual(Buffer.from((await bucket.get(`videos/${video.key.slice(4)}.original`)).bytes), bytes, "the original is retained byte for byte");
   assert.equal((await bucket.list("video-uploads/")).length, 0);
   assert.deepEqual((await (await app.request("/videos")).json()).videos, [video]);
   assert.equal((await app.request(`/videos/${video.key}/poster`)).headers.get("content-type"), "image/jpeg");
@@ -140,12 +141,103 @@ test("real upload, trim, overlay, MP4 encoding, still frame, ranges, and persist
   const { carousel } = await (await app.request(json("/carousels", { config }))).json();
   assert.deepEqual(JSON.parse((await (await app.request(`/carousels/${carousel.id}`)).json()).carousel.config).slides[0].video, input.video);
   assert.equal((await app.request(`/videos/${video.key}`, { method: "DELETE" })).status, 409);
+  assert.ok(await bucket.head(`videos/${video.key.slice(4)}.original`), "a referenced original cannot be deleted");
+  assert.equal((await app.request(`/carousels/${carousel.id}`, { method: "DELETE" })).status, 200);
+  assert.equal((await app.request(`/videos/${video.key}`, { method: "DELETE" })).status, 200);
+  assert.equal((await bucket.list("videos/")).length, 0, "deletion removes the original, preview, and poster");
 });
 
-test("normalization preserves non-square pixels' display aspect ratio", { skip: !encoderAvailable && "Install FFmpeg for video integration checks" }, async (t) => {
+test("compatible previews preserve every decoded frame and the source frame rate", { skip: !encoderAvailable && "Install FFmpeg for video integration checks" }, async (t) => {
+  const { app, bucket, directory } = await fixture(t);
+  const source = join(directory, "detail.mp4");
+  ffmpeg("-f", "lavfi", "-i", "testsrc2=s=1280x720:d=1:r=24000/1001", "-c:v", "libx264", "-crf", "16", "-pix_fmt", "yuv420p", source);
+  const video = await upload(app, await readFile(source));
+  const preview = join(directory, "preview.mp4");
+  await writeFile(preview, (await bucket.get(`videos/${video.key.slice(4)}.mp4`)).bytes);
+  const frameHash = (file) => ffmpeg("-i", file, "-map", "0:v:0", "-f", "hash", "-hash", "sha256", "pipe:1").toString();
+  assert.equal(frameHash(preview), frameHash(source), "stream copy must not change a decoded pixel");
+  assert.equal(inspect(preview).streams[0].r_frame_rate, "24000/1001");
+  assert.equal(video.width, 1280);
+  assert.equal(video.height, 720);
+});
+
+test("exports read the original even when the preview differs; old uploads still export", { skip: !encoderAvailable && "Install FFmpeg for video integration checks" }, async (t) => {
+  const { app, bucket, directory } = await fixture(t);
+  const source = join(directory, "source.mov");
+  // A non-H.264 source exercises the encoded-preview compatibility path.
+  ffmpeg("-f", "lavfi", "-i", "color=c=red:s=320x400:d=2:r=30", "-c:v", "prores_ks", "-pix_fmt", "yuv422p10le", source);
+  const sourceBytes = await readFile(source);
+  const video = await upload(app, sourceBytes);
+  const path = `videos/${video.key.slice(4)}`;
+  assert.deepEqual(Buffer.from((await bucket.get(`${path}.original`)).bytes), sourceBytes);
+  const replacement = join(directory, "blue.mp4");
+  ffmpeg("-f", "lavfi", "-i", "color=c=blue:s=320x400:d=2:r=30", "-c:v", "libx264", "-pix_fmt", "yuv420p", replacement);
+  const meta = await bucket.head(`${path}.mp4`);
+  await bucket.put(`${path}.mp4`, await readFile(replacement), { contentType: "video/mp4", custom: meta.custom });
+  const overlay = join(directory, "clear.png");
+  ffmpeg("-f", "lavfi", "-i", "color=c=black@0:s=1080x1350,format=rgba", "-frames:v", "1", overlay);
+  const input = { video: { key: video.key, start: 0, duration: 1 }, overlay: `data:image/png;base64,${(await readFile(overlay)).toString("base64")}` };
+  async function exportedPixel() {
+    const response = await app.request(json("/video-exports", input));
+    assert.equal(response.status, 200);
+    const output = join(directory, "export.mp4");
+    await writeFile(output, Buffer.from(await response.arrayBuffer()));
+    return ffmpeg("-i", output, "-vf", "scale=1:1", "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1");
+  }
+  const red = await exportedPixel();
+  assert.ok(red[0] > 220 && red[2] < 30, `MP4 uses the red original, not the blue preview: ${red}`);
+  const frame = await app.request(`/videos/${video.key}/frame`);
+  const still = join(directory, "still.jpg");
+  await writeFile(still, Buffer.from(await frame.arrayBuffer()));
+  const stillPixel = ffmpeg("-i", still, "-vf", "scale=1:1", "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1");
+  assert.ok(stillPixel[0] > 220 && stillPixel[2] < 30, "PDF/JPEG frames also use the original");
+  await bucket.delete(`${path}.original`);
+  assert.equal((await app.request(json("/video-exports", input))).status, 404, "a missing original must not silently reduce quality");
+  const legacy = { ...meta.custom };
+  delete legacy.original;
+  await bucket.put(`${path}.mp4`, await readFile(replacement), { contentType: "video/mp4", custom: legacy });
+  const blue = await exportedPixel();
+  assert.ok(blue[2] > 220 && blue[0] < 30, "older uploads still export from their retained playback copy");
+});
+
+test("preview and original-source exports preserve non-square pixels' display aspect ratio", { skip: !encoderAvailable && "Install FFmpeg for video integration checks" }, async (t) => {
   const { app, directory } = await fixture(t);
   const source = join(directory, "anamorphic.mp4");
-  ffmpeg("-f", "lavfi", "-i", "testsrc2=s=720x576:d=1:r=30,setsar=64/45", "-c:v", "libx264", source);
+  ffmpeg("-f", "lavfi", "-i", "color=c=black:s=720x576:d=1:r=30,drawbox=x=260:y=188:w=200:h=200:color=white:t=fill,setsar=64/45", "-c:v", "libx264", source);
   const video = await upload(app, await readFile(source));
   assert.ok(Math.abs(video.width / video.height - 16 / 9) < 0.01, `expected 16:9, got ${video.width} × ${video.height}`);
+  const overlay = join(directory, "clear.png");
+  ffmpeg("-f", "lavfi", "-i", "color=c=black@0:s=1080x1350,format=rgba", "-frames:v", "1", overlay);
+  const response = await app.request(json("/video-exports", { video: { key: video.key, start: 0, duration: 1 }, overlay: `data:image/png;base64,${(await readFile(overlay)).toString("base64")}` }));
+  assert.equal(response.status, 200);
+  const output = join(directory, "export.mp4");
+  await writeFile(output, Buffer.from(await response.arrayBuffer()));
+  const pixels = execFileSync("ffmpeg", ["-v", "error", "-i", output, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "gray", "pipe:1"], { maxBuffer: 2 * 1024 * 1024 });
+  const horizontal = Array.from({ length: 1080 }, (_, x) => pixels[675 * 1080 + x]).filter((value) => value > 200).length;
+  const vertical = Array.from({ length: 1350 }, (_, y) => pixels[y * 1080 + 540]).filter((value) => value > 200).length;
+  assert.ok(Math.abs(horizontal / vertical - 64 / 45) < 0.02, `the source's displayed rectangle must not be squashed: ${horizontal} × ${vertical}`);
+});
+
+test("rotated originals export upright pixels without rotating the completed slide again", { skip: !encoderAvailable && "Install FFmpeg for video integration checks" }, async (t) => {
+  const { app, directory } = await fixture(t);
+  const landscape = join(directory, "landscape.mp4");
+  const source = join(directory, "portrait.mp4");
+  ffmpeg("-f", "lavfi", "-i", "testsrc2=s=640x360:d=1:r=30", "-c:v", "libx264", landscape);
+  ffmpeg("-display_rotation", "90", "-i", landscape, "-c", "copy", source);
+  assert.equal(inspect(source).streams[0].side_data_list[0].rotation, 90, "the fixture must carry a display matrix");
+  const video = await upload(app, await readFile(source));
+  assert.ok(video.height > video.width, "preview applies source orientation");
+  const overlay = join(directory, "clear.png");
+  ffmpeg("-f", "lavfi", "-i", "color=c=black@0:s=1080x1350,format=rgba", "-frames:v", "1", overlay);
+  const response = await app.request(json("/video-exports", { video: { key: video.key, start: 0, duration: 1 }, overlay: `data:image/png;base64,${(await readFile(overlay)).toString("base64")}` }));
+  assert.equal(response.status, 200);
+  const output = join(directory, "slide.mp4");
+  await writeFile(output, Buffer.from(await response.arrayBuffer()));
+  const stream = inspect(output).streams[0];
+  assert.ok(!stream.side_data_list?.some((side) => side.rotation), "export must not carry stale rotation metadata");
+  const displayed = join(directory, "displayed.png");
+  ffmpeg("-i", output, "-frames:v", "1", displayed);
+  const decoded = inspect(displayed).streams[0];
+  assert.equal(decoded.width, 1080);
+  assert.equal(decoded.height, 1350);
 });

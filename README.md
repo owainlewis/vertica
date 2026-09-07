@@ -34,7 +34,10 @@ available in the editor and reader preview.
 
 **Export → Video slide** downloads the selected slide as a silent 1080 × 1350,
 30 fps H.264 MP4. It keeps the preview's centred 4:5 crop and burns in the text,
-branding, and veil. PDF and JPEG exports use the selected clip's first frame.
+branding, and veil. New uploads retain their exact original file; MP4 export
+encodes directly from that original at CRF 16 with the medium preset and Lanczos
+scaling. PDF and JPEG exports also read their selected first frame from the
+original. The final resize and H.264 encode are not mathematically lossless.
 MP4 export currently produces one slide at a time; there is no audio, animated
 text, timeline, or combined deck video.
 
@@ -42,10 +45,18 @@ Sources can be 1–120 seconds, up to 512 MB and 4096 pixels on either side. Cli
 can be 1–30 seconds. The editor reads and stores the source duration and constrains
 the start and duration to fit; older saved intervals are corrected when the video
 metadata loads. Uploads use 8 MB chunks in the
-same storage bucket as the app, so they work across server instances. The server
-creates a smaller, silent H.264 copy for playback and deletes the uploaded source
-chunks after processing. Interrupted uploads expire after an hour and are cleaned
-up on the next upload. Existing videos can be reused from the video picker.
+same storage bucket as the app, so they work across server instances. Compatible
+H.264 clips are repackaged as silent MP4s without changing their video pixels,
+resolution, or frame rate. Incompatible formats or playback files over 96 MB get
+a smaller H.264 preview; exports still use the untouched original. Short clips
+usually avoid that fallback. Source identity comes from the original bytes.
+The server deletes temporary upload chunks after processing, and deleting an
+unused video removes both copies and its poster. Interrupted uploads expire
+after an hour and are cleaned up on the next upload.
+
+Existing videos can be reused from the video picker. Uploads made before original
+retention still export from their playback copy. Re-upload those videos to gain
+the higher quality; previously discarded source detail cannot be restored.
 
 Video processing uses temporary disk and one encoder per instance, with a
 three-minute processing timeout. The deploy script allocates 2 GiB of memory,
