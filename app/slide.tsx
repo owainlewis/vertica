@@ -61,7 +61,6 @@ export function Slide({
   // Title-only layouts keep their body in the document but never draw it.
   const paragraphs = showsBody(slide.layout) ? bodyParagraphs(slide.body) : [];
   const background = painted(slide.background);
-  const avatar = painted(config.avatar);
   const pictures = usesImages(slide.layout)
     ? (slide.images ?? []).slice(0, imageCapacity(slide.layout)).map(painted)
     : [];
@@ -96,9 +95,6 @@ export function Slide({
   );
 
   const page = String(index + 1).padStart(2, "0");
-  const counter = config.numbering === "fraction"
-    ? `${page} / ${String(config.slides.length).padStart(2, "0")}`
-    : page;
 
   const classes = [
     "carousel-slide",
@@ -109,7 +105,6 @@ export function Slide({
     slide.tone ? `tone-${slide.tone}` : "tone-paper",
     background || slide.video ? "has-background" : "",
     config.mark ? "has-mark" : "",
-    avatar ? "has-avatar" : "",
     pictures.length ? `has-pictures pictures-${pictures.length} photos-${photoArrangement(pictures.length)}` : "",
     diagram ? "has-diagram" : "",
     // A one-word poster ("But…") is a beat, not a sentence, and gets set larger.
@@ -130,7 +125,7 @@ export function Slide({
       <div className="slide-rules" aria-hidden="true">{Array.from({ length: 13 }, (_, index) => <span key={index} />)}</div>
       <header className="slide-head">
         {config.mark && <span className="slide-mark">{config.mark}</span>}
-        <span className="slide-counter">{counter}</span>
+        <span className="slide-counter">{page}</span>
       </header>
       <div className="slide-content">{copy}</div>
       {/* Sanitised at parse time and again here, so a diagram can draw but never run. */}
@@ -151,10 +146,7 @@ export function Slide({
         </div>
       )}
       <footer className="slide-meta">
-        <span className="meta-identity">
-          {avatar && <img className="slide-avatar" src={avatar} alt="" />}
-          <span className="meta-author">{config.author}</span>
-        </span>
+        <span className="meta-author">{config.author}</span>
         {showArrow && <span className="slide-arrow" aria-hidden="true">→</span>}
       </footer>
     </article>

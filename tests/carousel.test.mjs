@@ -74,7 +74,7 @@ test("rejects source text that would be silently truncated", () => {
   );
 });
 
-test("keeps picture lists, the avatar, numbering and the arrow", () => {
+test("keeps picture lists and the arrow while ignoring retired avatar and numbering settings", () => {
   const config = parseCarouselConfig(JSON.stringify({
     avatar: "data:image/png;base64,YQ==",
     numbering: "fraction",
@@ -85,10 +85,10 @@ test("keeps picture lists, the avatar, numbering and the arrow", () => {
     ],
   }));
 
-  assert.equal(config.avatar, "data:image/png;base64,YQ==");
+  assert.equal(config.avatar, undefined);
   const veiled = parseCarouselConfig(JSON.stringify({ slides: [{ title: "A", veil: 0.25 }, { title: "B", veil: 7 }, { title: "C", veil: "x" }] }));
   assert.deepEqual(veiled.slides.map((slide) => slide.veil), [0.25, 1, undefined], "veil is clamped to 0..1 and dropped when malformed");
-  assert.equal(config.numbering, "fraction");
+  assert.equal(config.numbering, undefined);
   assert.equal(config.arrow, false);
   assert.deepEqual(config.slides[0].images, ["data:image/png;base64,YQ==", "img:abc"]);
   assert.equal(config.slides[1].images, undefined);
@@ -111,9 +111,9 @@ test("keeps picture lists, the avatar, numbering and the arrow", () => {
     () => parseCarouselConfig(JSON.stringify({ slides: [{ title: "Too many", images: Array(10).fill("img:a") }] })),
     /more than 9 images/,
   );
-  assert.throws(
+  assert.doesNotThrow(
     () => parseCarouselConfig(JSON.stringify({ avatar: "https://example.com/me.jpg", slides: [{ title: "Bad" }] })),
-    /avatar must be an uploaded image/,
+    "retired avatar fields do not stop an old carousel from loading",
   );
 });
 
@@ -253,9 +253,9 @@ test("blocks exports that would silently omit unresolved media", () => {
     ...config,
     slides: config.slides.map((slide) => ({ ...slide, background: undefined, images: undefined })),
   }));
-  assert.throws(
+  assert.doesNotThrow(
     () => assertBackgroundsAvailableForExport(parseCarouselConfig(JSON.stringify({ avatar: "img:gone", slides: [{ title: "Fine" }] }))),
-    /avatar is not available/,
+    "unused legacy avatars cannot block an export",
   );
 });
 
@@ -355,7 +355,7 @@ test("everything is branded AI Engineer unless a deck says otherwise", () => {
 
 test("duplicating a deck preserves its content and media with independent slide identities", () => {
   const original = parseCarouselConfig(JSON.stringify({
-    title: "A".repeat(100), author: "Owain", avatar: "img:avatar", numbering: "fraction",
+    title: "A".repeat(100), author: "Owain",
     slides: [
       { id: "cover", layout: "cover", title: "A headline", background: "img:photo", veil: 0.25 },
       { id: "photos", layout: "photos", title: "Pictures", images: ["img:one", "img:two"] },
@@ -366,8 +366,6 @@ test("duplicating a deck preserves its content and media with independent slide 
   const secondCopy = duplicateCarouselConfig(original);
   assert.equal(copy.title.length, 100);
   assert.ok(copy.title.endsWith(" (copy)"));
-  assert.equal(copy.avatar, original.avatar);
-  assert.equal(copy.numbering, original.numbering);
   assert.deepEqual(copy.slides.map((slide) => ({ ...slide, id: undefined })), original.slides.map((slide) => ({ ...slide, id: undefined })));
   const ids = [...original.slides, ...copy.slides, ...secondCopy.slides].map((slide) => slide.id);
   assert.equal(new Set(ids).size, ids.length);

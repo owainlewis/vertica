@@ -19,8 +19,6 @@ export type EditorialTone = "paper" | "sage" | "black";
 /** Where the text block sits in the frame, independent of colour. */
 export type SlidePosition = "top" | "middle" | "bottom";
 export type SlideAlign = "left" | "center";
-/** "page" prints a bare "02"; "fraction" prints "02 / 06". */
-export type Numbering = "page" | "fraction";
 
 export type CarouselSlide = {
   id: string;
@@ -121,10 +119,6 @@ export type CarouselConfig = {
    * purpose, so it is set once rather than retyped per slide.
    */
   mark?: string;
-  /** A small round portrait drawn bottom-left on every slide. Data URL or `img:` key. */
-  avatar?: string;
-  /** Defaults to a bare page number, which is quieter than a fraction. */
-  numbering?: Numbering;
   /** A swipe arrow bottom-right on every slide but the last. Defaults on. */
   arrow?: boolean;
   slides: CarouselSlide[];
@@ -141,9 +135,6 @@ export function assertBackgroundsAvailableForExport(config: CarouselConfig) {
     .map((slide, index) => (slideImageRefs(slide).some((ref) => ref.startsWith("img:")) ? index + 1 : null))
     .filter((index): index is number => index !== null);
 
-  if (config.avatar?.startsWith("img:")) {
-    throw new Error("The deck avatar is not available in this browser. Choose it again from Media before exporting.");
-  }
   if (!missing.length) return;
   const slides = missing.length === 1 ? `slide ${missing[0]} are` : `slides ${missing.join(", ")} are`;
   throw new Error(
@@ -273,16 +264,12 @@ export function parseCarouselConfig(input: string): CarouselConfig {
   // furniture is sentence case, and shouting it in capitals was the loudest thing on
   // the page.
   const mark = limitedText(record.mark, "Series label", 30) || BRAND_MARK;
-  const avatar = cleanText(record.avatar);
-  if (avatar && !isImageRef(avatar)) throw new Error("The avatar must be an uploaded image.");
 
   return {
     version: 1,
     title: limitedText(record.title, "Carousel title", 100, "Untitled carousel"),
     author: limitedText(record.author, "Author", 40) || BRAND_FOOTER,
     mark,
-    ...(avatar ? { avatar } : {}),
-    ...(record.numbering === "fraction" ? { numbering: "fraction" as const } : {}),
     ...(record.arrow === false ? { arrow: false } : {}),
     slides,
   };

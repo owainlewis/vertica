@@ -100,8 +100,8 @@ on any machine. Deleting a library image is refused while a deck still uses it.
 
 Signifier for headlines, Helvetica for copy and furniture, paper ground with sage
 and black as the two alternative grounds. A faint twelve-column field sits under
-every text slide. Series label top left, page number top right, footer and optional
-avatar bottom left, a swipe arrow bottom right on every slide but the last.
+every text slide. Series label top left, a two-digit page number top right, footer
+bottom left, a swipe arrow bottom right on every slide but the last.
 
 Seven layouts, each with one job. Note, poster, diagram and photos draw the headline
 only, so nothing can collide with the figure.
@@ -142,9 +142,9 @@ shape. In Claude Code, `/carousel` loads it.
 }
 ```
 
-Optional fields: `avatar` (a media key or data URL), `numbering` (`"fraction"` for
-02 / 06), `arrow: false`, and per slide `tone`, `position`, `align`, `background`,
-`veil`, `images`. `parseCarouselConfig` in `app/carousel.ts` is the contract; it
+Optional fields: `arrow: false`, and per slide `tone`, `position`, `align`,
+`background`, `video`, `veil`, `images`. Page numbers always use `01`, `02`, etc.
+`parseCarouselConfig` in `app/carousel.ts` is the contract; it
 throws a plain message for anything the app would refuse, and it maps older layout
 names onto the current seven.
 

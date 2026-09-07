@@ -39,8 +39,7 @@ function stageNodes(expectedPages: number) {
  * what stops the occasional image-less page.
  */
 async function decodeBackgrounds(nodes: HTMLElement[]) {
-  // Pictures and the avatar are painted the same way as the background, and race
-  // the rasteriser the same way.
+  // Slide pictures race the rasteriser the same way as the background.
   const images = nodes.flatMap((node) => Array.from(node.querySelectorAll("img")));
   // A picture that will not decode should not sink the whole export.
   await Promise.all(images.map((image) => image.decode().catch(() => undefined)));

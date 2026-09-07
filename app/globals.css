@@ -288,8 +288,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .slide-head span, .slide-meta span { min-width: 0; }
 .slide-mark, .meta-author { overflow-wrap: anywhere; }
 .slide-counter { font-variant-numeric: tabular-nums; }
-.meta-identity { display: flex; align-items: center; gap: 1.6cqw; }
-.slide-avatar { flex: 0 0 auto; width: 7cqw; height: 7cqw; border-radius: 50%; object-fit: cover; }
 .slide-arrow { font-family: var(--font-sans); font-size: 4.8cqw; font-weight: 300; line-height: 1; }
 
 /* The copy. Vertical rhythm is in em against each element's own size. */
@@ -400,9 +398,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .picture-list li { position: relative; aspect-ratio: 1; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel-2) center / cover no-repeat; }
 .picture-list li.is-missing { background: repeating-linear-gradient(135deg, #e6e3da 0 5px, #f1f0eb 5px 12px); }
 .picture-list button { position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: rgb(26 26 23 / .7); color: white; cursor: pointer; }
-.avatar-row { display: flex; align-items: center; gap: 10px; }
-.avatar-row .avatar-preview { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel-2) center / cover no-repeat; }
-.avatar-row .wide-upload { flex: 1; }
 .check-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 11.5px; }
 .check-row input { width: auto; accent-color: var(--accent); }
 .field-label.range-label { display: flex; justify-content: space-between; }

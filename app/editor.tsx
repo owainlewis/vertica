@@ -17,7 +17,6 @@ import {
   Play,
   Trash2,
   Undo2,
-  UserRound,
   X,
 } from "lucide-react";
 import { Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
@@ -82,8 +81,8 @@ const layoutHints: Record<SlideLayout, string> = {
   closing: "A headline and one line to finish on.",
 };
 
-/** Where a picked image goes: behind the copy, into the slide's pictures, or the deck avatar. */
-type MediaTarget = "background" | "images" | "avatar";
+/** Where a picked image goes: behind the copy or into the slide's pictures. */
+type MediaTarget = "background" | "images";
 
 /**
  * Signifier is loaded from the machine, not bundled, because its web licence is
@@ -377,11 +376,6 @@ export default function Editor({
     const data = loaded[asset.key];
     if (!data) throw new Error("That image could not be loaded. Try uploading it again from Media.");
 
-    if (target === "avatar") {
-      commit({ ...config, avatar: data });
-      showNotice({ kind: "success", message: `${asset.name} is now the deck avatar.` });
-      return;
-    }
     if (target === "images") {
       const images = [...(selectedSlide.images ?? []), data];
       updateSlide({ images });
@@ -674,17 +668,6 @@ export default function Editor({
               <input id="mark" maxLength={30} value={config.mark ?? ""} placeholder="AI Engineer" onChange={(event) => commit({ ...config, mark: event.target.value }, "mark")} />
               <label className="field-label" htmlFor="author">Footer name</label>
               <input id="author" maxLength={40} value={config.author} onChange={(event) => commit({ ...config, author: event.target.value }, "author")} />
-              <span className="field-label">Avatar</span>
-              <div className="avatar-row">
-                <span className="avatar-preview" style={config.avatar && !isImageKey(config.avatar) ? { backgroundImage: `url(${config.avatar})` } : undefined} />
-                <button className="wide-upload" type="button" onClick={() => setMediaOpen("avatar")}><UserRound size={15} /> {config.avatar ? "Change avatar" : "Choose from media"}</button>
-              </div>
-              {config.avatar && <button type="button" className="text-button" onClick={() => commit({ ...config, avatar: undefined })}>Remove avatar</button>}
-              <span className="field-label">Page number</span>
-              <div className="segmented" aria-label="Page number style">
-                <button type="button" aria-pressed={(config.numbering ?? "page") === "page"} className={(config.numbering ?? "page") === "page" ? "active" : ""} onClick={() => commit({ ...config, numbering: undefined })}>02</button>
-                <button type="button" aria-pressed={config.numbering === "fraction"} className={config.numbering === "fraction" ? "active" : ""} onClick={() => commit({ ...config, numbering: "fraction" })}>02 / 06</button>
-              </div>
               <label className="check-row"><input type="checkbox" checked={config.arrow !== false} onChange={(event) => commit({ ...config, arrow: event.target.checked ? undefined : false })} /> Swipe arrow on every slide but the last</label>
               <details className="config-tools">
                 <summary>Project data</summary>
