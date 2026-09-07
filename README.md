@@ -18,6 +18,8 @@ npm install
 npm run dev
 ```
 
+With `just` installed, run `just` or `just start` instead of `npm run dev`.
+
 That starts the API on port 8787 and Vite on the port it prints, with `/api`
 proxied through. Decks and images are written to `.data/` in the project, so
 nothing leaves your machine.
