@@ -33,8 +33,8 @@ async function command(program: "ffmpeg" | "ffprobe", args: string[]) {
 }
 
 async function probe(path: string) {
-  const { stdout } = await command("ffprobe", ["-v", "error", "-protocol_whitelist", "file,pipe", "-f", "mov", "-show_entries", "format=duration:stream=codec_type,width,height", "-of", "json", path]);
-  const info = JSON.parse(stdout) as { format?: { duration?: string }; streams?: Array<{ codec_type: string; width?: number; height?: number }> };
+  const { stdout } = await command("ffprobe", ["-v", "error", "-protocol_whitelist", "file,pipe", "-f", "mov", "-show_entries", "format=duration:stream=codec_type,codec_name,pix_fmt,width,height,sample_aspect_ratio:stream_side_data=rotation", "-of", "json", path]);
+  const info = JSON.parse(stdout) as { format?: { duration?: string }; streams?: Array<{ codec_type: string; codec_name?: string; pix_fmt?: string; width?: number; height?: number; sample_aspect_ratio?: string; side_data_list?: Array<{ rotation?: number }> }> };
   const stream = info.streams?.find((item) => item.codec_type === "video");
   const duration = Number(info.format?.duration);
   const width = stream?.width ?? 0;
@@ -42,7 +42,10 @@ async function probe(path: string) {
   if (!Number.isFinite(duration) || duration < 1 || duration > MAX_VIDEO_SECONDS || width < 2 || height < 2 || width > 4096 || height > 4096) {
     throw new VideoError("Choose a video from 1 to 120 seconds, up to 4096 pixels on either side.");
   }
-  return { duration, width, height };
+  const canCopy = stream?.codec_name === "h264" && stream.pix_fmt === "yuv420p"
+    && (!stream.sample_aspect_ratio || stream.sample_aspect_ratio === "1:1")
+    && !stream.side_data_list?.some((side) => side.rotation);
+  return { duration, width, height, canCopy };
 }
 
 async function temporary<T>(work: (directory: string) => Promise<T>) {
@@ -115,6 +118,17 @@ export function videoRoutes(bucket: Bucket) {
     for (const { key } of await bucket.list(uploadPath(id))) await bucket.delete(key);
   }
 
+  async function exportSource(key: string) {
+    const path = videoPath(key);
+    const meta = await bucket.head(`${path}.mp4`);
+    if (!meta) throw new VideoError("That video is gone. Choose another background.", 404);
+    // Older uploads only have their playback copy. A missing new original is an
+    // error, so a broken upload cannot silently downgrade the export's quality.
+    const object = await bucket.get(`${path}.${meta.custom.original === "1" ? "original" : "mp4"}`);
+    if (!object) throw new VideoError("The source video is missing. Upload it again.", 404);
+    return { bytes: object.bytes, meta };
+  }
+
   api.post("/video-uploads", async (c) => {
     const input = await jsonBody(c.req.raw);
     if (!Number.isInteger(input.size) || (input.size as number) < 1 || (input.size as number) > MAX_VIDEO_BYTES) {
@@ -164,22 +178,32 @@ export function videoRoutes(bucket: Bucket) {
         const source = join(dir, "source.mov");
         const output = join(dir, "video.mp4");
         const poster = join(dir, "poster.jpg");
+        const hash = createHash("sha256");
         for (let part = 0; part < Math.ceil(upload.size / VIDEO_CHUNK_BYTES); part++) {
           const chunk = await bucket.get(`${uploadPath(id)}part-${part}`);
           if (!chunk || chunk.bytes.byteLength !== Math.min(VIDEO_CHUNK_BYTES, upload.size - part * VIDEO_CHUNK_BYTES)) throw new VideoError("The video upload is incomplete. Choose it again.");
+          hash.update(chunk.bytes);
           await appendFile(source, chunk.bytes);
         }
-        await probe(source);
-        await command("ffmpeg", ["-v", "error", "-nostdin", "-y", "-threads", "2", "-protocol_whitelist", "file,pipe", "-f", "mov", "-i", source,
-          "-map", "0:v:0", "-an", "-vf", "scale=w='max(2,round(min(1080,1920*dar)/2)*2)':h='max(2,round(min(1920,1080/dar)/2)*2)',setsar=1,fps=30", "-c:v", "libx264", "-threads", "2", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", output]);
+        const sourceInfo = await probe(source);
+        const input = ["-v", "error", "-nostdin", "-y", "-threads", "2", "-protocol_whitelist", "file,pipe", "-f", "mov", "-i", source, "-map", "0:v:0", "-an"];
+        // Stream copy repackages compatible clips without changing their pixels,
+        // resolution or frame rate. Only incompatible/large previews need encoding.
+        if (sourceInfo.canCopy) await command("ffmpeg", [...input, "-c:v", "copy", "-movflags", "+faststart", output]);
+        if (!sourceInfo.canCopy || (await stat(output)).size > MAX_OUTPUT_BYTES) {
+          await command("ffmpeg", [...input,
+            "-vf", "scale=w='max(2,round(min(1080,1920*dar)/2)*2)':h='max(2,round(min(1920,1080/dar)/2)*2)',setsar=1", "-c:v", "libx264", "-threads", "2", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", output]);
+        }
         if ((await stat(output)).size > MAX_OUTPUT_BYTES) throw new VideoError("The processed video is too large. Try a shorter clip.");
-        const info = await probe(output);
-        const bytes = await readFile(output);
-        const key = `vid:${createHash("sha256").update(bytes).digest("hex").slice(0, 32)}`;
+        const { duration, width, height } = await probe(output);
+        // Identity follows the original, not a lossy preview that may discard
+        // differences between two source videos.
+        const key = `vid:${hash.digest("hex").slice(0, 32)}`;
         await command("ffmpeg", ["-v", "error", "-nostdin", "-y", "-threads", "2", "-i", output, "-frames:v", "1", "-vf", "scale=540:-2", poster]);
+        await bucket.put(`${videoPath(key)}.original`, await readFile(source), { contentType: "application/octet-stream" });
         await bucket.put(`${videoPath(key)}.jpg`, await readFile(poster), { contentType: "image/jpeg" });
-        await bucket.put(`${videoPath(key)}.mp4`, bytes, { contentType: "video/mp4", custom: { name: upload.name, duration: String(info.duration), width: String(info.width), height: String(info.height) } });
-        return { key, name: upload.name, ...info };
+        await bucket.put(`${videoPath(key)}.mp4`, await readFile(output), { contentType: "video/mp4", custom: { name: upload.name, duration: String(duration), width: String(width), height: String(height), original: "1" } });
+        return { key, name: upload.name, duration, width, height };
       });
       return c.json({ video: asset }, 201);
     } finally { await clearUpload(id); }
@@ -216,18 +240,18 @@ export function videoRoutes(bucket: Bucket) {
     if (await mediaInUse(bucket, key)) throw new VideoError("This video is used by a carousel. Remove it from the slides first.", 409);
     await bucket.delete(`${path}.mp4`);
     await bucket.delete(`${path}.jpg`);
+    await bucket.delete(`${path}.original`);
     return c.json({ ok: true });
   });
 
   api.get("/videos/:key/frame", async (c) => job(() => temporary(async (dir) => {
-    const object = await bucket.get(`${videoPath(c.req.param("key"))}.mp4`);
-    if (!object) throw new VideoError("That video is gone. Choose another background.", 404);
+    const object = await exportSource(c.req.param("key"));
     const start = Number(c.req.query("start") ?? 0);
     if (!Number.isFinite(start) || start < 0 || start >= Number(object.meta.custom.duration)) throw new VideoError("The clip starts outside this video.");
     const source = join(dir, "source.mp4");
     const frame = join(dir, "frame.jpg");
     await writeFile(source, object.bytes);
-    await command("ffmpeg", ["-v", "error", "-nostdin", "-y", "-threads", "2", "-ss", String(start), "-i", source, "-frames:v", "1", "-q:v", "2", frame]);
+    await command("ffmpeg", ["-v", "error", "-nostdin", "-y", "-threads", "2", "-protocol_whitelist", "file,pipe", "-f", "mov", "-ss", String(start), "-i", source, "-frames:v", "1", "-vf", "scale=w='max(2,round(ih*dar/2)*2)':h=ih,setsar=1", "-q:v", "2", frame]);
     return new Response(await readFile(frame), { headers: { "content-type": "image/jpeg" } });
   })));
 
@@ -235,8 +259,7 @@ export function videoRoutes(bucket: Bucket) {
     const input = await jsonBody(c.req.raw, MAX_OVERLAY_BYTES * 1.4);
     let clip;
     try { clip = parseVideoBackground(input.video); } catch (error) { throw new VideoError((error as Error).message); }
-    const object = await bucket.get(`${videoPath(clip.key)}.mp4`);
-    if (!object) throw new VideoError("That video is gone. Choose another background.", 404);
+    const object = await exportSource(clip.key);
     if (clip.start + clip.duration > Number(object.meta.custom.duration) + 0.01) throw new VideoError("The clip ends after the video. Reduce its start or duration.");
     if (typeof input.overlay !== "string" || !/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(input.overlay)) throw new VideoError("The text overlay must be a PNG.");
     const png = Buffer.from(input.overlay.slice("data:image/png;base64,".length), "base64");
@@ -248,9 +271,9 @@ export function videoRoutes(bucket: Bucket) {
     const output = join(dir, "slide.mp4");
     await writeFile(source, object.bytes);
     await writeFile(overlay, png);
-    await command("ffmpeg", ["-v", "error", "-nostdin", "-y", "-threads", "2", "-ss", String(clip.start), "-i", source, "-i", overlay,
-      "-filter_complex_threads", "1", "-filter_complex", "[0:v]scale=1080:1350:force_original_aspect_ratio=increase,crop=1080:1350,setsar=1[bg];[bg][1:v]overlay=0:0:format=auto,format=yuv420p[out]",
-      "-map", "[out]", "-an", "-t", String(clip.duration), "-r", "30", "-c:v", "libx264", "-threads", "2", "-preset", "veryfast", "-crf", "20", "-movflags", "+faststart", output]);
+    await command("ffmpeg", ["-v", "error", "-nostdin", "-y", "-threads", "2", "-protocol_whitelist", "file,pipe", "-f", "mov", "-ss", String(clip.start), "-i", source, "-i", overlay,
+      "-filter_complex_threads", "1", "-filter_complex", "[0:v]scale=w='ceil(max(1080,1350*dar)/2)*2':h='ceil(max(1350,1080/dar)/2)*2':flags=lanczos,crop=1080:1350,setsar=1[bg];[bg][1:v]overlay=0:0:format=auto,format=yuv420p,sidedata=mode=delete:type=DISPLAYMATRIX[out]",
+      "-map", "[out]", "-an", "-t", String(clip.duration), "-r", "30", "-c:v", "libx264", "-threads", "2", "-preset", "medium", "-crf", "16", "-movflags", "+faststart", output]);
     return new Response(await readFile(output), { headers: { "content-type": "video/mp4", "content-disposition": 'attachment; filename="slide.mp4"', "cache-control": "no-store" } });
   })));
 
