@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -126,4 +126,38 @@ test("with no secret set the API is open, which is what local development wants"
   const { app } = api();
   assert.deepEqual(await (await app.request("/session")).json(), { gated: false, authorised: true });
   assert.equal((await app.request("/carousels")).status, 200);
+});
+
+test("carousel routes reject path traversal without touching files outside the bucket", async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "vertica-traversal-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const root = join(directory, "data");
+  mkdirSync(root);
+  const sentinel = join(directory, "sentinel.json");
+  writeFileSync(sentinel, "keep this file");
+  const app = createApi({ bucket: new LocalBucket(root) });
+  for (const id of ["..%2F..%2Fsentinel", "%2Ftmp%2Fsentinel", "bad%5Cid", "bad%00id", "a".repeat(201)]) {
+    for (const method of ["GET", "PUT", "DELETE"]) {
+      const path = `/carousels/${id}`;
+      const request = method === "PUT"
+        ? jsonRequest(path, { version: 1, config: deck() }, method)
+        : new Request(`http://localhost${path}`, { method });
+      assert.equal((await app.request(request)).status, 400, `${method} ${id}`);
+      assert.equal(readFileSync(sentinel, "utf8"), "keep this file");
+    }
+  }
+});
+
+test("simultaneous local edits accept one writer and reject the stale writer", async () => {
+  const { app } = api();
+  const { carousel } = await (await app.request(jsonRequest("/carousels", { config: deck() }))).json();
+  const results = await Promise.all(["Editor A", "Editor B"].map(async (title) => {
+    const response = await app.request(jsonRequest(`/carousels/${carousel.id}`, { version: carousel.version, config: deck(title) }, "PUT"));
+    return { status: response.status, body: await response.json() };
+  }));
+  assert.deepEqual(results.map(({ status }) => status).sort(), [200, 409]);
+  const winner = results.find(({ status }) => status === 200).body.carousel;
+  const fetched = (await (await app.request(`/carousels/${carousel.id}`)).json()).carousel;
+  assert.equal(fetched.config, winner.config);
+  assert.equal(fetched.version, winner.version);
 });

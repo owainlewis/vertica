@@ -150,8 +150,10 @@ Optional fields: `arrow: false`, and per slide `tone`, `position`, `align`,
 throws a plain message for anything the app would refuse, and it maps older layout
 names onto the current seven.
 
-Diagrams are sanitised on the way in. Scripts, event handlers, embedded HTML and
-external references are stripped, so a pasted SVG can draw but never run or fetch.
+Diagrams are sanitised on the way in. Scripts, event handlers, embedded HTML,
+stylesheets, and external references are stripped. Use SVG presentation attributes
+or inline styles for drawing properties such as fill, stroke, and font size;
+page layout rules and resource-loading CSS are removed.
 
 ## Deploying
 

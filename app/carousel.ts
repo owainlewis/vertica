@@ -279,7 +279,7 @@ export function parseCarouselConfig(input: string): CarouselConfig {
 const SVG_ELEMENTS = new Set([
   "svg", "g", "defs", "symbol", "title", "desc", "path", "rect", "circle", "ellipse", "line",
   "polyline", "polygon", "text", "tspan", "textpath", "a", "marker", "pattern", "clippath",
-  "mask", "lineargradient", "radialgradient", "stop", "style", "switch", "filter", "feblend",
+  "mask", "lineargradient", "radialgradient", "stop", "switch", "filter", "feblend",
   "fecolormatrix", "fecomponenttransfer", "fecomposite", "feconvolvematrix", "fediffuselighting",
   "fedisplacementmap", "fedistantlight", "fedropshadow", "feflood", "fefunca", "fefuncb", "fefuncg",
   "fefuncr", "fegaussianblur", "femerge", "femergenode", "femorphology", "feoffset", "fepointlight",
@@ -287,6 +287,35 @@ const SVG_ELEMENTS = new Set([
 ]);
 /** Attributes that can carry a reference out of the document. Only local `#` targets survive. */
 const SVG_LINK_ATTRIBUTES = new Set(["href", "xlink:href", "src"]);
+
+// Only drawing properties may enter CSS. Layout, selectors, custom properties,
+// and resource-loading functions have no place in a diagram's inline styles.
+const SVG_PRESENTATION_ATTRIBUTES = new Set([
+  "fill", "fill-opacity", "fill-rule", "stroke", "stroke-width", "stroke-linecap",
+  "stroke-linejoin", "stroke-miterlimit", "stroke-dasharray", "stroke-dashoffset",
+  "stroke-opacity", "opacity", "color", "stop-color", "stop-opacity", "flood-color",
+  "flood-opacity", "lighting-color", "font-family", "font-size", "font-weight",
+  "font-style", "font-stretch", "font-variant", "letter-spacing", "word-spacing",
+  "text-anchor", "dominant-baseline", "alignment-baseline", "baseline-shift",
+  "text-decoration", "vector-effect", "paint-order", "shape-rendering", "text-rendering",
+  "color-interpolation", "color-interpolation-filters", "clip-rule", "clip-path", "mask",
+  "filter", "marker-start", "marker-mid", "marker-end",
+]);
+const SVG_ATTRIBUTES = new Set([
+  "id", "class", "xmlns", "xmlns:xlink", "viewbox", "preserveaspectratio", "transform",
+  "x", "y", "x1", "y1", "x2", "y2", "cx", "cy", "r", "rx", "ry", "width", "height",
+  "d", "points", "pathlength", "dx", "dy", "rotate", "textlength", "lengthadjust",
+  "startoffset", "method", "spacing", "markerwidth", "markerheight", "markerunits",
+  "refx", "refy", "orient", "patternunits", "patterncontentunits", "patterntransform",
+  "clippathunits", "maskunits", "maskcontentunits", "gradientunits", "gradienttransform",
+  "spreadmethod", "fx", "fy", "fr", "offset", "filterunits", "primitiveunits", "in", "in2",
+  "result", "mode", "type", "values", "operator", "k1", "k2", "k3", "k4", "order",
+  "kernelmatrix", "divisor", "bias", "targetx", "targety", "edgemode", "kernelunitlength",
+  "preservealpha", "surfacescale", "diffuseconstant", "specularconstant", "specularexponent",
+  "scale", "xchannelselector", "ychannelselector", "azimuth", "elevation", "stddeviation",
+  "tablevalues", "slope", "intercept", "amplitude", "exponent", "z", "pointsatx", "pointsaty",
+  "pointsatz", "limitingconeangle", "basefrequency", "numoctaves", "seed", "stitchtiles",
+]);
 
 const NAMED_ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'" };
 
@@ -306,18 +335,21 @@ function encodeAttribute(value: string) {
   return encodeText(value).replace(/"/g, "&quot;");
 }
 
-/**
- * Stylesheets that would fetch: url() and @import. CSS escapes are resolved first so
- * `\75 rl(` cannot spell `url(` past the check, and the result is re-emitted as plain
- * text, so nothing decoded here can turn back into markup.
- */
+/** Plain values, numeric colours, or one local paint/filter reference. No CSS indirection. */
+function safePresentationValue(value: string) {
+  return /^(?:[\w\s#.,%+'"/-]+|(?:rgb|rgba|hsl|hsla)\([\d\s.,%+/-]+\)|url\(\s*(['"]?)#[\w:.-]+\1\s*\))$/i.test(value);
+}
+
+/** Keep a small set of inline drawing declarations; stylesheet elements are dropped. */
 function sanitizeCss(css: string) {
-  return decodeEntities(css)
-    .replace(/\\([0-9a-f]{1,6})\s?/gi, (_, hex: string) => String.fromCodePoint(Math.min(parseInt(hex, 16), 0x10ffff)))
-    .replace(/\\(.)/g, "$1")
-    .replace(/url\s*\((?!\s*['"]?#)[^)]*\)/gi, "none")
-    .replace(/@import[^;]*;?/gi, "")
-    .replace(/expression\s*\(/gi, "none(");
+  return css.split(";").flatMap((declaration) => {
+    const colon = declaration.indexOf(":");
+    const property = declaration.slice(0, colon).trim().toLowerCase();
+    const value = declaration.slice(colon + 1).trim();
+    return colon > 0 && SVG_PRESENTATION_ATTRIBUTES.has(property) && safePresentationValue(value)
+      ? [`${property}:${value}`]
+      : [];
+  }).join(";");
 }
 
 type SvgAttribute = { name: string; value: string };
@@ -359,10 +391,13 @@ function cleanAttribute({ name, value }: SvgAttribute, isRoot: boolean): SvgAttr
   if (key.startsWith("on")) return null;
   // The slide sizes the drawing, so a fixed width or height on the root only fights it.
   if (isRoot && (key === "width" || key === "height")) return null;
-  if (SVG_LINK_ATTRIBUTES.has(key)) return value.trim().startsWith("#") ? { name, value: value.trim() } : null;
-  if (key === "style") return { name, value: sanitizeCss(value) };
-  if (/javascript:/i.test(value.replace(/\s/g, ""))) return null;
-  return { name, value };
+  if (SVG_LINK_ATTRIBUTES.has(key)) return /^#[\w:.-]+$/.test(value.trim()) ? { name, value: value.trim() } : null;
+  if (key === "style") {
+    const clean = sanitizeCss(value);
+    return clean ? { name, value: clean } : null;
+  }
+  if (SVG_PRESENTATION_ATTRIBUTES.has(key)) return safePresentationValue(value.trim()) ? { name, value: value.trim() } : null;
+  return SVG_ATTRIBUTES.has(key) ? { name, value } : null;
 }
 
 /**
@@ -387,14 +422,13 @@ export function sanitizeSvg(input: string) {
   let index = 0;
   // Elements being dropped, with everything inside them, are counted rather than emitted.
   let dropDepth = 0;
-  let inStyle = false;
   let root = true;
 
   while (index < source.length) {
     const next = source.indexOf("<", index);
     if (next === -1 || next > index) {
       const text = source.slice(index, next === -1 ? source.length : next);
-      if (!dropDepth) out += inStyle ? encodeText(sanitizeCss(text)) : encodeText(decodeEntities(text));
+      if (!dropDepth) out += encodeText(decodeEntities(text));
       if (next === -1) break;
       index = next;
     }
@@ -408,7 +442,6 @@ export function sanitizeSvg(input: string) {
     if (tag.closing) {
       if (dropDepth) { dropDepth -= 1; continue; }
       if (!SVG_ELEMENTS.has(tag.name)) continue;
-      if (tag.name === "style") inStyle = false;
       out += `</${tag.name}>`;
       continue;
     }
@@ -422,7 +455,6 @@ export function sanitizeSvg(input: string) {
       .map(({ name, value }) => ` ${name}="${encodeAttribute(value)}"`)
       .join("");
     root = false;
-    if (tag.name === "style" && !tag.selfClosing) inStyle = true;
     out += `<${tag.name}${attributes}${tag.selfClosing ? "/" : ""}>`;
   }
   return out;
