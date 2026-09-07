@@ -191,12 +191,37 @@ test("failed asset writes remove partial files without touching an identical suc
   }
 });
 
-test("out-of-range H.264 decoder requirements use a bounded 30 fps preview", { skip: !encoderAvailable && "Install FFmpeg for video integration checks" }, async (t) => {
+test("cleanup attempts every file and preserves the write error if a deletion also fails", { skip: !encoderAvailable && "Install FFmpeg for video integration checks" }, async (t) => {
+  const { app, bucket, directory } = await fixture(t);
+  const source = join(directory, "source.mp4");
+  ffmpeg("-f", "lavfi", "-i", "color=c=red:s=320x400:d=1:r=30", "-c:v", "libx264", "-pix_fmt", "yuv420p", source);
+  const originalPut = bucket.put.bind(bucket);
+  const originalDelete = bucket.delete.bind(bucket);
+  const writeError = new Error("Original write failure");
+  const log = t.mock.method(console, "error", () => {});
+  const attempted = [];
+  bucket.put = async (key, bytes, options) => {
+    const result = await originalPut(key, bytes, options);
+    if (key.startsWith("videos/") && key.endsWith(".jpg")) throw writeError;
+    return result;
+  };
+  bucket.delete = async (key) => {
+    if (key.startsWith("videos/")) attempted.push(key.split(".").at(-1));
+    if (key.endsWith(".original")) throw new Error("Cleanup deletion failure");
+    return originalDelete(key);
+  };
+  await upload(app, await readFile(source), "Failure.mp4", 503);
+  assert.deepEqual(attempted.sort(), ["jpg", "mp4", "original"]);
+  assert.equal(log.mock.calls[0].arguments[1], writeError);
+  assert.ok((await bucket.list("videos/")).every(({ key }) => key.endsWith(".original")), "other cleanup deletions finish before the response");
+});
+
+test("out-of-range H.264 decoder requirements use a preview capped at 30 fps without raising slower rates", { skip: !encoderAvailable && "Install FFmpeg for video integration checks" }, async (t) => {
   for (const scenario of [
-    { name: "high level", size: "320x400", rate: "30", options: ["-level:v", "6.0"] },
-    { name: "high frame rate", size: "320x400", rate: "120", options: ["-level:v", "5.1"] },
-    { name: "oversized dimensions", size: "4096x2160", rate: "1", options: ["-level:v", "5.1"] },
-    { name: "unsupported profile", size: "320x400", rate: "30", options: ["-crf", "0"] },
+    { name: "high level", size: "320x400", rate: "24", expectedRate: "24/1", options: ["-level:v", "6.0"] },
+    { name: "high frame rate", size: "320x400", rate: "120", expectedRate: "30/1", options: ["-level:v", "5.1"] },
+    { name: "oversized dimensions", size: "4096x2160", rate: "1", expectedRate: "1/1", options: ["-level:v", "5.1"] },
+    { name: "unsupported profile", size: "320x400", rate: "30", expectedRate: "30/1", options: ["-crf", "0"] },
   ]) {
     await t.test(scenario.name, async (subtest) => {
       const { app, bucket, directory } = await fixture(subtest);
@@ -206,7 +231,7 @@ test("out-of-range H.264 decoder requirements use a bounded 30 fps preview", { s
       const preview = join(directory, "preview.mp4");
       await writeFile(preview, (await bucket.get(`videos/${video.key.slice(4)}.mp4`)).bytes);
       const stream = inspect(preview).streams[0];
-      assert.equal(stream.r_frame_rate, "30/1");
+      assert.equal(stream.r_frame_rate, scenario.expectedRate);
       assert.ok(stream.width <= 1080 && stream.height <= 1920);
       assert.ok(stream.level <= 41);
       assert.notEqual(stream.profile, "High 4:4:4 Predictive");

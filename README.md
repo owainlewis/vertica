@@ -51,7 +51,8 @@ same storage bucket as the app, so they work across server instances. Compatible
 H.264 clips are repackaged as silent MP4s without changing their video pixels,
 resolution, or frame rate. Stream copy accepts common 8-bit profiles through
 level 5.1, up to UHD dimensions and 60 fps, with square pixels and no rotation.
-Other formats or playback files over 96 MB get a smaller 30 fps H.264 preview;
+Other formats or playback files over 96 MB get a smaller H.264 preview capped at
+30 fps, preserving slower source frame rates;
 exports still use the untouched original. Short compatible clips usually avoid
 that fallback. Each upload has its own ID so failed writes can be rolled back
 without deleting another upload, even when the original files are identical.
