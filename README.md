@@ -47,9 +47,12 @@ the start and duration to fit; older saved intervals are corrected when the vide
 metadata loads. Uploads use 8 MB chunks in the
 same storage bucket as the app, so they work across server instances. Compatible
 H.264 clips are repackaged as silent MP4s without changing their video pixels,
-resolution, or frame rate. Incompatible formats or playback files over 96 MB get
-a smaller H.264 preview; exports still use the untouched original. Short clips
-usually avoid that fallback. Source identity comes from the original bytes.
+resolution, or frame rate. Stream copy accepts common 8-bit profiles through
+level 5.1, up to UHD dimensions and 60 fps, with square pixels and no rotation.
+Other formats or playback files over 96 MB get a smaller 30 fps H.264 preview;
+exports still use the untouched original. Short compatible clips usually avoid
+that fallback. Each upload has its own ID so failed writes can be rolled back
+without deleting another upload, even when the original files are identical.
 The server deletes temporary upload chunks after processing, and deleting an
 unused video removes both copies and its poster. Interrupted uploads expire
 after an hour and are cleaned up on the next upload.
