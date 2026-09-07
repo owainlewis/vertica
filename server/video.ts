@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { appendFile, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -33,8 +33,8 @@ async function command(program: "ffmpeg" | "ffprobe", args: string[]) {
 }
 
 async function probe(path: string) {
-  const { stdout } = await command("ffprobe", ["-v", "error", "-protocol_whitelist", "file,pipe", "-f", "mov", "-show_entries", "format=duration:stream=codec_type,codec_name,pix_fmt,width,height,sample_aspect_ratio:stream_side_data=rotation", "-of", "json", path]);
-  const info = JSON.parse(stdout) as { format?: { duration?: string }; streams?: Array<{ codec_type: string; codec_name?: string; pix_fmt?: string; width?: number; height?: number; sample_aspect_ratio?: string; side_data_list?: Array<{ rotation?: number }> }> };
+  const { stdout } = await command("ffprobe", ["-v", "error", "-protocol_whitelist", "file,pipe", "-f", "mov", "-show_entries", "format=duration:stream=codec_type,codec_name,profile,level,pix_fmt,width,height,avg_frame_rate,r_frame_rate,field_order,sample_aspect_ratio:stream_side_data=rotation", "-of", "json", path]);
+  const info = JSON.parse(stdout) as { format?: { duration?: string }; streams?: Array<{ codec_type: string; codec_name?: string; profile?: string; level?: number; pix_fmt?: string; width?: number; height?: number; avg_frame_rate?: string; r_frame_rate?: string; field_order?: string; sample_aspect_ratio?: string; side_data_list?: Array<{ rotation?: number }> }> };
   const stream = info.streams?.find((item) => item.codec_type === "video");
   const duration = Number(info.format?.duration);
   const width = stream?.width ?? 0;
@@ -42,7 +42,15 @@ async function probe(path: string) {
   if (!Number.isFinite(duration) || duration < 1 || duration > MAX_VIDEO_SECONDS || width < 2 || height < 2 || width > 4096 || height > 4096) {
     throw new VideoError("Choose a video from 1 to 120 seconds, up to 4096 pixels on either side.");
   }
+  const frameRate = (value?: string) => { const [numerator, denominator] = (value ?? "0/0").split("/").map(Number); return numerator / denominator; };
+  const averageRate = frameRate(stream?.avg_frame_rate);
+  const nominalRate = frameRate(stream?.r_frame_rate);
   const canCopy = stream?.codec_name === "h264" && stream.pix_fmt === "yuv420p"
+    && ["Constrained Baseline", "Baseline", "Main", "High"].includes(stream.profile ?? "")
+    && (stream.level ?? 0) > 0 && stream.level! <= 51
+    && width <= 3840 && height <= 3840 && width * height <= 3840 * 2160
+    && averageRate > 0 && averageRate <= 60 && nominalRate > 0 && nominalRate <= 60
+    && (!stream.field_order || stream.field_order === "progressive" || stream.field_order === "unknown")
     && (!stream.sample_aspect_ratio || stream.sample_aspect_ratio === "1:1")
     && !stream.side_data_list?.some((side) => side.rotation);
   return { duration, width, height, canCopy };
@@ -178,11 +186,9 @@ export function videoRoutes(bucket: Bucket) {
         const source = join(dir, "source.mov");
         const output = join(dir, "video.mp4");
         const poster = join(dir, "poster.jpg");
-        const hash = createHash("sha256");
         for (let part = 0; part < Math.ceil(upload.size / VIDEO_CHUNK_BYTES); part++) {
           const chunk = await bucket.get(`${uploadPath(id)}part-${part}`);
           if (!chunk || chunk.bytes.byteLength !== Math.min(VIDEO_CHUNK_BYTES, upload.size - part * VIDEO_CHUNK_BYTES)) throw new VideoError("The video upload is incomplete. Choose it again.");
-          hash.update(chunk.bytes);
           await appendFile(source, chunk.bytes);
         }
         const sourceInfo = await probe(source);
@@ -192,17 +198,23 @@ export function videoRoutes(bucket: Bucket) {
         if (sourceInfo.canCopy) await command("ffmpeg", [...input, "-c:v", "copy", "-movflags", "+faststart", output]);
         if (!sourceInfo.canCopy || (await stat(output)).size > MAX_OUTPUT_BYTES) {
           await command("ffmpeg", [...input,
-            "-vf", "scale=w='max(2,round(min(1080,1920*dar)/2)*2)':h='max(2,round(min(1920,1080/dar)/2)*2)',setsar=1", "-c:v", "libx264", "-threads", "2", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", output]);
+            "-vf", "scale=w='max(2,round(min(1080,1920*dar)/2)*2)':h='max(2,round(min(1920,1080/dar)/2)*2)',setsar=1,fps=30", "-c:v", "libx264", "-threads", "2", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", output]);
         }
         if ((await stat(output)).size > MAX_OUTPUT_BYTES) throw new VideoError("The processed video is too large. Try a shorter clip.");
         const { duration, width, height } = await probe(output);
-        // Identity follows the original, not a lossy preview that may discard
-        // differences between two source videos.
-        const key = `vid:${hash.digest("hex").slice(0, 32)}`;
+        // Each attempt owns its objects. Rollback must never remove a successful
+        // concurrent upload, even when its original bytes happen to be identical.
+        const key = `vid:${randomUUID().replaceAll("-", "")}`;
         await command("ffmpeg", ["-v", "error", "-nostdin", "-y", "-threads", "2", "-i", output, "-frames:v", "1", "-vf", "scale=540:-2", poster]);
-        await bucket.put(`${videoPath(key)}.original`, await readFile(source), { contentType: "application/octet-stream" });
-        await bucket.put(`${videoPath(key)}.jpg`, await readFile(poster), { contentType: "image/jpeg" });
-        await bucket.put(`${videoPath(key)}.mp4`, await readFile(output), { contentType: "video/mp4", custom: { name: upload.name, duration: String(duration), width: String(width), height: String(height), original: "1" } });
+        const path = videoPath(key);
+        try {
+          await bucket.put(`${path}.original`, await readFile(source), { contentType: "application/octet-stream" });
+          await bucket.put(`${path}.jpg`, await readFile(poster), { contentType: "image/jpeg" });
+          await bucket.put(`${path}.mp4`, await readFile(output), { contentType: "video/mp4", custom: { name: upload.name, duration: String(duration), width: String(width), height: String(height), original: "1" } });
+        } catch (error) {
+          await Promise.all(["original", "jpg", "mp4"].map((extension) => bucket.delete(`${path}.${extension}`)));
+          throw error;
+        }
         return { key, name: upload.name, duration, width, height };
       });
       return c.json({ video: asset }, 201);

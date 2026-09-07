@@ -25,7 +25,7 @@ async function fixture(t, options = {}) {
   return { directory, bucket, app: createApi({ bucket, ...options }) };
 }
 
-async function upload(app, bytes, name = "Clip.mp4") {
+async function upload(app, bytes, name = "Clip.mp4", expectedStatus = 201) {
   const init = await app.request(json("/video-uploads", { name, size: bytes.length }));
   assert.equal(init.status, 201);
   const { id, chunkBytes } = await init.json();
@@ -35,7 +35,7 @@ async function upload(app, bytes, name = "Clip.mp4") {
   }
   const response = await app.request(`/video-uploads/${id}/complete`, { method: "POST" });
   const body = await response.json();
-  assert.equal(response.status, 201, JSON.stringify(body));
+  assert.equal(response.status, expectedStatus, JSON.stringify(body));
   return body.video;
 }
 
@@ -159,6 +159,60 @@ test("compatible previews preserve every decoded frame and the source frame rate
   assert.equal(inspect(preview).streams[0].r_frame_rate, "24000/1001");
   assert.equal(video.width, 1280);
   assert.equal(video.height, 720);
+});
+
+test("failed asset writes remove partial files without touching an identical successful upload", { skip: !encoderAvailable && "Install FFmpeg for video integration checks" }, async (t) => {
+  const { app, bucket, directory } = await fixture(t);
+  const source = join(directory, "source.mp4");
+  ffmpeg("-f", "lavfi", "-i", "color=c=red:s=320x400:d=1:r=30", "-c:v", "libx264", "-pix_fmt", "yuv420p", source);
+  const bytes = await readFile(source);
+  const existing = await upload(app, bytes);
+  const originalPut = bucket.put.bind(bucket);
+  t.mock.method(console, "error", () => {});
+  for (const extension of ["original", "jpg", "mp4"]) {
+    let failed = false;
+    bucket.put = async (key, data, options) => {
+      const result = await originalPut(key, data, options);
+      // Simulate a failure after the storage write, including an uncertain
+      // completion result from the final MP4 write.
+      if (!failed && key.startsWith("videos/") && key.endsWith(`.${extension}`)) {
+        failed = true;
+        throw new Error("Storage write interrupted");
+      }
+      return result;
+    };
+    await upload(app, bytes, "Retry.mp4", 503);
+    assert.ok(failed);
+    const files = await bucket.list("videos/");
+    assert.equal(files.length, 3, `no orphan remains after the ${extension} write fails`);
+    assert.ok(files.every(({ key }) => key.startsWith(`videos/${existing.key.slice(4)}.`)));
+    assert.deepEqual(Buffer.from((await bucket.get(`videos/${existing.key.slice(4)}.original`)).bytes), bytes);
+    assert.equal((await bucket.list("video-uploads/")).length, 0);
+  }
+});
+
+test("out-of-range H.264 decoder requirements use a bounded 30 fps preview", { skip: !encoderAvailable && "Install FFmpeg for video integration checks" }, async (t) => {
+  for (const scenario of [
+    { name: "high level", size: "320x400", rate: "30", options: ["-level:v", "6.0"] },
+    { name: "high frame rate", size: "320x400", rate: "120", options: ["-level:v", "5.1"] },
+    { name: "oversized dimensions", size: "4096x2160", rate: "1", options: ["-level:v", "5.1"] },
+    { name: "unsupported profile", size: "320x400", rate: "30", options: ["-crf", "0"] },
+  ]) {
+    await t.test(scenario.name, async (subtest) => {
+      const { app, bucket, directory } = await fixture(subtest);
+      const source = join(directory, "source.mp4");
+      ffmpeg("-f", "lavfi", "-i", `color=c=red:s=${scenario.size}:d=1:r=${scenario.rate}`, "-c:v", "libx264", "-pix_fmt", "yuv420p", ...scenario.options, source);
+      const video = await upload(app, await readFile(source));
+      const preview = join(directory, "preview.mp4");
+      await writeFile(preview, (await bucket.get(`videos/${video.key.slice(4)}.mp4`)).bytes);
+      const stream = inspect(preview).streams[0];
+      assert.equal(stream.r_frame_rate, "30/1");
+      assert.ok(stream.width <= 1080 && stream.height <= 1920);
+      assert.ok(stream.level <= 41);
+      assert.notEqual(stream.profile, "High 4:4:4 Predictive");
+      assert.deepEqual(Buffer.from((await bucket.get(`videos/${video.key.slice(4)}.original`)).bytes), await readFile(source));
+    });
+  }
 });
 
 test("exports read the original even when the preview differs; old uploads still export", { skip: !encoderAvailable && "Install FFmpeg for video integration checks" }, async (t) => {
