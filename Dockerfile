@@ -8,10 +8,11 @@ RUN npm run build
 FROM node:22-slim
 WORKDIR /app
 ENV NODE_ENV=production
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
 COPY server ./server
-COPY app/carousel.ts app/image-formats.ts ./app/
+COPY app/carousel.ts app/image-formats.ts app/video-formats.ts ./app/
 EXPOSE 8080
 CMD ["node", "--experimental-strip-types", "server/index.ts"]

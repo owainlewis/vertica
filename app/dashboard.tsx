@@ -19,7 +19,6 @@ function readCover(cover: string) {
     return JSON.parse(cover || "{}") as {
       slide?: Partial<CarouselSlide>;
       mark?: string;
-      avatar?: string;
     };
   } catch {
     return {};
@@ -67,7 +66,6 @@ function CardPreview({
       title: carousel.title,
       author: carousel.author,
       ...(stored.mark ? { mark: stored.mark } : {}),
-      ...(stored.avatar && images[stored.avatar] ? { avatar: images[stored.avatar] } : {}),
       slides: Array.from({ length: Math.max(carousel.slideCount, 1) }, () => cover),
     };
   }, [carousel, images]);
@@ -129,7 +127,7 @@ export default function Dashboard({
     let live = true;
     const keys = carousels.flatMap((row) => {
       const stored = readCover(row.cover);
-      return [stored.avatar ?? "", stored.slide?.background ?? "", ...(stored.slide?.images ?? [])];
+      return [stored.slide?.background ?? "", ...(stored.slide?.images ?? [])];
     }).filter(Boolean);
     loadImages([...new Set(keys)]).then((images) => {
       if (live) setCovers(images);

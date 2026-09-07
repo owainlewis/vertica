@@ -1,5 +1,6 @@
 /** The JSON API. Mounted under /api; the same routes the client has always called. */
 import { Hono } from "hono";
+import { videoRoutes } from "./video.ts";
 import { SUPPORTED_IMAGE_MIME_TYPES } from "../app/image-formats.ts";
 import { clearSessionCookie, createSessionCookie, isAuthorised, isSecureRequest, passwordMatches } from "./auth.ts";
 import type { Bucket } from "./bucket.ts";
@@ -38,7 +39,7 @@ function readInput(body: unknown) {
     throw new InvalidInput("This carousel is too large to save. Images belong in the media library, not the config.");
   }
 
-  let parsed: { title?: unknown; author?: unknown; mark?: unknown; avatar?: unknown; slides?: unknown };
+  let parsed: { title?: unknown; author?: unknown; mark?: unknown; slides?: unknown };
   try {
     parsed = JSON.parse(config);
   } catch {
@@ -70,7 +71,6 @@ function readInput(body: unknown) {
       cover: JSON.stringify({
         slide: cover ?? {},
         mark: typeof parsed.mark === "string" ? parsed.mark.slice(0, 30) : "",
-        ...(typeof parsed.avatar === "string" && isMediaKey(parsed.avatar) ? { avatar: parsed.avatar } : {}),
       }),
       config,
     },
@@ -132,6 +132,8 @@ export function createApi({ bucket, secret }: ApiOptions) {
   });
 
   api.get("/media", async (c) => c.json({ media: await listMediaAssets(bucket), nextCursor: null }));
+
+  api.route("/", videoRoutes(bucket));
 
   api.put("/media/:key", async (c) => {
     const key = c.req.param("key");

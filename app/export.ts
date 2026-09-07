@@ -1,4 +1,6 @@
 import { createZip, dataUrlToBytes } from "./zip";
+import { videoFrame, videoRequest } from "./video-client";
+import type { VideoBackground } from "./video-formats";
 
 /** LinkedIn's portrait page box, in points. Instagram takes the same 4:5 frame. */
 export const SLIDE_WIDTH = 1080;
@@ -37,8 +39,7 @@ function stageNodes(expectedPages: number) {
  * what stops the occasional image-less page.
  */
 async function decodeBackgrounds(nodes: HTMLElement[]) {
-  // Pictures and the avatar are painted the same way as the background, and race
-  // the rasteriser the same way.
+  // Slide pictures race the rasteriser the same way as the background.
   const images = nodes.flatMap((node) => Array.from(node.querySelectorAll("img")));
   // A picture that will not decode should not sink the whole export.
   await Promise.all(images.map((image) => image.decode().catch(() => undefined)));
@@ -48,6 +49,20 @@ async function decodeBackgrounds(nodes: HTMLElement[]) {
 async function rasteriseStage(expectedPages: number) {
   const nodes = stageNodes(expectedPages);
   await document.fonts.ready;
+  // Still exports use the chosen clip's first frame. A failed video request must
+  // stop the export instead of silently leaving the background blank.
+  const frames = new Map<string, string>();
+  for (const node of nodes) {
+    const image = node.querySelector<HTMLImageElement>("img[data-video-key]");
+    if (!image) continue;
+    const key = image.dataset.videoKey!;
+    const start = Number(image.dataset.videoStart);
+    const frameId = `${key}:${start}`;
+    const frame = frames.get(frameId) ?? await videoFrame({ key, start, duration: 1 });
+    frames.set(frameId, frame);
+    image.src = frame;
+    await image.decode();
+  }
   await decodeBackgrounds(nodes);
 
   const { toJpeg } = await import("html-to-image");
@@ -69,6 +84,25 @@ async function rasteriseStage(expectedPages: number) {
   }
 
   return pages;
+}
+
+/** Capture the existing artwork with alpha, then composite it onto the clip. */
+export async function exportStageToMp4(fileName: string, expectedPages: number, index: number, video: VideoBackground) {
+  const node = stageNodes(expectedPages)[index];
+  if (!node) throw new Error("Select a video slide to export.");
+  await document.fonts.ready;
+  await decodeBackgrounds([node]);
+  const { toPng } = await import("html-to-image");
+  const overlay = await withTimeout(toPng(node, {
+    width: SLIDE_WIDTH, height: SLIDE_HEIGHT, pixelRatio: 1,
+    style: { background: "transparent" },
+    filter: (element) => !(element instanceof Element && element.classList.contains("slide-image")),
+  }), "The text overlay timed out. Keep this tab in front and try again.");
+  const response = await videoRequest("/video-exports", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ video, overlay }),
+  });
+  downloadBlob(await response.blob(), fileName);
 }
 
 export async function exportStageToPdf(fileName: string, expectedPages: number) {

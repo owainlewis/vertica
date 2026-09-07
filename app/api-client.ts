@@ -73,8 +73,7 @@ async function storeMedia(config: CarouselConfig): Promise<CarouselConfig> {
       };
     }),
   );
-  const avatar = await externalise(config.avatar);
-  return { ...config, ...(avatar ? { avatar } : {}), slides };
+  return { ...config, slides };
 }
 
 /**
@@ -88,12 +87,11 @@ async function storeMedia(config: CarouselConfig): Promise<CarouselConfig> {
  * unresolved key shows nothing and saves back unharmed.
  */
 export async function resolveMedia(config: CarouselConfig): Promise<CarouselConfig> {
-  const keys = [config.avatar ?? "", ...config.slides.flatMap(slideImageRefs)].filter(isImageKey);
+  const keys = config.slides.flatMap(slideImageRefs).filter(isImageKey);
   const images = await loadImages(keys);
   const resolve = (ref: string) => (isImageKey(ref) && images[ref]) || ref;
   return {
     ...config,
-    ...(config.avatar ? { avatar: resolve(config.avatar) } : {}),
     slides: config.slides.map((slide) => ({
       ...slide,
       ...(slide.background ? { background: resolve(slide.background) } : {}),

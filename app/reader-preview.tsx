@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Pause, Play, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { CarouselConfig } from "./carousel";
 import Dialog from "./dialog";
@@ -11,6 +11,7 @@ export default function ReaderPreview({ config, initialIndex, onClose }: {
 }) {
   const [index, setIndex] = useState(initialIndex);
   const [profile, setProfile] = useState(false);
+  const [playing, setPlaying] = useState(true);
   const move = (direction: number) => setIndex((current) => Math.max(0, Math.min(config.slides.length - 1, current + direction)));
 
   useEffect(() => {
@@ -33,10 +34,11 @@ export default function ReaderPreview({ config, initialIndex, onClose }: {
       </div>
       <div className="reader-body">
         <div className={`reader-frame ${profile ? "profile" : ""}`}>
-          <Slide slide={config.slides[index]} config={config} index={index} />
+          <Slide slide={config.slides[index]} config={config} index={index} videoPreview playing={playing} />
         </div>
       </div>
       <div className="reader-controls">
+        {config.slides[index].video && <button type="button" className="secondary-button icon-button" aria-label={playing ? "Pause video" : "Play video"} onClick={() => setPlaying(!playing)}>{playing ? <Pause size={16} /> : <Play size={16} />}</button>}
         <button type="button" className="secondary-button icon-button" aria-label="Previous slide" disabled={index === 0} onClick={() => move(-1)}><ArrowLeft size={18} /></button>
         <span role="status" aria-live="polite">{index + 1} of {config.slides.length}</span>
         <button type="button" className="secondary-button icon-button" aria-label="Next slide" disabled={index === config.slides.length - 1} onClick={() => move(1)}><ArrowRight size={18} /></button>

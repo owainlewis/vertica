@@ -12,9 +12,11 @@ import {
   Sparkles,
   RectangleVertical,
   Eye,
+  Film,
+  Pause,
+  Play,
   Trash2,
   Undo2,
-  UserRound,
   X,
 } from "lucide-react";
 import { Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
@@ -24,6 +26,8 @@ import Dialog from "./dialog";
 import ExportMenu from "./export-menu";
 import ReaderPreview from "./reader-preview";
 import MediaPicker from "./media-picker";
+import VideoPicker from "./video-picker";
+import { boundVideoBackground, parseVideoBackground } from "./video-formats";
 import {
   aiPrompt,
   assertBackgroundsAvailableForExport,
@@ -41,7 +45,7 @@ import {
   titleLines,
   usesImages,
 } from "./carousel";
-import { downloadBlob, exportStageToPdf, exportStageToZip, fileNameFor } from "./export";
+import { downloadBlob, exportStageToMp4, exportStageToPdf, exportStageToZip, fileNameFor } from "./export";
 import { SaveQueue } from "./save-queue";
 import { DEFAULT_VEIL, ExportStage, Slide } from "./slide";
 
@@ -78,8 +82,8 @@ const layoutHints: Record<SlideLayout, string> = {
   closing: "A headline and one line to finish on.",
 };
 
-/** Where a picked image goes: behind the copy, into the slide's pictures, or the deck avatar. */
-type MediaTarget = "background" | "images" | "avatar";
+/** Where a picked image goes: behind the copy or into the slide's pictures. */
+type MediaTarget = "background" | "images";
 
 /**
  * Signifier is loaded from the machine, not bundled, because its web licence is
@@ -144,8 +148,10 @@ export default function Editor({
   const [sourceText, setSourceText] = useState("");
   const [jsonText, setJsonText] = useState("");
   const [mediaOpen, setMediaOpen] = useState<MediaTarget | null>(null);
+  const [videoOpen, setVideoOpen] = useState(false);
+  const [videoPlaying, setVideoPlaying] = useState(true);
   const [notice, setNotice] = useState<Notice>(null);
-  const [exporting, setExporting] = useState<false | "pdf" | "zip">(false);
+  const [exporting, setExporting] = useState<false | "pdf" | "zip" | "mp4">(false);
   const [saveState, setSaveState] = useState<keyof typeof SAVE_LABEL>("saved");
   const [exiting, setExiting] = useState(false);
 
@@ -221,6 +227,7 @@ export default function Editor({
    * state from before the burst rather than from the middle of it.
    */
   function commit(next: CarouselConfig, key = "") {
+    if (exporting) return;
     // This runs only in user and async callbacks, never while rendering.
     const now = clockNow();
     const continuing = key !== "" && key === lastMark.current.key && now - lastMark.current.at < COALESCE_MS;
@@ -232,6 +239,7 @@ export default function Editor({
   }
 
   const step = useCallback((from: "past" | "future") => {
+    if (exporting) return;
     const source = from === "past" ? past : future;
     const target = from === "past" ? future : past;
     const next = source.current.at(-1);
@@ -243,19 +251,19 @@ export default function Editor({
     setSelectedIndex((index) => Math.min(index, next.slides.length - 1));
     lastMark.current = { key: "", at: 0 };
     setDepth({ past: past.current.length, future: future.current.length });
-  }, [config]);
+  }, [config, exporting]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       // Modal text fields own their native undo history, not the deck history.
-      if (composeOpen || mediaOpen || readerOpen) return;
+      if (composeOpen || mediaOpen || videoOpen || readerOpen) return;
       if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "z") return;
       event.preventDefault();
       step(event.shiftKey ? "future" : "past");
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [step, composeOpen, mediaOpen, readerOpen]);
+  }, [step, composeOpen, mediaOpen, videoOpen, readerOpen]);
 
   // Set on the way in as well as cleared on the way out. With only the cleanup, a
   // StrictMode mount/cleanup/mount cycle would leave this false for good and every
@@ -369,11 +377,6 @@ export default function Editor({
     const data = loaded[asset.key];
     if (!data) throw new Error("That image could not be loaded. Try uploading it again from Media.");
 
-    if (target === "avatar") {
-      commit({ ...config, avatar: data });
-      showNotice({ kind: "success", message: `${asset.name} is now the deck avatar.` });
-      return;
-    }
     if (target === "images") {
       const images = [...(selectedSlide.images ?? []), data];
       updateSlide({ images });
@@ -381,7 +384,7 @@ export default function Editor({
       showNotice({ kind: "success", message: room > 0 ? `Added ${asset.name}. Room for ${room} more.` : `Added ${asset.name}.` });
       return;
     }
-    updateSlide({ background: data });
+    updateSlide({ background: data, video: undefined });
     showNotice({ kind: "success", message: `${asset.name} is now the slide background.` });
   }
 
@@ -443,12 +446,18 @@ export default function Editor({
     window.location.reload();
   }
 
-  async function runExport(kind: "pdf" | "zip") {
+  async function runExport(kind: "pdf" | "zip" | "mp4") {
     if (exporting) return;
     setExporting(kind);
     try {
-      assertBackgroundsAvailableForExport(config);
-      if (kind === "pdf") {
+      assertBackgroundsAvailableForExport(kind === "mp4" ? { ...config, slides: [selectedSlide] } : config);
+      if (kind === "mp4") {
+        if (!selectedSlide.video) throw new Error("Choose a slide with a video background.");
+        if (!selectedSlide.video.sourceDuration) throw new Error("Wait for the video to load before exporting.");
+        parseVideoBackground(selectedSlide.video);
+        await exportStageToMp4(fileNameFor(`${config.title}-${String(selectedIndex + 1).padStart(2, "0")}`, "mp4"), config.slides.length, selectedIndex, selectedSlide.video);
+        showNotice({ kind: "success", message: `Exported slide ${selectedIndex + 1} as an MP4.` });
+      } else if (kind === "pdf") {
         await exportStageToPdf(exportFileName, config.slides.length);
         showNotice({ kind: "success", message: `Exported ${config.slides.length} PDF pages for LinkedIn.` });
       } else {
@@ -464,7 +473,7 @@ export default function Editor({
 
   return (
     <main className="studio-shell">
-      <header className="topbar">
+      <header className="topbar" inert={Boolean(exporting)}>
         <div className="topbar-crumbs">
           <button type="button" onClick={() => { void requestExit(); }} disabled={exiting}>Carousels</button>
 
@@ -483,11 +492,12 @@ export default function Editor({
           <button className="secondary-button icon-button" type="button" onClick={() => step("future")} disabled={depth.future === 0} title="Redo (⇧⌘Z)" aria-label="Redo"><Redo2 size={15} /></button>
           <button className="secondary-button generate-button" type="button" onClick={() => openComposer("text")} aria-label="Create from text" title="Create from text"><Sparkles size={15} /> <span>Create from text</span></button>
           <button className="secondary-button icon-button" type="button" onClick={() => setReaderOpen(true)} aria-label="Reader preview" title="Reader preview"><Eye size={16} /></button>
-          <ExportMenu busy={Boolean(exporting)} onExport={(kind) => { void runExport(kind); }} />
+          <ExportMenu busy={Boolean(exporting)} video={Boolean(selectedSlide.video)} onExport={(kind) => { void runExport(kind); }} />
         </div>
       </header>
 
-      <section className="workspace">
+      {exporting && <p className="video-export-status" role="status">{exporting === "mp4" ? "Rendering MP4… This may take a minute." : "Exporting slides…"} Keep this tab open.</p>}
+      <section className="workspace" inert={Boolean(exporting)}>
         <aside className="rail">
           <div className="rail-heading"><span>Slides</span><button type="button" onClick={addSlide} aria-label="Add slide"><Plus size={15} /></button></div>
           <div className="slide-list">
@@ -518,10 +528,22 @@ export default function Editor({
             <span>{selectedIndex + 1} of {config.slides.length}</span>
           </div>
           <div className="preview-frame">
-            <Slide slide={selectedSlide} config={config} index={selectedIndex} />
+            <Slide slide={selectedSlide} config={config} index={selectedIndex} videoPreview playing={videoPlaying && !readerOpen} onVideoDuration={(duration) => {
+              // Source metadata is derived, so refreshing it must not add an undo
+              // step that immediately reappears whenever the user presses Undo.
+              if (exporting) return;
+              setConfig((current) => {
+                const slide = current.slides.find((item) => item.id === selectedSlide.id);
+                if (!slide?.video || slide.video.key !== selectedSlide.video?.key) return current;
+                const video = boundVideoBackground(slide.video, duration);
+                if (video.sourceDuration === slide.video.sourceDuration && video.start === slide.video.start && video.duration === slide.video.duration) return current;
+                return { ...current, slides: current.slides.map((item) => item === slide ? { ...slide, video } : item) };
+              });
+            }} />
             {showCrop && <div className="crop-guide" />}
           </div>
           <div className="slide-actions" aria-label="Slide actions">
+            {selectedSlide.video && <button type="button" onClick={() => setVideoPlaying(!videoPlaying)}>{videoPlaying ? <Pause size={14} /> : <Play size={14} />}{videoPlaying ? "Pause video" : "Play video"}</button>}
             <button type="button" onClick={() => moveSlide(-1)} disabled={selectedIndex === 0} aria-label="Move slide up"><ArrowUp size={15} /></button>
             <button type="button" onClick={() => moveSlide(1)} disabled={selectedIndex === config.slides.length - 1} aria-label="Move slide down"><ArrowDown size={15} /></button>
             <button type="button" onClick={duplicateSlide}><Copy size={14} /> Duplicate</button>
@@ -627,21 +649,31 @@ export default function Editor({
               </div>
               <span className="field-label">Background photo</span>
               <button className="wide-upload" type="button" onClick={() => setMediaOpen("background")}><Images size={15} /> {selectedSlide.background ? "Choose another image" : "Choose from media"}</button>
+              <span className="field-label">Video background · Experimental</span>
+              <button className="wide-upload" type="button" onClick={() => setVideoOpen(true)}><Film size={15} /> {selectedSlide.video ? "Change video" : "Choose a video"}</button>
+              {selectedSlide.video && <>
+                <div className="video-clip-fields">
+                  <label className="field-label" htmlFor="video-start">Start (s)<input id="video-start" type="number" min={0} max={Math.max(0, (selectedSlide.video.sourceDuration ?? 0) - selectedSlide.video.duration)} disabled={!selectedSlide.video.sourceDuration} step={0.1} value={selectedSlide.video.start} onChange={(event) => updateSlide({ video: boundVideoBackground({ ...selectedSlide.video!, start: Number(event.target.value) }, selectedSlide.video!.sourceDuration!) }, "video-start")} /></label>
+                  <label className="field-label" htmlFor="video-duration">Duration (s)<input id="video-duration" type="number" min={1} max={Math.min(30, (selectedSlide.video.sourceDuration ?? 1) - selectedSlide.video.start)} disabled={!selectedSlide.video.sourceDuration} step={0.1} value={selectedSlide.video.duration} onChange={(event) => updateSlide({ video: { ...selectedSlide.video!, duration: Math.max(1, Math.min(30, selectedSlide.video!.sourceDuration! - selectedSlide.video!.start, Number(event.target.value))) } }, "video-duration")} /></label>
+                </div>
+                <p className="field-hint">{selectedSlide.video.sourceDuration ? `Source: ${selectedSlide.video.sourceDuration.toFixed(1)}s. ` : "Loading source duration… "}Silent, centred crop. Export → Video slide creates one MP4. PDF and JPEG use the clip’s first frame.</p>
+                <button type="button" className="text-button" onClick={() => updateSlide({ video: undefined, veil: undefined })}>Remove video</button>
+              </>}
               {isImageKey(selectedSlide.background) && (
                 <p className="field-hint warning">
                   This slide has an image that is not available in this browser, so it cannot be shown or exported here.
                   It is kept in the saved carousel. If it predates media persistence, add it to Media again or choose a replacement from your library.
                 </p>
               )}
-              {selectedSlide.background && (
+              {(selectedSlide.background || selectedSlide.video) && (
                 <>
                   <label className="field-label range-label" htmlFor="veil">
-                    <span>Photo veil</span>
+                    <span>Background veil</span>
                     <span>{Math.round((selectedSlide.veil ?? DEFAULT_VEIL) * 100)}%</span>
                   </label>
                   <input id="veil" className="range" type="range" min={0} max={100} step={5} value={Math.round((selectedSlide.veil ?? DEFAULT_VEIL) * 100)} onChange={(event) => updateSlide({ veil: Number(event.target.value) / 100 }, "veil")} />
-                  <p className="field-hint">0% shows the photograph untouched. Raise it when copy has to sit on a busy part of the picture.</p>
-                  <button type="button" className="text-button" onClick={() => updateSlide({ background: undefined, veil: undefined })}>Remove image</button>
+                  <p className="field-hint">Raise the veil to make text easier to read over a busy background.</p>
+                  {selectedSlide.background && <button type="button" className="text-button" onClick={() => updateSlide({ background: undefined, veil: undefined })}>Remove image</button>}
                 </>
               )}
 
@@ -650,17 +682,6 @@ export default function Editor({
               <input id="mark" maxLength={30} value={config.mark ?? ""} placeholder="AI Engineer" onChange={(event) => commit({ ...config, mark: event.target.value }, "mark")} />
               <label className="field-label" htmlFor="author">Footer name</label>
               <input id="author" maxLength={40} value={config.author} onChange={(event) => commit({ ...config, author: event.target.value }, "author")} />
-              <span className="field-label">Avatar</span>
-              <div className="avatar-row">
-                <span className="avatar-preview" style={config.avatar && !isImageKey(config.avatar) ? { backgroundImage: `url(${config.avatar})` } : undefined} />
-                <button className="wide-upload" type="button" onClick={() => setMediaOpen("avatar")}><UserRound size={15} /> {config.avatar ? "Change avatar" : "Choose from media"}</button>
-              </div>
-              {config.avatar && <button type="button" className="text-button" onClick={() => commit({ ...config, avatar: undefined })}>Remove avatar</button>}
-              <span className="field-label">Page number</span>
-              <div className="segmented" aria-label="Page number style">
-                <button type="button" aria-pressed={(config.numbering ?? "page") === "page"} className={(config.numbering ?? "page") === "page" ? "active" : ""} onClick={() => commit({ ...config, numbering: undefined })}>02</button>
-                <button type="button" aria-pressed={config.numbering === "fraction"} className={config.numbering === "fraction" ? "active" : ""} onClick={() => commit({ ...config, numbering: "fraction" })}>02 / 06</button>
-              </div>
               <label className="check-row"><input type="checkbox" checked={config.arrow !== false} onChange={(event) => commit({ ...config, arrow: event.target.checked ? undefined : false })} /> Swipe arrow on every slide but the last</label>
               <details className="config-tools">
                 <summary>Project data</summary>
@@ -707,6 +728,10 @@ export default function Editor({
       {readerOpen && <ReaderPreview config={config} initialIndex={selectedIndex} onClose={() => setReaderOpen(false)} />}
 
       {mediaOpen && <MediaPicker onChoose={chooseMedia} onClose={() => setMediaOpen(null)} />}
+      {videoOpen && <VideoPicker onChoose={(video) => {
+        updateSlide({ background: undefined, video: { key: video.key, start: 0, duration: Math.min(10, Math.floor(video.duration * 10) / 10), sourceDuration: video.duration } });
+        setVideoPlaying(true);
+      }} onClose={() => setVideoOpen(false)} />}
 
       {notice && <div className={`toast ${notice.kind}`} role="status">{notice.kind === "success" ? <Check size={16} /> : <X size={16} />}{notice.message}</div>}
     </main>

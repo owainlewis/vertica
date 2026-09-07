@@ -24,6 +24,39 @@ nothing leaves your machine.
 
 `npm test` typechecks, builds, and runs the tests. `npm run lint` runs ESLint.
 
+## Experimental video backgrounds
+
+Install `ffmpeg` and `ffprobe` on the server's PATH (`brew install ffmpeg` on
+macOS). The Docker image includes them. In the editor, open **Design → Choose a
+video**, upload an MP4 or MOV, and set the clip's start and duration. Use the
+existing text, positioning, colours, and background veil. Pause/play controls are
+available in the editor and reader preview.
+
+**Export → Video slide** downloads the selected slide as a silent 1080 × 1350,
+30 fps H.264 MP4. It keeps the preview's centred 4:5 crop and burns in the text,
+branding, and veil. PDF and JPEG exports use the selected clip's first frame.
+MP4 export currently produces one slide at a time; there is no audio, animated
+text, timeline, or combined deck video.
+
+Sources can be 1–120 seconds, up to 512 MB and 4096 pixels on either side. Clips
+can be 1–30 seconds. The editor reads and stores the source duration and constrains
+the start and duration to fit; older saved intervals are corrected when the video
+metadata loads. Uploads use 8 MB chunks in the
+same storage bucket as the app, so they work across server instances. The server
+creates a smaller, silent H.264 copy for playback and deletes the uploaded source
+chunks after processing. Interrupted uploads expire after an hour and are cleaned
+up on the next upload. Existing videos can be reused from the video picker.
+
+Video processing uses temporary disk and one encoder per instance, with a
+three-minute processing timeout. The deploy script allocates 2 GiB of memory,
+two CPUs, four concurrent requests, and a five-minute request timeout because
+Cloud Run also charges temporary files against memory. A busy encoder returns a
+retryable error. This branch changes deployment settings but does not deploy them.
+
+Run `npm test` with FFmpeg installed to include actual video upload, encoding,
+crop, overlay, duration, and error-path checks. Those integration checks report
+as skipped when FFmpeg is absent; parser and API validation checks still run.
+
 ## How it is built
 
 One Node process, one bucket, one container.
@@ -69,8 +102,8 @@ on any machine. Deleting a library image is refused while a deck still uses it.
 
 Signifier for headlines, Helvetica for copy and furniture, paper ground with sage
 and black as the two alternative grounds. A faint twelve-column field sits under
-every text slide. Series label top left, page number top right, footer and optional
-avatar bottom left, a swipe arrow bottom right on every slide but the last.
+every text slide. Series label top left, a two-digit page number top right, footer
+bottom left, a swipe arrow bottom right on every slide but the last.
 
 Seven layouts, each with one job. Note, poster, diagram and photos draw the headline
 only, so nothing can collide with the figure.
@@ -111,9 +144,9 @@ shape. In Claude Code, `/carousel` loads it.
 }
 ```
 
-Optional fields: `avatar` (a media key or data URL), `numbering` (`"fraction"` for
-02 / 06), `arrow: false`, and per slide `tone`, `position`, `align`, `background`,
-`veil`, `images`. `parseCarouselConfig` in `app/carousel.ts` is the contract; it
+Optional fields: `arrow: false`, and per slide `tone`, `position`, `align`,
+`background`, `video`, `veil`, `images`. Page numbers always use `01`, `02`, etc.
+`parseCarouselConfig` in `app/carousel.ts` is the contract; it
 throws a plain message for anything the app would refuse, and it maps older layout
 names onto the current seven.
 
