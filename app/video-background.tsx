@@ -1,9 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { type VideoBackground as Clip, videoUrl } from "./video-formats";
 
-export default function VideoBackground({ clip, playing }: { clip: Clip; playing: boolean }) {
+export default function VideoBackground({ clip, playing, onDuration }: { clip: Clip; playing: boolean; onDuration?: (duration: number) => void }) {
   const ref = useRef<HTMLVideoElement>(null);
   const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    const video = ref.current;
+    if (!video || !onDuration) return;
+    const report = () => { if (Number.isFinite(video.duration) && video.duration >= 1) onDuration(video.duration); };
+    if (video.readyState >= 1) report();
+    else video.addEventListener("loadedmetadata", report, { once: true });
+    return () => video.removeEventListener("loadedmetadata", report);
+  }, [onDuration]);
   useEffect(() => {
     const video = ref.current;
     if (!video) return;

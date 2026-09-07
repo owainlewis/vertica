@@ -27,6 +27,7 @@ import ExportMenu from "./export-menu";
 import ReaderPreview from "./reader-preview";
 import MediaPicker from "./media-picker";
 import VideoPicker from "./video-picker";
+import { boundVideoBackground, parseVideoBackground } from "./video-formats";
 import {
   aiPrompt,
   assertBackgroundsAvailableForExport,
@@ -452,6 +453,8 @@ export default function Editor({
       assertBackgroundsAvailableForExport(kind === "mp4" ? { ...config, slides: [selectedSlide] } : config);
       if (kind === "mp4") {
         if (!selectedSlide.video) throw new Error("Choose a slide with a video background.");
+        if (!selectedSlide.video.sourceDuration) throw new Error("Wait for the video to load before exporting.");
+        parseVideoBackground(selectedSlide.video);
         await exportStageToMp4(fileNameFor(`${config.title}-${String(selectedIndex + 1).padStart(2, "0")}`, "mp4"), config.slides.length, selectedIndex, selectedSlide.video);
         showNotice({ kind: "success", message: `Exported slide ${selectedIndex + 1} as an MP4.` });
       } else if (kind === "pdf") {
@@ -525,7 +528,18 @@ export default function Editor({
             <span>{selectedIndex + 1} of {config.slides.length}</span>
           </div>
           <div className="preview-frame">
-            <Slide slide={selectedSlide} config={config} index={selectedIndex} videoPreview playing={videoPlaying && !readerOpen} />
+            <Slide slide={selectedSlide} config={config} index={selectedIndex} videoPreview playing={videoPlaying && !readerOpen} onVideoDuration={(duration) => {
+              // Source metadata is derived, so refreshing it must not add an undo
+              // step that immediately reappears whenever the user presses Undo.
+              if (exporting) return;
+              setConfig((current) => {
+                const slide = current.slides.find((item) => item.id === selectedSlide.id);
+                if (!slide?.video || slide.video.key !== selectedSlide.video?.key) return current;
+                const video = boundVideoBackground(slide.video, duration);
+                if (video.sourceDuration === slide.video.sourceDuration && video.start === slide.video.start && video.duration === slide.video.duration) return current;
+                return { ...current, slides: current.slides.map((item) => item === slide ? { ...slide, video } : item) };
+              });
+            }} />
             {showCrop && <div className="crop-guide" />}
           </div>
           <div className="slide-actions" aria-label="Slide actions">
@@ -639,10 +653,10 @@ export default function Editor({
               <button className="wide-upload" type="button" onClick={() => setVideoOpen(true)}><Film size={15} /> {selectedSlide.video ? "Change video" : "Choose a video"}</button>
               {selectedSlide.video && <>
                 <div className="video-clip-fields">
-                  <label className="field-label" htmlFor="video-start">Start (s)<input id="video-start" type="number" min={0} max={119} step={0.1} value={selectedSlide.video.start} onChange={(event) => updateSlide({ video: { ...selectedSlide.video!, start: Math.max(0, Math.min(119, Number(event.target.value))) } }, "video-start")} /></label>
-                  <label className="field-label" htmlFor="video-duration">Duration (s)<input id="video-duration" type="number" min={1} max={30} step={0.1} value={selectedSlide.video.duration} onChange={(event) => updateSlide({ video: { ...selectedSlide.video!, duration: Math.max(1, Math.min(30, Number(event.target.value))) } }, "video-duration")} /></label>
+                  <label className="field-label" htmlFor="video-start">Start (s)<input id="video-start" type="number" min={0} max={Math.max(0, (selectedSlide.video.sourceDuration ?? 0) - selectedSlide.video.duration)} disabled={!selectedSlide.video.sourceDuration} step={0.1} value={selectedSlide.video.start} onChange={(event) => updateSlide({ video: boundVideoBackground({ ...selectedSlide.video!, start: Number(event.target.value) }, selectedSlide.video!.sourceDuration!) }, "video-start")} /></label>
+                  <label className="field-label" htmlFor="video-duration">Duration (s)<input id="video-duration" type="number" min={1} max={Math.min(30, (selectedSlide.video.sourceDuration ?? 1) - selectedSlide.video.start)} disabled={!selectedSlide.video.sourceDuration} step={0.1} value={selectedSlide.video.duration} onChange={(event) => updateSlide({ video: { ...selectedSlide.video!, duration: Math.max(1, Math.min(30, selectedSlide.video!.sourceDuration! - selectedSlide.video!.start, Number(event.target.value))) } }, "video-duration")} /></label>
                 </div>
-                <p className="field-hint">Silent, centred crop. Export → Video slide creates one MP4. PDF and JPEG use the clip’s first frame.</p>
+                <p className="field-hint">{selectedSlide.video.sourceDuration ? `Source: ${selectedSlide.video.sourceDuration.toFixed(1)}s. ` : "Loading source duration… "}Silent, centred crop. Export → Video slide creates one MP4. PDF and JPEG use the clip’s first frame.</p>
                 <button type="button" className="text-button" onClick={() => updateSlide({ video: undefined, veil: undefined })}>Remove video</button>
               </>}
               {isImageKey(selectedSlide.background) && (
@@ -715,7 +729,7 @@ export default function Editor({
 
       {mediaOpen && <MediaPicker onChoose={chooseMedia} onClose={() => setMediaOpen(null)} />}
       {videoOpen && <VideoPicker onChoose={(video) => {
-        updateSlide({ background: undefined, video: { key: video.key, start: 0, duration: Math.min(10, Math.floor(video.duration * 10) / 10) } });
+        updateSlide({ background: undefined, video: { key: video.key, start: 0, duration: Math.min(10, Math.floor(video.duration * 10) / 10), sourceDuration: video.duration } });
         setVideoPlaying(true);
       }} onClose={() => setVideoOpen(false)} />}
 

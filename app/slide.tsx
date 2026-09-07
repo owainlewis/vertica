@@ -45,6 +45,7 @@ export function Slide({
   exportMode = false,
   videoPreview = false,
   playing = true,
+  onVideoDuration,
 }: {
   slide: CarouselSlide;
   config: CarouselConfig;
@@ -52,6 +53,7 @@ export function Slide({
   exportMode?: boolean;
   videoPreview?: boolean;
   playing?: boolean;
+  onVideoDuration?: (duration: number) => void;
 }) {
   const scale = TYPE_SCALE;
   const isCover = slide.layout === "cover";
@@ -118,7 +120,7 @@ export function Slide({
           style value past a few megabytes, and a data URL of a photograph is one. */}
       {slide.video
         ? videoPreview
-          ? <VideoBackground key={slide.video.key} clip={slide.video} playing={playing} />
+          ? <VideoBackground key={slide.video.key} clip={slide.video} playing={playing} onDuration={onVideoDuration} />
           : <img key={`${slide.video.key}:${slide.video.start}`} className="slide-image" src={videoUrl(slide.video.key, "/poster")} data-video-key={slide.video.key} data-video-start={slide.video.start} alt="" />
         : background && <img className="slide-image" src={background} alt="" />}
       <div className="slide-overlay" />

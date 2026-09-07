@@ -8,7 +8,7 @@ import { createApi } from "../server/api.ts";
 import { LocalBucket } from "../server/bucket.ts";
 import { mediaKeysIn } from "../server/store.ts";
 import { parseCarouselConfig } from "../app/carousel.ts";
-import { MAX_VIDEO_BYTES, parseVideoBackground, VIDEO_CHUNK_BYTES } from "../app/video-formats.ts";
+import { boundVideoBackground, MAX_VIDEO_BYTES, parseVideoBackground, VIDEO_CHUNK_BYTES } from "../app/video-formats.ts";
 
 const KEY = "vid:1234567890abcdef1234567890abcdef";
 const clip = { key: KEY, start: 1, duration: 1 };
@@ -55,6 +55,15 @@ test("video routes require the same session as the rest of the app", async (t) =
   for (const request of [json("/video-uploads", { size: 1 }), json("/video-exports", {}), new Request(`http://localhost/videos/${KEY}`)]) {
     assert.equal((await app.request(request)).status, 401);
   }
+});
+
+test("clips fit the actual source duration, including older saved intervals", () => {
+  assert.deepEqual(boundVideoBackground({ key: KEY, start: 9, duration: 5 }, 10), { key: KEY, start: 5, duration: 5, sourceDuration: 10 });
+  assert.deepEqual(boundVideoBackground({ key: KEY, start: 0, duration: 10 }, 2), { key: KEY, start: 0, duration: 2, sourceDuration: 2 });
+  const valid = { ...clip, sourceDuration: 10 };
+  assert.deepEqual(parseVideoBackground(valid), valid);
+  assert.throws(() => parseVideoBackground({ ...valid, start: 9, duration: 5 }), /fit within the source/);
+  for (const sourceDuration of [0, Infinity, "10"]) assert.throws(() => parseVideoBackground({ ...clip, sourceDuration }));
 });
 
 test("upload bounds, incomplete chunks, expiry, and cleanup are enforced", async (t) => {

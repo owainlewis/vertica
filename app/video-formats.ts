@@ -1,5 +1,5 @@
 /** Video backgrounds are silent clips; the source stays outside the carousel JSON. */
-export type VideoBackground = { key: string; start: number; duration: number };
+export type VideoBackground = { key: string; start: number; duration: number; sourceDuration?: number };
 export type VideoAsset = { key: string; name: string; duration: number; width: number; height: number };
 
 export const VIDEO_CHUNK_BYTES = 8 * 1024 * 1024;
@@ -21,7 +21,20 @@ export function parseVideoBackground(value: unknown): VideoBackground {
   if (typeof video.duration !== "number" || !Number.isFinite(video.duration) || video.duration < 1 || video.duration > MAX_CLIP_SECONDS) {
     throw new Error("Choose a video duration between 1 and 30 seconds.");
   }
-  return { key: video.key, start: video.start, duration: video.duration };
+  const sourceDuration = video.sourceDuration;
+  if (sourceDuration !== undefined) {
+    if (typeof sourceDuration !== "number" || !Number.isFinite(sourceDuration) || sourceDuration < 1 || sourceDuration > MAX_VIDEO_SECONDS) {
+      throw new Error("The source video must be between 1 and 120 seconds.");
+    }
+    if (video.start + video.duration > sourceDuration + 0.000001) throw new Error("The clip must fit within the source video.");
+  }
+  return { key: video.key, start: video.start, duration: video.duration, ...(sourceDuration !== undefined ? { sourceDuration: sourceDuration as number } : {}) };
+}
+
+/** Also upgrades older decks once the browser has read the source metadata. */
+export function boundVideoBackground(clip: VideoBackground, sourceDuration: number): VideoBackground {
+  const duration = Math.max(1, Math.min(clip.duration, MAX_CLIP_SECONDS, sourceDuration));
+  return { ...clip, sourceDuration, duration, start: Math.max(0, Math.min(clip.start, sourceDuration - duration)) };
 }
 
 export function videoUrl(key: string, part = "") {

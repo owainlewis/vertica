@@ -39,7 +39,9 @@ MP4 export currently produces one slide at a time; there is no audio, animated
 text, timeline, or combined deck video.
 
 Sources can be 1–120 seconds, up to 512 MB and 4096 pixels on either side. Clips
-can be 1–30 seconds and must fit within the source. Uploads use 8 MB chunks in the
+can be 1–30 seconds. The editor reads and stores the source duration and constrains
+the start and duration to fit; older saved intervals are corrected when the video
+metadata loads. Uploads use 8 MB chunks in the
 same storage bucket as the app, so they work across server instances. The server
 creates a smaller, silent H.264 copy for playback and deletes the uploaded source
 chunks after processing. Interrupted uploads expire after an hour and are cleaned
