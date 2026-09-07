@@ -125,10 +125,12 @@ export function Slide({
         : background && <img className="slide-image" src={background} alt="" />}
       <div className="slide-overlay" />
       <div className="slide-rules" aria-hidden="true">{Array.from({ length: 13 }, (_, index) => <span key={index} />)}</div>
-      <header className="slide-head">
-        {config.mark && <span className="slide-mark">{config.mark}</span>}
-        <span className="slide-counter">{page}</span>
-      </header>
+      {slide.showHeader !== false && (
+        <header className="slide-head">
+          {config.mark && <span className="slide-mark">{config.mark}</span>}
+          <span className="slide-counter">{page}</span>
+        </header>
+      )}
       <div className="slide-content">{copy}</div>
       {/* Sanitised at parse time and again here, so a diagram can draw but never run. */}
       {slide.layout === "diagram" && (
@@ -147,10 +149,12 @@ export function Slide({
           ))}
         </div>
       )}
-      <footer className="slide-meta">
-        <span className="meta-author">{config.author}</span>
-        {showArrow && <span className="slide-arrow" aria-hidden="true">→</span>}
-      </footer>
+      {slide.showFooter !== false && (
+        <footer className="slide-meta">
+          <span className="meta-author">{config.author}</span>
+          {showArrow && <span className="slide-arrow" aria-hidden="true">→</span>}
+        </footer>
+      )}
     </article>
   );
 }

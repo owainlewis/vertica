@@ -73,8 +73,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 /* A persistent left sidebar keeps navigation separate from the work. */
 .app { display: grid; grid-template-columns: 200px minmax(0, 1fr); height: 100dvh; overflow: hidden; }
 .app-nav { position: sticky; top: 0; z-index: 8; display: flex; flex-direction: column; align-items: stretch; gap: 36px; height: 100dvh; padding: 28px 16px 20px; background: var(--panel); border-right: 1px solid var(--line); }
-.app-mark { display: inline-flex; align-items: center; align-self: flex-start; gap: 10px; padding: 0; border: 0; background: transparent; font-size: 23px; font-weight: 500; letter-spacing: -.04em; cursor: pointer; }
-.app-symbol { display: grid; place-items: center; width: 34px; height: 38px; border-radius: 8px; color: var(--bg); background: var(--ink); font-family: var(--font-serif); font-size: 26px; font-style: italic; }
 .app-nav-links { display: flex; flex-direction: column; gap: 6px; }
 .app-nav-item { display: inline-flex; align-items: center; gap: 8px; min-height: 42px; padding: 10px 18px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 13px; font-weight: 500; cursor: pointer; transition: background .14s ease, color .14s ease; }
 .app-nav-item:hover { color: var(--ink); background: var(--panel-2); }
@@ -399,7 +397,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .picture-list li.is-missing { background: repeating-linear-gradient(135deg, #e6e3da 0 5px, #f1f0eb 5px 12px); }
 .picture-list button { position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: rgb(26 26 23 / .7); color: white; cursor: pointer; }
 .check-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 11.5px; }
-.check-row input { width: auto; accent-color: var(--accent); }
+.inspector .check-row input { width: auto; padding: 0; accent-color: var(--accent); }
 .field-label.range-label { display: flex; justify-content: space-between; }
 .range-label span:last-child { font-family: var(--font-mono); text-transform: none; letter-spacing: 0; }
 .inspector input.range { padding: 0; border: 0; background: transparent; box-shadow: none; accent-color: var(--accent); }
@@ -508,8 +506,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 @media (max-width: 1100px) and (min-width: 641px) {
   .app { grid-template-columns: 76px minmax(0, 1fr); }
   .app-nav { align-items: center; padding: 24px 8px 16px; }
-  .app-mark { align-self: center; }
-  .app-mark > span:last-child { display: none; }
   .app-nav-item { flex-direction: column; gap: 6px; width: 60px; padding: 10px 2px; font-size: 10px; }
 }
 
@@ -517,8 +513,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   :root { --control-size: 44px; --control-size-sm: 36px; --page-gutter: 20px; }
   .app { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 64px minmax(0, 1fr); }
   .app-nav { flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; height: 64px; padding: 0 16px; border-right: 0; border-bottom: 1px solid var(--line); }
-  .app-mark { align-self: center; gap: 7px; font-size: 21px; }
-  .app-symbol { width: 28px; height: 32px; font-size: 23px; }
   .app-nav-links { flex-direction: row; gap: 2px; }
   .app-nav-item { gap: 6px; padding: 10px; font-size: 12px; }
   .app-nav-item svg { width: 16px; }
