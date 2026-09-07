@@ -198,7 +198,7 @@ export function videoRoutes(bucket: Bucket) {
         if (sourceInfo.canCopy) await command("ffmpeg", [...input, "-c:v", "copy", "-movflags", "+faststart", output]);
         if (!sourceInfo.canCopy || (await stat(output)).size > MAX_OUTPUT_BYTES) {
           await command("ffmpeg", [...input,
-            "-vf", "scale=w='max(2,round(min(1080,1920*dar)/2)*2)':h='max(2,round(min(1920,1080/dar)/2)*2)',setsar=1,fps=30", "-c:v", "libx264", "-threads", "2", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", output]);
+            "-vf", "scale=w='max(2,round(min(1080,1920*dar)/2)*2)':h='max(2,round(min(1920,1080/dar)/2)*2)',setsar=1,fps='min(source_fps,30)'", "-c:v", "libx264", "-threads", "2", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", output]);
         }
         if ((await stat(output)).size > MAX_OUTPUT_BYTES) throw new VideoError("The processed video is too large. Try a shorter clip.");
         const { duration, width, height } = await probe(output);
@@ -212,7 +212,7 @@ export function videoRoutes(bucket: Bucket) {
           await bucket.put(`${path}.jpg`, await readFile(poster), { contentType: "image/jpeg" });
           await bucket.put(`${path}.mp4`, await readFile(output), { contentType: "video/mp4", custom: { name: upload.name, duration: String(duration), width: String(width), height: String(height), original: "1" } });
         } catch (error) {
-          await Promise.all(["original", "jpg", "mp4"].map((extension) => bucket.delete(`${path}.${extension}`)));
+          await Promise.allSettled(["original", "jpg", "mp4"].map((extension) => bucket.delete(`${path}.${extension}`)));
           throw error;
         }
         return { key, name: upload.name, duration, width, height };
