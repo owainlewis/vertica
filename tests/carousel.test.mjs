@@ -408,3 +408,22 @@ test("duplicating a deck preserves its content and media with independent slide 
   copy.slides[0].title = "Changed";
   assert.deepEqual(original, before, "editing the copy never changes the source deck");
 });
+
+
+test("slide visibility survives JSON round trips and duplication, defaulting to visible", () => {
+  const config = parseCarouselConfig(JSON.stringify({
+    slides: [
+      { title: "Text only", layout: "note", showHeader: false, showFooter: false },
+      { title: "Footer only", showHeader: false },
+      { title: "Header only", showFooter: false },
+      { title: "Visible", showHeader: true, showFooter: true },
+      { title: "Older slide" },
+      { title: "Malformed flags", showHeader: "false", showFooter: 0 },
+    ],
+  }));
+  const visibility = (deck) => deck.slides.map(({ showHeader, showFooter }) => [showHeader !== false, showFooter !== false]);
+  const expected = [[false, false], [false, true], [true, false], [true, true], [true, true], [true, true]];
+  assert.deepEqual(visibility(config), expected);
+  assert.deepEqual(visibility(parseCarouselConfig(JSON.stringify(config))), expected);
+  assert.deepEqual(visibility(duplicateCarouselConfig(config)), expected);
+});

@@ -586,6 +586,11 @@ export default function Editor({
               </button>
 
               <p className="field-hint">{layoutHints[selectedSlide.layout]}</p>
+
+              <span className="field-label">Header and footer</span>
+              <label className="check-row"><input type="checkbox" checked={selectedSlide.showHeader !== false} onChange={(event) => updateSlide({ showHeader: event.target.checked ? undefined : false })} /> Show header</label>
+              <label className="check-row"><input type="checkbox" checked={selectedSlide.showFooter !== false} onChange={(event) => updateSlide({ showFooter: event.target.checked ? undefined : false })} /> Show footer</label>
+              <p className="field-hint">Header: series label and page number. Footer: author and swipe arrow. These settings apply to this slide.</p>
             </div>
           ) : inspectorTab === "content" ? (
             <div className="inspector-panel">

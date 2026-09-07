@@ -74,14 +74,13 @@ function SignIn({ onDone }: { onDone: () => void }) {
 }
 
 /**
- * The frame every screen shares: the mark and the two places you can be. It never
+ * The frame every screen shares: the two places you can be. It never
  * changes shape between the library and a deck, so opening a carousel feels like
  * moving within one room rather than into another app.
  */
 function AppNav({ active, onNavigate }: { active: "gallery" | "media" | "editor"; onNavigate: (kind: "gallery" | "media") => void }) {
   return (
     <nav className="app-nav" aria-label="Main navigation">
-      <button className="app-mark" type="button" onClick={() => onNavigate("gallery")} aria-label="Vertica home"><span className="app-symbol" aria-hidden="true">V</span><span>Vertica</span></button>
       <div className="app-nav-links">
         <button type="button" className={`app-nav-item ${active === "gallery" || active === "editor" ? "active" : ""}`} aria-current={active === "gallery" ? "page" : undefined} onClick={() => onNavigate("gallery")}>
           <LayoutGrid size={18} /> Carousels

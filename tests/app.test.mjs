@@ -101,3 +101,30 @@ test("only the latest selected carousel can update the editor and history", asyn
   assert.equal(view.document.querySelector('[aria-label="Carousel title"]').value, "Deck newer");
   assert.equal(view.window.location.search, "?id=newer");
 });
+
+
+test("visibility edits update the selected slide, support undo, and save with duplicates", async (t) => {
+  const view = await app(t, "/");
+  await view.click("New carousel");
+  await view.click("Add slide");
+  await view.click("Layout");
+  const checkbox = (label) => [...view.document.querySelectorAll("label.check-row")].find((node) => node.textContent.trim() === label).querySelector("input");
+  await act(() => checkbox("Show header").click());
+  assert.equal(view.document.querySelector(".preview-frame .slide-head"), null);
+  assert.ok(view.document.querySelector(".preview-frame .slide-meta"));
+  assert.ok(view.document.querySelector(".slide-thumb .slide-head"), "the first slide keeps its header");
+  await view.click("Undo");
+  assert.equal(checkbox("Show header").checked, true);
+  assert.ok(view.document.querySelector(".preview-frame .slide-head"));
+  await view.click("Redo");
+  assert.equal(checkbox("Show header").checked, false);
+  await act(() => checkbox("Show footer").click());
+  assert.equal(view.document.querySelector(".preview-frame .slide-meta"), null);
+  await view.click("Duplicate");
+  assert.equal(checkbox("Show header").checked, false);
+  assert.equal(checkbox("Show footer").checked, false);
+  await view.click("Carousels");
+  const saved = view.writes.at(-1);
+  assert.ok(saved, "leaving the editor flushes the visibility edits");
+  assert.deepEqual(saved.slides.map(({ showHeader, showFooter }) => [showHeader !== false, showFooter !== false]), [[true, true], [false, false], [false, false]]);
+});

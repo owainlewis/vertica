@@ -47,6 +47,9 @@ export type CarouselSlide = {
   /** Both default from the slide type, so decks written before these existed are unchanged. */
   position?: SlidePosition;
   align?: SlideAlign;
+  /** Header and footer are visible unless explicitly hidden on this slide. */
+  showHeader?: boolean;
+  showFooter?: boolean;
   /** An optional editorial ground. */
   tone?: EditorialTone;
 };
@@ -251,6 +254,8 @@ export function parseCarouselConfig(input: string): CarouselConfig {
       ...(images.length ? { images } : {}),
       ...(diagram ? { diagram } : {}),
       ...(veil !== undefined ? { veil } : {}),
+      ...(slide.showHeader === false ? { showHeader: false } : {}),
+      ...(slide.showFooter === false ? { showFooter: false } : {}),
       ...(positions.includes(slide.position as SlidePosition)
         ? { position: slide.position as SlidePosition }
         : {}),
@@ -653,6 +658,7 @@ Rules:
 - "diagram" draws an inline SVG as a centred figure with the title as its one-line caption. Title only. Use it for architecture, flows and comparisons: one per deck, two at most. Put the SVG in "diagram". Rules for the drawing: viewBox="0 0 800 500", no width or height attributes, stroke="currentColor" and fill="none" for shapes, fill="currentColor" for text, stroke-width 2, rx 8 on boxes, font-family="Helvetica Neue, Helvetica, Arial, sans-serif", labels 24px and notes 18px, nothing smaller, at most six boxes, arrows drawn with a line plus a small polygon head, generous space, no colour, no gradients, no scripts.
 - "tone" is optional. Put "sage" on one poster at most; otherwise omit it for paper. Every text element on a page uses the same ink colour.
 - "mark" is the series label at the top of every slide. Keep it short and in sentence case.
+- Per slide, "showHeader": false hides the series label and page number; "showFooter": false hides the author and swipe arrow. Both default to visible. Set both to false for main text only.
 
 Use this exact shape:
 ${JSON.stringify(
