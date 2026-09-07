@@ -673,6 +673,8 @@ ${JSON.stringify(
           tone: "paper | sage | black",
           title: "Slide headline",
           body: "Optional supporting copy",
+          showHeader: true,
+          showFooter: true,
           diagram: "<svg viewBox=\"0 0 800 500\">…</svg> (diagram slides only)",
         },
       ],
