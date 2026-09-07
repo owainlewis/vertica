@@ -98,6 +98,8 @@ export default function App() {
   const [authorised, setAuthorised] = useState<boolean | null>(null);
   const editorRef = useRef<EditorHandle>(null);
   const mainRef = useRef<HTMLDivElement>(null);
+  // Every navigation invalidates earlier loads, including their media and errors.
+  const navigation = useRef(0);
   const [view, setView] = useState<View>({ kind: "gallery" });
   const [reloadToken, setReloadToken] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -112,19 +114,20 @@ export default function App() {
     mainRef.current?.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [view.kind]);
 
-  // Nothing here touches state before the first await, so calling it straight from
-  // an effect does not schedule a render inside that effect's body.
   const openCarousel = useCallback(async (id: string, push = true) => {
+    const request = ++navigation.current;
     try {
       const { summary, config } = await loadCarousel(id);
+      if (request !== navigation.current) return;
       const painted = await resolveMedia(config);
+      if (request !== navigation.current) return;
       setError(null);
       setView({ kind: "editor", key: id, id, config: painted, version: summary.version });
       // Arriving here from popstate means the entry is already the current one.
       // Pushing again appended a duplicate, so Back could never reach the gallery.
       if (push) window.history.pushState({ id }, "", `/?id=${id}`);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not open that carousel.");
+      if (request === navigation.current) setError(cause instanceof Error ? cause.message : "Could not open that carousel.");
     }
   }, []);
 
@@ -134,25 +137,20 @@ export default function App() {
     if (authorised !== true) return;
     const params = new URLSearchParams(window.location.search);
     const id = params.get("id");
-    if (!id) {
-      let live = true;
-      if (params.get("view") === "media") {
-        queueMicrotask(() => { if (live) setView({ kind: "media" }); });
-      }
-      return () => { live = false; };
-    }
-
-    let live = true;
-    loadCarousel(id)
-      .then(async ({ summary, config }) => ({ config: await resolveMedia(config), version: summary.version }))
-      .then(({ config, version }) => { if (live) setView({ kind: "editor", key: id, id, config, version }); })
-      .catch((cause) => { if (live) setError(cause instanceof Error ? cause.message : "Could not open that carousel."); });
-    return () => { live = false; };
-  }, [authorised]);
+    const request = ++navigation.current;
+    queueMicrotask(() => {
+      if (request !== navigation.current) return;
+      if (id) void openCarousel(id, false);
+      else if (params.get("view") === "media") setView({ kind: "media" });
+    });
+    return () => { navigation.current += 1; };
+  }, [authorised, openCarousel]);
 
   // The back button returns to whatever the URL says.
   useEffect(() => {
     const onPop = () => {
+      navigation.current += 1;
+      setError(null);
       const params = new URLSearchParams(window.location.search);
       const next = params.get("id");
       if (next) void openCarousel(next, false);
@@ -163,17 +161,23 @@ export default function App() {
   }, [openCarousel]);
 
   function createCarousel() {
+    navigation.current += 1;
+    setError(null);
     setView({ kind: "editor", key: `new-${Date.now().toString(36)}`, id: null, config: emptyConfig(), version: null });
     window.history.pushState({}, "", "/");
   }
 
   function exitToGallery() {
+    navigation.current += 1;
+    setError(null);
     setView({ kind: "gallery" });
     setReloadToken((token) => token + 1);
     window.history.pushState({}, "", "/");
   }
 
   function showLibrary(kind: "gallery" | "media") {
+    navigation.current += 1;
+    setError(null);
     setView({ kind });
     if (kind === "gallery") setReloadToken((token) => token + 1);
     window.history.pushState({}, "", kind === "media" ? "/?view=media" : "/");
@@ -182,9 +186,10 @@ export default function App() {
   // Leaving an open deck through the rail flushes its queued edits first, the same
   // as the crumb inside the editor does, so no route out of a deck can lose work.
   async function navigate(kind: "gallery" | "media") {
+    const request = ++navigation.current;
     if (view.kind === "editor") {
       const saved = await (editorRef.current?.flush() ?? Promise.resolve(true));
-      if (!saved) return;
+      if (!saved || request !== navigation.current) return;
     }
     showLibrary(kind);
   }

@@ -171,6 +171,41 @@ test("a diagram cannot hide a handler or a fetch behind parser quirks", () => {
   );
 });
 
+test("diagram styles cannot target the app or position content over its controls", () => {
+  const clean = sanitizeSvg('<svg viewBox="0 0 100 100"><style>body { display: none !important; }</style><rect width="100" height="100" style="position:fixed;inset:0;fill:currentColor"/><text x="5" y="20">Safe drawing</text></svg>');
+  assert.doesNotMatch(clean, /<style|body|display|position|inset/);
+  assert.match(clean, /fill:currentColor/);
+  assert.match(clean, /Safe drawing/);
+});
+
+test("SVG styles and presentation attributes permit no external resource syntax", () => {
+  const cases = [
+    '<style>body { background-image:image-set("https://evil.example/pixel" 1x); }</style>',
+    '<rect style=\'background-image:image-set("https://evil.example/pixel" 1x);fill:currentColor\'/>',
+    '<rect style=\'fill:image-set("https://evil.example/pixel" 1x)\'/>',
+    '<rect style="fill:u\\72l(https://evil.example/pixel)"/>',
+    '<rect fill="url(https://evil.example/paint.svg#x)" filter="url(https://evil.example/filter.svg#x)"/>',
+    '<rect cursor="url(https://evil.example/cursor),auto"/>',
+    '<g xml:base="https://evil.example/"><a href="#target"><text>Local link</text></a></g>',
+    '<rect style="--paint:url(https://evil.example/pixel);fill:var(--paint)"/>',
+  ];
+  for (const content of cases) {
+    const clean = sanitizeSvg(`<svg viewBox="0 0 100 100">${content}</svg>`);
+    assert.doesNotMatch(clean, /evil\.example|image-set|\\|xml:base|var\(/i, clean);
+    assert.equal(sanitizeSvg(clean), clean, "a second sanitizer pass stays safe");
+  }
+});
+
+test("safe inline SVG presentation, text, and local resources remain drawable", () => {
+  const clean = sanitizeSvg('<svg viewBox="0 0 100 100"><defs><linearGradient id="paint"><stop offset="0" stop-color="#123456"/></linearGradient></defs><rect x="1" y="2" width="90" height="80" fill="url(#paint)" style="stroke:rgb(10,20,30);stroke-width:2;opacity:0.5"/><text x="5" y="20" font-family="Helvetica Neue, Arial, sans-serif" style="font-size:18px;text-anchor:middle">A &amp; B</text></svg>');
+  assert.match(clean, /fill="url\(#paint\)"/);
+  assert.match(clean, /stroke:rgb\(10,20,30\);stroke-width:2;opacity:0.5/);
+  assert.match(clean, /font-family="Helvetica Neue, Arial, sans-serif"/);
+  assert.match(clean, /font-size:18px;text-anchor:middle/);
+  assert.match(clean, /A &amp; B/);
+  assert.equal(sanitizeSvg(clean), clean);
+});
+
 test("rejects unsafe background URLs and oversized carousels", () => {
   assert.throws(
     () => parseCarouselConfig(JSON.stringify({ slides: [{ title: "Slide", background: "https://example.com/a.jpg" }] })),

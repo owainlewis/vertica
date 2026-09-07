@@ -23,6 +23,7 @@ class InvalidInput extends Error {}
 
 const MAX_CONFIG_BYTES = 400_000;
 const MAX_MEDIA_BYTES = 12 * 1024 * 1024;
+const CAROUSEL_ID = /^[\w-]{1,200}$/;
 const DATA_URL = new RegExp(
   `^data:(${SUPPORTED_IMAGE_MIME_TYPES.map((type) => type.replace("/", "\\/")).join("|")});base64,([a-z0-9+/=\\s]+)$`,
   "i",
@@ -62,7 +63,7 @@ function readInput(body: unknown) {
   return {
     version,
     input: {
-      id: typeof record.id === "string" && /^[\w-]{1,200}$/.test(record.id) ? record.id : "",
+      id: typeof record.id === "string" && CAROUSEL_ID.test(record.id) ? record.id : "",
       title: text(parsed.title, "Untitled carousel"),
       author: text(parsed.author, ""),
       slideCount: slides.length,
@@ -177,6 +178,11 @@ export function createApi({ bucket, secret }: ApiOptions) {
     const { input } = readInput(await c.req.json().catch(() => null));
     const carousel = await saveCarousel(bucket, { ...input, id: input.id || crypto.randomUUID() }, null);
     return c.json({ carousel }, 201);
+  });
+
+  api.use("/carousels/:id", async (c, next) => {
+    if (!CAROUSEL_ID.test(c.req.param("id") ?? "")) return c.json({ error: "That carousel ID is invalid." }, 400);
+    await next();
   });
 
   api.get("/carousels/:id", async (c) => {
