@@ -13,7 +13,7 @@ function record(id) {
   return { id, title: config.title, author: config.author, slideCount: 1, coverTitle: config.title, cover: JSON.stringify({ slide: config.slides[0] }), config: JSON.stringify(config), version: 1, createdAt: "2026-09-07T12:00:00Z", updatedAt: "2026-09-07T12:00:00Z" };
 }
 
-async function app(t, path = "/?id=old") {
+async function app(t, path = "/?id=old", rows = [record("old"), record("newer")]) {
   const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: `http://localhost${path}` });
   const { window } = dom;
   const restore = [];
@@ -28,12 +28,12 @@ async function app(t, path = "/?id=old") {
   t.mock.method(globalThis, "fetch", async (url, init) => {
     if (url === "/api/session") return Response.json({ gated: false, authorised: true });
     if (url === "/api/media") return Response.json({ media: [], nextCursor: null });
-    if (init?.method === "POST") {
+    if (init?.method === "POST" || init?.method === "PUT") {
       const payload = JSON.parse(init.body);
       writes.push(JSON.parse(payload.config));
       return Response.json({ carousel: { ...record("saved"), config: payload.config } });
     }
-    if (url === "/api/carousels") return Response.json({ carousels: [record("old"), record("newer")] });
+    if (url === "/api/carousels") return Response.json({ carousels: rows });
     return new Promise((resolve) => pending.set(url, resolve));
   });
   const root = createRoot(window.document.getElementById("root"));
@@ -46,10 +46,10 @@ async function app(t, path = "/?id=old") {
       assert.ok(button, `Button ${label} exists`);
       await act(() => button.click());
     },
-    async finish(id, status = 200) {
+    async finish(id, status = 200, config) {
       const resolve = pending.get(`/api/carousels/${id}`);
       assert.ok(resolve, `Request for ${id} exists`);
-      await act(() => resolve(Response.json(status === 200 ? { carousel: record(id) } : { error: "Old load failed" }, { status })));
+      await act(() => resolve(Response.json(status === 200 ? { carousel: { ...record(id), ...(config ? { config: JSON.stringify(config) } : {}) } } : { error: "Old load failed" }, { status })));
     },
   };
 }
@@ -127,4 +127,56 @@ test("visibility edits update the selected slide, support undo, and save with du
   const saved = view.writes.at(-1);
   assert.ok(saved, "leaving the editor flushes the visibility edits");
   assert.deepEqual(saved.slides.map(({ showHeader, showFooter }) => [showHeader !== false, showFooter !== false]), [[true, true], [false, false], [false, false]]);
+});
+
+
+test("the editor has four layouts and preserves a legacy diagram when switching layouts", async (t) => {
+  const svg = '<svg viewBox="0 0 800 500"><text x="20" y="50">A useful example</text></svg>';
+  const view = await app(t);
+  await view.finish("old", 200, { version: 1, title: "Old deck", author: "Author", slides: [{ id: "one", layout: "diagram", title: "A flow", body: "Hidden draft", diagram: svg }] });
+  await view.click("Layout");
+  const type = view.document.querySelector("#slide-layout");
+  assert.deepEqual([...type.options].map((option) => option.text), ["Cover", "Body 1", "Body 2", "CTA"]);
+  assert.equal(type.value, "note");
+  async function select(node, value) {
+    await act(() => { node.value = value; node.dispatchEvent(new view.window.Event("change", { bubbles: true })); });
+  }
+  await view.click("Content");
+  assert.equal(view.document.querySelector("#slide-visual").value, "diagram");
+  assert.equal(view.document.querySelector("#diagram").value, svg);
+  assert.equal(view.document.querySelector(".preview-frame svg text").textContent, "A useful example");
+  assert.equal(view.document.querySelector(".preview-frame .slide-content p"), null);
+  await select(view.document.querySelector("#slide-visual"), "");
+  assert.equal(view.document.querySelector(".preview-frame .slide-diagram"), null);
+  await select(view.document.querySelector("#slide-visual"), "diagram");
+  assert.equal(view.document.querySelector(".preview-frame svg text").textContent, "A useful example");
+  await view.click("Layout");
+  await select(view.document.querySelector("#slide-layout"), "cover");
+  assert.equal(view.document.querySelector(".preview-frame .slide-diagram"), null);
+  await select(view.document.querySelector("#slide-layout"), "note");
+  assert.equal(view.document.querySelector(".preview-frame svg text").textContent, "A useful example");
+  await view.click("Carousels");
+  const saved = view.writes.at(-1).slides[0];
+  assert.equal(saved.layout, "note");
+  assert.equal(saved.visual, "diagram");
+  assert.equal(saved.diagram, svg);
+  assert.equal(saved.body, "Hidden draft");
+});
+
+
+test("gallery previews keep the visuals from legacy first-slide layouts", async (t) => {
+  const layouts = ["diagram", "photos", "grid", "strip", "figure"];
+  const rows = layouts.map((layout) => ({ ...record(layout), cover: JSON.stringify({ slide: {
+    id: "first", layout, title: "A useful example", body: "Hidden draft",
+    images: ["data:image/png;base64,YQ=="],
+    diagram: '<svg viewBox="0 0 800 500"><text x="20" y="50">Visible diagram</text></svg>',
+  } }) }));
+  const view = await app(t, "/", rows);
+  for (const layout of layouts) {
+    const card = view.document.querySelector(`[aria-label="Open Deck ${layout}"]`);
+    assert.ok(card.querySelector(".layout-note"), `${layout} uses Body 2`);
+    assert.equal(card.querySelector(".slide-content p"), null, `${layout} keeps hidden copy hidden`);
+    if (layout === "diagram") assert.equal(card.querySelector(".slide-diagram svg text")?.textContent, "Visible diagram");
+    else assert.equal(card.querySelector(".slide-pictures img")?.getAttribute("src"), "data:image/png;base64,YQ==");
+  }
 });

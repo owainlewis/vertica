@@ -304,13 +304,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .slide-content { position: relative; z-index: 1; min-height: 0; display: flex; flex: 1; flex-direction: column; align-items: flex-start; justify-content: flex-start; padding: 19% var(--margin) 15%; }
 .slide-content h2 { max-width: 100%; margin: 0; font-size: var(--title-size); font-weight: 400; line-height: var(--title-leading); letter-spacing: var(--title-tracking); word-spacing: 0; font-kerning: normal; font-variant-ligatures: common-ligatures contextual; overflow-wrap: anywhere; }
 .title-line { display: block; text-wrap: balance; }
+.title-broken .title-line, .layout-content .title-line { text-wrap: wrap; }
 /* Hangs an opening quote into the margin so the first line optically aligns with the
    copy below it. Roughly the sidebearing of a double quote in a serif at display size. */
 .title-hang .title-line:first-child { text-indent: -.36em; }
 /* Body copy is Helvetica, the way the reference decks pair a serif headline with a plain
    sans paragraph. Regular weight, a touch of negative tracking, open leading. */
-.slide-content p { max-width: 90%; margin: .8em 0 0; color: var(--ink); font-family: var(--font-sans); font-size: var(--body-size); font-weight: 400; line-height: 1.4; letter-spacing: -.015em; font-kerning: normal; text-wrap: pretty; overflow-wrap: anywhere; }
-.slide-content h2 + p { margin-top: 1.4em; }
+.slide-content p { max-width: 100%; margin: 1.1em 0 0; color: var(--ink); font-family: var(--font-sans); font-size: var(--body-size); font-weight: 400; line-height: 1.4; letter-spacing: -.01em; font-kerning: normal; text-wrap: pretty; overflow-wrap: anywhere; }
+.slide-content h2 + p { margin-top: 1.1em; }
 
 .mark-italic { font-style: italic; }
 /* A highlighter stroke behind the phrase, drawn as a slightly skewed box so it reads
@@ -331,7 +332,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .pos-bottom .slide-content { justify-content: flex-end; padding-bottom: 23%; }
 .align-center .slide-content { align-items: center; text-align: center; }
 .align-center .slide-content h2 { max-width: 92%; }
-.align-center .slide-content p { max-width: 80%; }
+.align-center .slide-content p { max-width: 100%; }
 
 /* Cover: the headline is the page. Its copy is a subtitle in sans, set low. */
 .layout-cover .slide-content { padding-inline: 6%; }
@@ -344,22 +345,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .layout-cover.align-left .slide-content p { padding-right: 30%; }
 .layout-cover.align-left .slide-content { padding-inline: var(--margin); }
 
-/* Poster: the sentence is the picture. A body, if any, sits clear of it in sans. */
-.layout-poster .slide-content { padding-inline: 8.5%; }
-.layout-poster .slide-content h2 { max-width: 100%; line-height: .9; letter-spacing: -.03em; }
-/* One word or a fragment is a beat. It runs nearly twice the size of a sentence poster. */
-.layout-poster.title-short .slide-content h2 { font-size: calc(var(--title-size) * 1.75); }
-
-.layout-closing .slide-content { padding-inline: 12%; }
-.layout-closing .slide-content p { max-width: 100%; }
-.layout-closing .slide-content h2 { max-width: 90%; }
-
+.layout-closing .slide-content { padding-inline: var(--margin); }
+.layout-closing .slide-content h2 { max-width: 100%; line-height: 1.12; }
 
 /* Picture layouts. The sentence sits on the paper; the photographs are objects under
    it, never behind it. Grid: equal squares inside the margin. Strip: a filmstrip of
    portraits that runs off both edges. Figure: one contained picture. */
 .has-pictures .slide-content { flex: 0 0 auto; padding-top: 22%; padding-bottom: 0; }
-.has-pictures .slide-content h2 { font-size: calc(var(--title-size) * .62); line-height: 1.08; letter-spacing: -.015em; }
 .slide-pictures { position: relative; z-index: 1; display: grid; flex: 1; min-height: 0; margin: 5% var(--margin) 20%; }
 .slide-picture { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; object-fit: cover; background-color: rgb(26 26 23 / .08); }
 .slide-picture.is-missing { background: repeating-linear-gradient(135deg, rgb(26 26 23 / .06) 0 6px, transparent 6px 14px); }
@@ -379,17 +371,16 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 /* Diagram: a centred 16:10 figure drawn in the slide's ink, with the headline as a
    caption under it (position bottom) or a title over it (position top). The SVG is
    authored with currentColor, so the same drawing works on paper, sage and black. */
-.layout-diagram .slide-content { flex: 0 0 auto; padding-top: 24%; padding-bottom: 14%; }
-.layout-diagram.pos-bottom .slide-content { order: 2; padding-top: 0; padding-bottom: 17%; }
-.layout-diagram.pos-top .slide-content { padding-top: 24%; padding-bottom: 0; }
-.layout-diagram .slide-content h2 { font-size: calc(var(--title-size) * .56); line-height: 1.1; letter-spacing: -.015em; }
-.layout-diagram .slide-content { align-items: center; text-align: center; }
-.layout-diagram.align-left .slide-content { align-items: flex-start; text-align: left; }
+.visual-diagram .slide-content { flex: 0 0 auto; padding-top: 24%; padding-bottom: 14%; }
+.visual-diagram.pos-bottom .slide-content { order: 2; padding-top: 0; padding-bottom: 17%; }
+.visual-diagram.pos-top .slide-content { padding-top: 24%; padding-bottom: 0; }
+.visual-diagram .slide-content { align-items: center; text-align: center; }
+.visual-diagram.align-left .slide-content { align-items: flex-start; text-align: left; }
 /* The figure runs past the column margin to the slide's outer gutter, so it reads as
    the page rather than an inset. */
 .slide-diagram { position: relative; z-index: 1; display: flex; flex: 1; align-items: center; justify-content: center; min-height: 0; margin: 3% 5%; color: var(--ink); }
-.layout-diagram.pos-bottom .slide-diagram { margin-top: 15%; margin-bottom: 4%; }
-.layout-diagram.pos-top .slide-diagram { margin-bottom: 14%; }
+.visual-diagram.pos-bottom .slide-diagram { margin-top: 15%; margin-bottom: 4%; }
+.visual-diagram.pos-top .slide-diagram { margin-bottom: 14%; }
 .slide-diagram-svg { width: 100%; max-height: 100%; aspect-ratio: 16 / 10; font-family: var(--font-sans); }
 .slide-diagram-svg svg { display: block; width: 100%; height: 100%; overflow: visible; }
 /* Keep the original font cascade for existing Editorial artwork. */
@@ -397,13 +388,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .slide-diagram-empty { display: grid; place-items: center; width: 100%; aspect-ratio: 16 / 10; border: 1px dashed rgb(26 26 23 / .25); color: rgb(26 26 23 / .5); font-family: var(--font-sans); font-size: 2cqw; }
 .tone-sage .slide-diagram-empty, .tone-black .slide-diagram-empty { border-color: rgb(244 242 234 / .3); color: rgb(244 242 234 / .6); }
 .export-slide .slide-diagram-empty { display: none; }
-
-/* Note: one sans statement, no headline, bold for the phrase that matters. The
-   plainer voice the reference decks switch to for an aside. */
-.layout-note .slide-content { padding-inline: var(--margin); }
-.layout-note .slide-content h2 { max-width: 94%; font-family: var(--font-sans); font-size: var(--note-size); font-weight: 400; line-height: 1.22; letter-spacing: -.025em; }
-.layout-note .mark-accent { padding: 0; margin: 0; background: none; font-weight: 700; }
-.layout-note .mark-italic { font-style: italic; }
 
 /* AI Engineer shares the slide geometry. Its fonts and palette stay inside the
    artwork so the editor, thumbnails, reader and export use the same drawing. */
@@ -431,12 +415,24 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .template-ai-engineer .mark-italic, .template-ai-engineer .mark-accent { color: var(--phrase); }
 .template-ai-engineer .mark-accent { padding: 0; margin: 0; background: none; font-weight: 700; }
 .template-ai-engineer.layout-cover .slide-content,
-.template-ai-engineer.layout-poster .slide-content,
 .template-ai-engineer.layout-closing .slide-content { padding-inline: var(--margin); }
 .template-ai-engineer.layout-cover .slide-content p { left: var(--margin); right: var(--margin); padding: 0; }
 .template-ai-engineer.layout-cover.pos-bottom .slide-content p { margin-top: 1.2em; }
-.template-ai-engineer.layout-note .slide-content h2 { font-weight: 400; line-height: 1.22; letter-spacing: -.025em; }
-.template-ai-engineer.layout-diagram .slide-content h2 { line-height: 1.16; }
+/* Body 1 uses weight, paragraph spacing and a shared reading size for hierarchy.
+   Body 2 uses the same caption size; text-only statements get one modest step up. */
+.layout-content .slide-content h2, .layout-note .slide-content h2 {
+  max-width: 100%; font-family: var(--font-sans); font-size: var(--body-size);
+  font-weight: 600; line-height: 1.4; letter-spacing: -.01em;
+}
+.layout-note:not(.visual-diagram):not(.visual-photos) .slide-content h2 {
+  font-size: var(--statement-size); font-weight: 400; line-height: 1.3;
+}
+.layout-content .mark-accent, .layout-note .mark-accent {
+  padding: 0; margin: 0; background: none; font-weight: 700;
+}
+.layout-content .slide-rules, .layout-note .slide-rules { display: none; }
+.slide-overflow-warning { max-width: 520px; margin: 12px 0 0; color: var(--danger); font-size: 13px; line-height: 1.5; }
+
 .template-ai-engineer .slide-diagram-empty { border-color: var(--rule); color: var(--ink); }
 .template-ai-engineer.has-background.pos-top .slide-overlay { background: linear-gradient(180deg, rgb(var(--veil-rgb) / .94) 0%, rgb(var(--veil-rgb) / .86) 36%, rgb(var(--veil-rgb) / .2) 58%, rgb(var(--veil-rgb) / 0) 72%); }
 .template-ai-engineer.has-background.pos-middle .slide-overlay { background: linear-gradient(180deg, rgb(var(--veil-rgb) / 0) 8%, rgb(var(--veil-rgb) / .9) 34%, rgb(var(--veil-rgb) / .9) 66%, rgb(var(--veil-rgb) / 0) 92%); }

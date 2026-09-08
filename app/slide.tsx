@@ -8,6 +8,7 @@ import {
   CarouselConfig,
   CarouselSlide,
   imageCapacity,
+  normalizeSlideLayout,
   parseInlineMarks,
   photoArrangement,
   showsBody,
@@ -42,7 +43,7 @@ function painted(ref: string | undefined) {
 }
 
 export function Slide({
-  slide,
+  slide: sourceSlide,
   config,
   index,
   exportMode = false,
@@ -58,28 +59,29 @@ export function Slide({
   playing?: boolean;
   onVideoDuration?: (duration: number) => void;
 }) {
+  const slide = normalizeSlideLayout(sourceSlide);
   const theme = carouselTheme(config.theme);
   const scale = theme === "ai-engineer" ? AI_ENGINEER_TYPE_SCALE : TYPE_SCALE;
   const isCover = slide.layout === "cover";
-  const isPoster = slide.layout === "poster";
+  const visual = slide.layout === "note" ? slide.visual : undefined;
   const position = slidePosition(slide);
   const lines = titleLines(slide.title);
   // Title-only layouts keep their body in the document but never draw it.
   const paragraphs = showsBody(slide.layout) ? bodyParagraphs(slide.body) : [];
   const background = painted(slide.background);
-  const pictures = usesImages(slide.layout)
-    ? (slide.images ?? []).slice(0, imageCapacity(slide.layout)).map(painted)
+  const pictures = usesImages(slide)
+    ? (slide.images ?? []).slice(0, imageCapacity(slide)).map(painted)
     : [];
-  const diagram = slide.layout === "diagram" && slide.diagram ? sanitizeSvg(slide.diagram) : "";
+  const diagram = visual === "diagram" && slide.diagram ? sanitizeSvg(slide.diagram) : "";
   const isLast = index === config.slides.length - 1;
   const showArrow = config.arrow !== false && !isLast;
 
   const style = {
-    "--title-size": `${isCover ? scale.cover : isPoster ? scale.poster : scale.title}cqw`,
+    "--title-size": `${isCover ? scale.cover : slide.layout === "closing" ? scale.cta : scale.body}cqw`,
     "--title-tracking": `${scale.tracking}em`,
     "--title-leading": `${scale.leading}`,
     "--body-size": `${scale.body}cqw`,
-    "--note-size": `${scale.note}cqw`,
+    "--statement-size": `${scale.statement}cqw`,
     "--metadata-size": `${scale.metadata}cqw`,
     "--veil": String(slide.veil ?? DEFAULT_VEIL),
   } as CSSProperties;
@@ -108,6 +110,7 @@ export function Slide({
     "carousel-slide",
     `template-${theme}`,
     `layout-${slide.layout}`,
+    visual ? `visual-${visual}` : "",
     `pos-${position}`,
     `align-${slideAlign(slide, theme)}`,
     `tone-${slideTone(slide, theme)}`,
@@ -115,8 +118,6 @@ export function Slide({
     config.mark ? "has-mark" : "",
     pictures.length ? `has-pictures pictures-${pictures.length} photos-${photoArrangement(pictures.length)}` : "",
     diagram ? "has-diagram" : "",
-    // Only brief beats ("But…") get enlarged; longer words need room to stay whole.
-    isPoster && slide.title.replace(/[*|]/g, "").trim().length <= 6 ? "title-short" : "",
     exportMode ? "export-slide" : "",
   ].filter(Boolean).join(" ");
 
@@ -139,7 +140,7 @@ export function Slide({
       )}
       <div className="slide-content">{copy}</div>
       {/* Sanitised at parse time and again here, so a diagram can draw but never run. */}
-      {slide.layout === "diagram" && (
+      {visual === "diagram" && (
         <div className="slide-diagram">
           {diagram
             ? <div className="slide-diagram-svg" dangerouslySetInnerHTML={{ __html: diagram }} />

@@ -8,7 +8,7 @@ import {
   loadCarousel,
   type CarouselSummary,
 } from "./api-client";
-import { assertBackgroundsAvailableForExport, carouselTheme, CarouselConfig, CarouselSlide, duplicateCarouselConfig, normalizeLayout } from "./carousel";
+import { assertBackgroundsAvailableForExport, carouselTheme, CarouselConfig, CarouselSlide, duplicateCarouselConfig, normalizeSlideLayout } from "./carousel";
 import { exportStageToPdf, exportStageToZip, fileNameFor } from "./export";
 import { loadImages } from "./image-store";
 import { ExportStage, Slide } from "./slide";
@@ -52,15 +52,15 @@ function CardPreview({
     const stored = readCover(carousel.cover);
     const resolve = (ref: string | undefined) => (ref && images[ref]) || ref;
     const parsed = stored.slide ?? {};
-    const cover: CarouselSlide = {
+    const cover: CarouselSlide = normalizeSlideLayout({
       ...parsed,
       id: parsed.id ?? "cover",
-      layout: normalizeLayout(parsed.layout, "cover"),
+      layout: parsed.layout ?? "cover",
       title: parsed.title ?? (carousel.coverTitle || carousel.title),
       body: parsed.body ?? "",
       ...(parsed.background ? { background: resolve(parsed.background) } : {}),
       ...(parsed.images ? { images: parsed.images.map((ref) => resolve(ref) ?? ref) } : {}),
-    };
+    }, "cover");
     // The footer counter reads off the deck length, so the card needs the real count.
     return {
       version: 1,

@@ -66,3 +66,19 @@ test("showing the footer still respects the deck arrow setting and last slide", 
     } finally { dom.window.close(); }
   }
 });
+
+
+test("legacy visual and statement layouts render through Body 2 without revealing hidden copy", () => {
+  for (const layout of ["poster", "diagram", "photos"]) {
+    const slide = { id: "old", layout, title: "Keep this", body: "Hidden draft", images: ["data:image/png;base64,YQ=="], diagram: '<svg viewBox="0 0 800 500"><text x="20" y="50">Visible diagram</text></svg>' };
+    const config = { version: 1, title: "Old deck", author: "Author", slides: [slide] };
+    const dom = new JSDOM(renderToStaticMarkup(createElement(Slide, { slide, config, index: 0 })));
+    const document = dom.window.document;
+    assert.ok(document.querySelector(".layout-note"));
+    assert.equal(document.querySelector(".slide-content p"), null);
+    assert.equal(document.querySelector("h2").textContent, "Keep this");
+    assert.equal(Boolean(document.querySelector(".slide-diagram svg")), layout === "diagram");
+    assert.equal(Boolean(document.querySelector(".slide-pictures img")), layout === "photos");
+    dom.window.close();
+  }
+});

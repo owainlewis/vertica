@@ -25,6 +25,7 @@ import { isImageKey, loadImages } from "./image-store";
 import Dialog from "./dialog";
 import ExportMenu from "./export-menu";
 import ReaderPreview from "./reader-preview";
+import { slideHasOverflow } from "./slide-overflow";
 import MediaPicker from "./media-picker";
 import VideoPicker from "./video-picker";
 import { boundVideoBackground, parseVideoBackground } from "./video-formats";
@@ -41,6 +42,7 @@ import {
   slideAlign,
   SlideAlign,
   SlideLayout,
+  SlideVisual,
   showsBody,
   slidePosition,
   SlidePosition,
@@ -66,23 +68,14 @@ const SAVE_LABEL = {
 } as const;
 
 const layoutNames: Record<SlideLayout, string> = {
-  cover: "Cover",
-  content: "Content",
-  note: "Note",
-  poster: "Poster",
-  diagram: "Diagram",
-  photos: "Photos",
-  closing: "Closing",
+  cover: "Cover", content: "Body 1", note: "Body 2", closing: "CTA",
 };
 
 const layoutHints: Record<SlideLayout, string> = {
-  cover: "The headline large, with the supporting copy as a one-line subtitle at the foot.",
-  content: "A headline with copy underneath. The workhorse.",
-  note: "One plain sans statement, no headline. The title is the statement; **bold** marks the phrase that matters.",
-  poster: "One short statement, oversized. Title only.",
-  diagram: "An SVG figure with the headline as its caption. Title only. Bottom puts the caption under the figure, Top above it.",
-  photos: "Pictures under a one-line title. One picture is a figure, two or three a filmstrip, four or more a grid.",
-  closing: "A headline and one line to finish on.",
+  cover: "A clear promise in a large headline, with one short subtitle.",
+  content: "A bold lead and short paragraphs at the same readable size. One idea per slide.",
+  note: "A short statement or visual example. Add pictures or a diagram under Content.",
+  closing: "One useful next action, with a short supporting line.",
 };
 
 /** Where a picked image goes: behind the copy or into the slide's pictures. */
@@ -147,6 +140,8 @@ export default function Editor({
   const [readerOpen, setReaderOpen] = useState(false);
   const [composeMessage, setComposeMessage] = useState<Notice>(null);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [copyOverflow, setCopyOverflow] = useState(false);
   const [composeMode, setComposeMode] = useState<"text" | "json">("text");
   const [sourceText, setSourceText] = useState("");
   const [jsonText, setJsonText] = useState("");
@@ -189,6 +184,18 @@ export default function Editor({
   const theme = carouselTheme(config.theme);
   const activeAlign = slideAlign(selectedSlide, theme);
   const activeTone = slideTone(selectedSlide, theme);
+
+  useEffect(() => {
+    let active = true;
+    const check = () => {
+      if (active) setCopyOverflow(slideHasOverflow(previewRef.current?.querySelector("article") ?? null));
+    };
+    const timer = setTimeout(check, 0);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(check);
+    if (previewRef.current) observer?.observe(previewRef.current);
+    void document.fonts?.ready.then(check);
+    return () => { active = false; clearTimeout(timer); observer?.disconnect(); };
+  }, [selectedSlide, theme]);
   const exportFileName = useMemo(() => fileNameFor(config.title), [config.title]);
   const zipFileName = useMemo(() => fileNameFor(config.title, "zip"), [config.title]);
 
@@ -385,7 +392,7 @@ export default function Editor({
     if (target === "images") {
       const images = [...(selectedSlide.images ?? []), data];
       updateSlide({ images });
-      const room = imageCapacity(selectedSlide.layout) - images.length;
+      const room = imageCapacity(selectedSlide) - images.length;
       showNotice({ kind: "success", message: room > 0 ? `Added ${asset.name}. Room for ${room} more.` : `Added ${asset.name}.` });
       return;
     }
@@ -532,7 +539,7 @@ export default function Editor({
             </button>
             <span>{selectedIndex + 1} of {config.slides.length}</span>
           </div>
-          <div className="preview-frame">
+          <div className="preview-frame" ref={previewRef}>
             <Slide slide={selectedSlide} config={config} index={selectedIndex} videoPreview playing={videoPlaying && !readerOpen} onVideoDuration={(duration) => {
               // Source metadata is derived, so refreshing it must not add an undo
               // step that immediately reappears whenever the user presses Undo.
@@ -547,6 +554,7 @@ export default function Editor({
             }} />
             {showCrop && <div className="crop-guide" />}
           </div>
+          {copyOverflow && <p className="slide-overflow-warning" role="status">Some text overlaps or runs outside the slide. Shorten the copy, remove forced line breaks, or choose another position before exporting.</p>}
           <div className="slide-actions" aria-label="Slide actions">
             {selectedSlide.video && <button type="button" onClick={() => setVideoPlaying(!videoPlaying)}>{videoPlaying ? <Pause size={14} /> : <Play size={14} />}{videoPlaying ? "Pause video" : "Play video"}</button>}
             <button type="button" onClick={() => moveSlide(-1)} disabled={selectedIndex === 0} aria-label="Move slide up"><ArrowUp size={15} /></button>
@@ -603,6 +611,16 @@ export default function Editor({
               <textarea id="headline" maxLength={120} rows={5} value={selectedSlide.title} onChange={(event) => updateSlide({ title: event.target.value }, "title")} />
               <div className="character-count" style={{ visibility: selectedSlide.title.length >= 100 ? "visible" : "hidden" }}>{selectedSlide.title.length} / 120</div>
               <details className="format-help"><summary>Formatting help</summary><p className="field-hint"><em>|</em> starts a headline line. <em>*italic*</em> adds emphasis. <em>**highlight**</em> marks a phrase. A blank line starts a paragraph.</p></details>
+              {selectedSlide.layout === "note" && (
+                <>
+                  <label className="field-label" htmlFor="slide-visual">Visual example</label>
+                  <div className="select-wrap"><select id="slide-visual" value={selectedSlide.visual ?? ""} onChange={(event) => updateSlide({ visual: event.target.value ? event.target.value as SlideVisual : undefined })}>
+                    <option value="">Text only</option>
+                    <option value="photos">Pictures</option>
+                    <option value="diagram">Diagram</option>
+                  </select><ChevronDown size={14} /></div>
+                </>
+              )}
               {showsBody(selectedSlide.layout) ? (
                 <>
                   <label className="field-label" htmlFor="body">Supporting copy</label>
@@ -611,20 +629,20 @@ export default function Editor({
                 </>
               ) : (
                 <p className="field-hint">
-                  {layoutNames[selectedSlide.layout]} slides draw the headline only, so nothing can crowd the {selectedSlide.layout === "diagram" ? "figure" : selectedSlide.layout === "photos" ? "pictures" : "statement"}.
+                  {layoutNames[selectedSlide.layout]} slides draw the headline only, so nothing can crowd the {(selectedSlide.layout === "note" && selectedSlide.visual === "diagram") ? "figure" : selectedSlide.visual === "photos" ? "pictures" : "statement"}.
                   {selectedSlide.body ? " The supporting copy is kept and comes back if you change the slide type." : ""}
                 </p>
               )}
-              {selectedSlide.layout === "diagram" && (
+              {(selectedSlide.layout === "note" && selectedSlide.visual === "diagram") && (
                 <>
                   <label className="field-label" htmlFor="diagram">Diagram SVG</label>
                   <textarea className="svg-editor" id="diagram" rows={8} spellCheck={false} value={selectedSlide.diagram ?? ""} onChange={(event) => updateSlide({ diagram: event.target.value || undefined }, "diagram")} placeholder='<svg viewBox="0 0 800 500">…</svg>' />
                   <p className="field-hint">Paste inline SVG. Use <em>currentColor</em> for strokes and text so it takes the slide’s ink on any ground. Scripts and external references are stripped. Find Copy AI prompt in Design → Project data → Edit JSON config.</p>
                 </>
               )}
-              {usesImages(selectedSlide.layout) && (
+              {usesImages(selectedSlide) && (
                 <>
-                  <span className="field-label">Pictures · {(selectedSlide.images ?? []).length} of {imageCapacity(selectedSlide.layout)}</span>
+                  <span className="field-label">Pictures · {(selectedSlide.images ?? []).length} of {imageCapacity(selectedSlide)}</span>
                   {(selectedSlide.images ?? []).length > 0 && (
                     <ul className="picture-list">
                       {(selectedSlide.images ?? []).map((image, pictureIndex) => (
@@ -640,7 +658,7 @@ export default function Editor({
                     </ul>
                   )}
                   <p className="field-hint">One picture is a figure, two or three a filmstrip, four or more a grid. Grids read best with four or nine.</p>
-                  {(selectedSlide.images ?? []).length < imageCapacity(selectedSlide.layout) ? (
+                  {(selectedSlide.images ?? []).length < imageCapacity(selectedSlide) ? (
                     <button className="wide-upload" type="button" onClick={() => setMediaOpen("images")} style={{ marginTop: 8 }}><Images size={15} /> Add a picture</button>
                   ) : (
                     <p className="field-hint">This layout is full. Remove a picture to add another.</p>

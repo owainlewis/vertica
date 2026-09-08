@@ -1,4 +1,4 @@
-import { slideImageRefs, type CarouselConfig } from "./carousel";
+import { normalizeSlideLayout, slideImageRefs, type CarouselConfig } from "./carousel";
 import { isImageKey, loadImages, putImage } from "./image-store";
 import type { CarouselSummary, MediaAsset } from "../server/store.ts";
 
@@ -112,5 +112,6 @@ export async function saveCarousel(id: string | null, config: CarouselConfig, ve
 
 export async function loadCarousel(id: string) {
   const { carousel } = await call<{ carousel: CarouselSummary & { config: string } }>(`/carousels/${id}`);
-  return { summary: carousel, config: JSON.parse(carousel.config) as CarouselConfig };
+  const config = JSON.parse(carousel.config) as CarouselConfig;
+  return { summary: carousel, config: { ...config, slides: config.slides.map((slide) => normalizeSlideLayout(slide)) } };
 }
