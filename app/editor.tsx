@@ -72,8 +72,8 @@ const layoutNames: Record<SlideLayout, string> = {
 };
 
 const layoutHints: Record<SlideLayout, string> = {
-  cover: "A clear promise in a large headline, with one short subtitle.",
-  content: "A bold lead and short paragraphs at the same readable size. One idea per slide.",
+  cover: "A clear promise with one short supporting line. The same reading size as every slide.",
+  content: "A lead and short paragraphs at the same readable size. One idea per slide.",
   note: "A short statement or visual example. Add pictures or a diagram under Content.",
   closing: "One useful next action, with a short supporting line.",
 };
@@ -182,7 +182,7 @@ export default function Editor({
   const signifierMissing = useSignifierCheck();
   const activePosition = slidePosition(selectedSlide);
   const theme = carouselTheme(config.theme);
-  const activeAlign = slideAlign(selectedSlide, theme);
+  const activeAlign = slideAlign(selectedSlide);
   const activeTone = slideTone(selectedSlide, theme);
 
   useEffect(() => {
@@ -578,7 +578,7 @@ export default function Editor({
 
               <span className="field-label">Text position</span>
               <div className="segmented">
-                {(["top", "middle", "bottom"] as SlidePosition[]).map((position) => (
+                {((selectedSlide.layout === "note" && selectedSlide.visual ? ["top", "bottom"] : ["top", "middle", "bottom"]) as SlidePosition[]).map((position) => (
                   <button type="button" key={position} aria-pressed={activePosition === position} className={activePosition === position ? "active" : ""} onClick={() => updateSlide({ position })}>
                     {position === "top" ? "Top" : position === "middle" ? "Middle" : "Bottom"}
                   </button>
@@ -657,7 +657,7 @@ export default function Editor({
                       ))}
                     </ul>
                   )}
-                  <p className="field-hint">One picture is a figure, two or three a filmstrip, four or more a grid. Grids read best with four or nine.</p>
+                  <p className="field-hint">One picture fills the figure area. Multiple pictures form a contained grid, with each image shown in full.</p>
                   {(selectedSlide.images ?? []).length < imageCapacity(selectedSlide) ? (
                     <button className="wide-upload" type="button" onClick={() => setMediaOpen("images")} style={{ marginTop: 8 }}><Images size={15} /> Add a picture</button>
                   ) : (
@@ -673,7 +673,7 @@ export default function Editor({
                 <option value="editorial">Editorial</option>
                 <option value="ai-engineer">AI Engineer</option>
               </select><ChevronDown size={14} /></div>
-              <p className="field-hint">{theme === "ai-engineer" ? "Geist type with a dark cover and soft-grey slides. Applies to every slide." : "Signifier headlines on paper, sage and black. Applies to every slide."}</p>
+              <p className="field-hint">{theme === "ai-engineer" ? "Geist type with a dark cover and soft-grey slides. One reading size across every layout." : "Signifier headlines and plain supporting copy. One reading size across every layout."}</p>
               <h3 className="settings-heading settings-divider">This slide</h3>
               <span className="field-label">Background colour</span>
               <div className="segmented" aria-label="Slide ground colour">

@@ -137,17 +137,31 @@ Set `"theme": "ai-engineer"` in a JSON config to use it; omit the field or use
 `"editorial"` for the original theme. Both themes use the same four layouts and
 renderer in the gallery, editor, reader preview and PDF/JPEG export.
 
-Both themes use approximately 4.615% of the slide width for paragraphs, Body 1
-leads and visual captions: 18px in a 390px feed and about 50px in a 1080px export. Body 1 uses a bold
-sans lead at the same size as its paragraphs, with 1.4 line height. Body 2 statements
-use 6%; CTA headlines use 8%. Cover headlines retain each theme's display face and
-scale. Body layouts use a quiet ground and consistent 9.5% side margins.
+Every native headline, statement, visual caption and paragraph uses one reading
+size: 18px in a 390px feed and about 50px in a 1080px export, with 1.4 line height.
+Editorial keeps regular Signifier headlines and plain sans paragraphs; AI Engineer
+uses medium Geist headlines and regular paragraphs. Each theme uses the same
+heading face and weight on all four layouts. There are no display-size covers,
+smaller captions or automatic text shrinking. Metadata has its own quiet size.
+
+All layouts share 9.5% side margins and default to left alignment. Text slides
+centre their copy block vertically. Supporting paragraphs follow the heading in
+normal flow, including on covers. Pictures and diagrams share a contained figure
+area, with a caption below by default; choose Top to put the caption above. Visual
+slides offer Top and Bottom only. Older visual slides set to Middle render their
+caption above the figure while retaining the saved value.
 
 Keep teaching slides around 30 words. The editor warns when rendered copy overlaps
-or leaves the frame; it does not shrink type to hide an overcrowded slide. Explicit
-`|` breaks are preserved, while new Body 1 leads wrap naturally. SVG text keeps its
-authored size; the AI prompt recommends 44-unit labels and 40-unit notes in an
-800-unit-wide drawing. Check dense diagrams at phone size.
+or leaves the frame. Explicit `|` breaks are preserved; generated copy wraps
+naturally. Generated Editorial decks keep a paper ground instead of inserting
+colour changes. Background choices remain available. Pages have no decorative
+column rules or header borders, and inline emphasis uses weight rather than a
+highlighter stroke.
+
+SVG text keeps its authored size and font. The AI prompt recommends one 48-unit
+size for labels and notes in an 800-unit-wide drawing, approximately 19px at phone
+width when the full figure fits. Inspect dense or tall diagrams at phone size;
+labels can be smaller when the figure is constrained by height.
 
 **Layout → Show header / Show footer** controls the series label, page number,
 author and swipe arrow independently. Settings apply to previews and exports.
@@ -155,13 +169,15 @@ author and swipe arrow independently. Settings apply to previews and exports.
 | Editor layout | JSON value | Purpose |
 |---|---|---|
 | Cover | `cover` | A specific promise and a short subtitle |
-| Body 1 | `content` | A bold lead followed by short paragraphs |
+| Body 1 | `content` | A lead followed by short paragraphs |
 | Body 2 | `note` | A short statement or visual example with a caption |
 | CTA | `closing` | One next action and a supporting line |
 
 For Body 2, choose **Content → Visual example → Pictures / Diagram**, or keep
 **Text only**. JSON uses `visual: "photos"` with `images`, or `visual: "diagram"`
-with an inline `diagram` SVG. Pictures still support one to nine images. Switching
+with an inline `diagram` SVG. One picture is contained in the figure area; two to
+nine form a grid inside the same margins. Images are shown in full, without
+filmstrip overflow or cropping. Switching
 layouts or visual types keeps the unused copy and assets for switching back.
 
 Older `poster`, `diagram`, `photos`, `grid`, `strip` and `figure` layouts load as

@@ -30,16 +30,18 @@ or course only when the user has it and wants to promote it.
 | Editor name | JSON layout | Job |
 |---|---|---|
 | Cover | `cover` | A clear headline and one short subtitle in `body` |
-| Body 1 | `content` | A bold lead in `title` followed by short paragraphs in `body` |
+| Body 1 | `content` | A lead in `title` followed by short paragraphs in `body` |
 | Body 2 | `note` | One statement or a visual example; `title` only |
 | CTA | `closing` | One next action in `title` and a supporting line in `body` |
 
-Use Body 1 for most teaching. Its lead and paragraphs share a reading size;
-weight and space supply the hierarchy. Body 2 gives a concise statement room, or
+Use Body 1 for most teaching. Every layout uses the same reading size and margins;
+consistent heading treatment and space supply the hierarchy. Body 2 gives a concise statement room, or
 holds a diagram or pictures. Do not add layout changes to meet a quota.
 
 Body 2 may set `visual: "photos"` with an `images` list, or `visual: "diagram"`
 with a `diagram` SVG. Omit `visual` for text only. Body 2 does not draw `body`.
+Captions sit below the visual by default, or above with `position: "top"`.
+Multiple pictures use a contained grid; images are shown in full.
 Photos and videos may also sit behind any layout using the background controls.
 Cinematic imagery is optional and should contribute to the idea or requested tone.
 
@@ -47,10 +49,13 @@ Cinematic imagery is optional and should contribute to the idea or requested ton
 
 - Prefer a 4-10 word cover and about 15-35 words on teaching slides.
 - Give each slide one useful point. Use concrete actions and consequences.
-- Body 1 uses a bold sans lead and regular paragraphs at about 4.615% of the slide width,
-  18px at a 390px feed width. Keep the prose readable at that size.
-- Separate paragraphs with a blank line. Use `|` sparingly for deliberate breaks
-  on covers or CTAs; let Body 1 wrap naturally.
+- All native headlines, statements, visual captions and paragraphs use 18px at a
+  390px feed width. Never ask for larger covers, smaller captions or fitting by
+  shrinking type. Each theme keeps one heading face and weight across the four layouts.
+- Default to left alignment, quiet grounds and the same margins. Avoid decorative
+  colour changes. Reuse the text layout when the explanation does not need a visual.
+- Separate paragraphs with a blank line. Let headlines wrap naturally. Use `|`
+  only when a deliberate break improves the meaning.
 - Use `*italic*` or `**bold**` sparingly. No hype or invented first-person claims.
 - `title` allows 120 characters and `body` 280. These are storage limits, not a
   guarantee the copy fits. Shorten any slide that triggers the overflow warning.
@@ -61,7 +66,7 @@ Cinematic imagery is optional and should contribute to the idea or requested ton
 Use a diagram when it explains a mechanism better than text. At most six boxes.
 Use `viewBox="0 0 800 500"`, with no root width or height. Use `currentColor` for
 ink, `fill="none"` on shapes, 2-unit strokes, and 8-unit corner radii. Use
-`font-family="inherit"` for theme labels. Start with 44-unit labels and 40-unit
+`font-family="inherit"` for theme labels. Use one 48-unit size for labels and
 notes; inspect actual phone-size rendering and reduce complexity if labels crowd.
 Arrows use lines and polygon heads. No scripts or external references.
 

@@ -71,8 +71,8 @@ export function imageCapacity(slide: Pick<CarouselSlide, "layout" | "visual">) {
   return usesImages(slide) ? 9 : 0;
 }
 
-export function photoArrangement(count: number): "figure" | "strip" | "grid" {
-  return count <= 1 ? "figure" : count <= 3 ? "strip" : "grid";
+export function photoArrangement(count: number): "figure" | "grid" {
+  return count <= 1 ? "figure" : "grid";
 }
 
 /** Body 2 retains supporting copy so switching layouts never loses it. */
@@ -103,26 +103,20 @@ export function normalizeSlideLayout<T extends Pick<CarouselSlide, "layout" | "v
   return { ...slide, layout, visual };
 }
 
-/**
- * Ground and placement stay separate: choosing a tone never moves the text.
- * These are only the starting points a slide type suggests. A cover or a closing line
- * reads centred, and so does a content slide. Picture layouts put the sentence above
- * the pictures, so they read from the top.
- */
+/** Text slides share a centred block; visual slides place their caption below. */
 export function slidePosition(slide: CarouselSlide): SlidePosition {
-  if (slide.position) return slide.position;
-  // Pictures hang under their title, so that title starts high. Everything else
-  // sits in the middle of the page, the way the reference decks set their copy.
-  if (usesImages(slide)) return "top";
-  // A diagram's headline reads as a caption under the figure, like a plate in a book.
-  if (normalizeSlideLayout(slide).visual === "diagram" && normalizeLayout(slide.layout, "content") === "note") return "bottom";
-  return "middle";
+  const resolved = normalizeSlideLayout(slide);
+  if (resolved.layout === "note" && resolved.visual) {
+    // Older visual slides can store "middle". Keep that value in the document,
+    // but give the caption a real position above its figure.
+    return slide.position === "top" || slide.position === "middle" ? "top" : "bottom";
+  }
+  return slide.position ?? "middle";
 }
 
-export function slideAlign(slide: CarouselSlide, theme?: CarouselTheme): SlideAlign {
-  if (slide.align) return slide.align;
-  if (theme === "ai-engineer") return "left";
-  return normalizeLayout(slide.layout, "content") === "content" || normalizeLayout(slide.layout, "content") === "note" ? "left" : "center";
+/** A common left edge keeps a deck steady. Explicit alignment always wins. */
+export function slideAlign(slide: CarouselSlide): SlideAlign {
+  return slide.align ?? "left";
 }
 
 export type CarouselConfig = {
@@ -530,27 +524,12 @@ function wordCount(text: string) {
   return text.split(/\s+/).filter(Boolean).length;
 }
 
-/**
- * Puts the one break an author gets where a balanced wrap rarely lands it: before the
- * last two words of a five or six word title, before the last three of a longer one.
- * The tail line then carries the sense rather than a stranded word. A title that
- * already has a break is the author's, and is left alone.
- */
-export function suggestBreak(title: string) {
-  if (title.includes("|")) return title;
-  const words = title.split(/\s+/).filter(Boolean);
-  if (words.length < 5) return title;
-  const tail = words.length >= 7 ? 3 : 2;
-  return `${words.slice(0, -tail).join(" ")} | ${words.slice(-tail).join(" ")}`;
-}
-
 /** A short, complete statement with nothing under it is a Body 2 statement. */
 const STATEMENT_MAX_WORDS = 8;
 
 /**
- * Builds the rhythm the reference decks have from plain paragraphs: a cover with a
- * subtitle, content slides that explain, a short statement set as Body 2 now and
- * then, one of them on a sage ground, and a close.
+ * Keeps one visual rhythm: a cover, teaching slides, concise statements and a close.
+ * Copy wraps naturally; generated decks never add decorative colour changes.
  */
 export function generateCarouselFromText(source: string, author = BRAND_FOOTER, theme?: CarouselTheme): CarouselConfig {
   const chunks = sentenceChunks(source);
@@ -561,21 +540,16 @@ export function generateCarouselFromText(source: string, author = BRAND_FOOTER, 
 
   const parsed = chunks.map(splitHeading);
   const last = parsed.length - 1;
-  let sageUsed = false;
 
   const slides: CarouselSlide[] = parsed.map((chunk, index) => {
     const title = chunk.title;
-    if (index === 0) return { id: makeId(index), layout: "cover", title: suggestBreak(title), body: chunk.body };
-    if (index === last && parsed.length > 1) return { id: makeId(index), layout: "closing", title: suggestBreak(title), body: chunk.body };
+    if (index === 0) return { id: makeId(index), layout: "cover", title, body: chunk.body };
+    if (index === last && parsed.length > 1) return { id: makeId(index), layout: "closing", title, body: chunk.body };
 
     const statement = !chunk.body && wordCount(chunk.title) <= STATEMENT_MAX_WORDS;
     if (!statement) return { id: makeId(index), layout: "content", title, body: chunk.body };
 
-    // The first big statement after the setup gets the colour, and only that one, so
-    // the sage slide stays an event rather than a pattern.
-    const tone = theme !== "ai-engineer" && !sageUsed && index >= 2 ? "sage" : undefined;
-    if (tone) sageUsed = true;
-    return { id: makeId(index), layout: "note", title, body: "", ...(tone ? { tone } : {}) };
+    return { id: makeId(index), layout: "note", title, body: "" };
   });
 
   return {
@@ -643,43 +617,29 @@ function clamp(value: number, low: number, high: number) {
   return Math.min(high, Math.max(low, value));
 }
 
-/**
- * Shared reading sizes keep both themes legible at phone width. Display sizes
- * account for Signifier's lighter shapes and Geist's heavier weight. Container
- * width units keep previews and exports the same drawing at different sizes.
- */
+/** One copy size across layouts and themes, scaled with the slide rather than the viewport. */
 export const TYPE_SCALE = {
-  cover: 12.8,
-  cta: 8,
-  body: (18 / 390) * 100, // 18px at a 390px feed width, in container-width units.
-  statement: 6,
+  reading: (18 / 390) * 100, // 18px at phone width, about 50px in a 1080px export.
   metadata: 2.7,
-  tracking: -0.02,
-  leading: 1.06,
-} as const;
-
-export const AI_ENGINEER_TYPE_SCALE = {
-  ...TYPE_SCALE,
-  cover: 10.6,
-  tracking: -0.025,
 } as const;
 
 export function aiPrompt(config: CarouselConfig) {
   const branded = config.theme === "ai-engineer";
-  return `Create a minimal LinkedIn carousel from the source text below. Return JSON only, with no markdown fences.
+  return `Create a minimal social carousel from the source text below. Return JSON only, with no markdown fences.
 
 Rules:
 - 5 to 8 slides. One idea per slide.
 - Titles: 10 words or fewer. Plain, concrete language. Sentence case, never capitals. No colons, no hype.
-- Use "|" sparingly for deliberate breaks in a cover or CTA. Let Body 1 leads wrap naturally.
-- Bodies: 45 words or fewer. Separate paragraphs with a blank line. The cover body is its subtitle: one short line.
-- Wrap one word in *asterisks* for italic. Do this on the cover and on at most two other slides. Wrap one short phrase in **double asterisks** for ${branded ? "bold accent text" : "a highlighter stroke"}, on one slide at most.
+- Let headlines wrap naturally. Use "|" only when a deliberate break improves the meaning.
+- Bodies: 30 words or fewer. Separate paragraphs with a blank line. The cover body is its subtitle: one short line.
+- Emphasis is optional: *italic* or **bold** on a short phrase. Do not add emphasis or decoration to meet a quota.
 - Four layouts: "cover" (Cover), "content" (Body 1), "note" (Body 2), "closing" (CTA). Start with a cover and finish with one useful action.
-- Body 1 is a bold lead followed by short paragraphs, all at a readable text size. Use it for most teaching slides. No introduction or agenda slide: begin delivering the cover's promise on slide two.
+- All native headlines, statements, captions and paragraphs share one reading size: 18px at a 390px phone width. Keep titles short; do not request larger covers or smaller captions.
+- Body 1 is a lead followed by short paragraphs, separated by space. Use it for most teaching slides. No introduction or agenda slide: begin delivering the cover's promise on slide two.
 - Body 2 holds one short statement or a visual example with its title as the caption. It draws the title only; omit body. Use it when the idea benefits, not to meet a layout quota.
 - For pictures on Body 2, set "visual": "photos" and add image references to "images". For an SVG, set "visual": "diagram" and put the drawing in "diagram". Images and diagrams are optional.
-- SVG rules: viewBox="0 0 800 500", no width or height attributes, stroke="currentColor" and fill="none" for shapes, fill="currentColor" for text, stroke-width 2, rx 8 on boxes, font-family="${branded ? "inherit" : "Helvetica Neue, Helvetica, Arial, sans-serif"}", labels 44px and notes 40px, nothing smaller, at most six boxes, arrows drawn with a line plus a small polygon head, generous space, no colour, no gradients, no scripts.
-- ${branded ? 'The theme is "ai-engineer": Geist type, a forest cover and soft-grey slides. Keep body copy to 30 words or fewer. Omit "tone" for an automatic forest cover and soft grey on every other layout. Explicit tones: "paper" is soft grey and "black" is forest. Do not use "sage" in this theme. Italic and bold phrases use a contrasting accent.' : '"tone" is optional. Use "sage" sparingly on Body 2; otherwise omit it for paper. Every text element on a page uses the same ink colour.'}
+- SVG rules: viewBox="0 0 800 500", no width or height attributes, stroke="currentColor" and fill="none" for shapes, fill="currentColor" for text, stroke-width 2, rx 8 on boxes, font-family="${branded ? "inherit" : "Helvetica Neue, Helvetica, Arial, sans-serif"}", labels and notes 48px, one text size, nothing smaller, at most six boxes, arrows drawn with a line plus a small polygon head, generous space, no colour, no gradients, no scripts.
+- ${branded ? 'The theme is "ai-engineer": Geist type, a forest cover and soft-grey slides. Keep body copy to 30 words or fewer. Omit "tone" for an automatic forest cover and soft grey on every other layout. Explicit tones: "paper" is soft grey and "black" is forest. Do not use "sage" in this theme. Italic and bold phrases use a contrasting accent.' : 'Omit "tone" for a consistent paper ground. Use a different tone only when the source asks for one. Every text element on a page uses the same ink colour.'}
 - "mark" is the series label at the top of every slide. Keep it short and in sentence case.
 - Per slide, "showHeader": false hides the series label and page number; "showFooter": false hides the author and swipe arrow. Both default to visible. Set both to false for main text only.
 

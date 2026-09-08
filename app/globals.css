@@ -226,15 +226,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .slide-actions .danger-action:hover { color: var(--danger); }
 
 /* ---------------------------------------------------------------------------
-   The slide. One editorial system: Signifier on paper, a faint twelve-column
-   field, tiny sans furniture holding the corners. Sizes are in cqw against the
+   The slide. One reading size, common margins and a quiet ground.
+   Heading faces belong to the theme, never to individual layouts. Sizes are in cqw against the
    slide itself, so the 520px preview and the 1080px export are the same drawing.
    --------------------------------------------------------------------------- */
 .carousel-slide {
   --ink: #1a1a17;
   --paper: #efeeea;
   --rule: rgb(26 26 23 / .05);
-  --highlight: #a8bd9f;
   --margin: 9.5%;
   container-type: inline-size;
   contain: paint;
@@ -247,32 +246,17 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   --ink: #f4f2ea;
   --paper: #536b58;
   --rule: rgb(244 242 234 / .06);
-  --highlight: rgb(244 242 234 / .22);
 }
 .carousel-slide.tone-black {
   --ink: #f4f2ea;
   --paper: #151513;
   --rule: rgb(244 242 234 / .055);
-  --highlight: rgb(168 189 159 / .55);
-}
-
-/* The column field is part of the artwork. It lives inside the slide only: an
-   earlier version drew it with a ::before on every element carrying the template
-   class, and the rail thumbnails leaked their rules across the editor. */
-.slide-rules {
-  position: absolute; z-index: 0; inset: 4.8% var(--margin); pointer-events: none;
-  display: flex; justify-content: space-between;
-}
-.slide-rules > span {
-  flex: 0 0 1px; background: var(--rule);
 }
 
 /* Photographs behind copy. A single smooth veil, heaviest under the text, so the
    picture reads as a wash rather than as a set of stripes. */
 .slide-image, .slide-overlay { position: absolute; inset: 0; display: none; }
 .has-background .slide-image { display: block; width: 100%; height: 100%; object-fit: cover; }
-/* A photograph is a photograph: no column rules over it, no wash across it. */
-.has-background .slide-rules, .has-pictures .slide-rules { display: none; }
 /* The veil's strength is the slide's own dial, 0 to 1. */
 .has-background .slide-overlay { display: block; opacity: var(--veil, .6); }
 /* The veil covers only the band the copy sits in and clears everywhere else, so
@@ -302,25 +286,17 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 
 /* The copy. Vertical rhythm is in em against each element's own size. */
 .slide-content { position: relative; z-index: 1; min-height: 0; display: flex; flex: 1; flex-direction: column; align-items: flex-start; justify-content: flex-start; padding: 19% var(--margin) 15%; }
-.slide-content h2 { max-width: 100%; margin: 0; font-size: var(--title-size); font-weight: 400; line-height: var(--title-leading); letter-spacing: var(--title-tracking); word-spacing: 0; font-kerning: normal; font-variant-ligatures: common-ligatures contextual; overflow-wrap: anywhere; }
-.title-line { display: block; text-wrap: balance; }
-.title-broken .title-line, .layout-content .title-line { text-wrap: wrap; }
+.slide-content h2 { max-width: 100%; margin: 0; font-size: var(--reading-size); font-weight: 400; line-height: 1.4; letter-spacing: -.01em; word-spacing: 0; font-kerning: normal; font-variant-ligatures: common-ligatures contextual; overflow-wrap: anywhere; }
+.title-line { display: block; text-wrap: wrap; }
 /* Hangs an opening quote into the margin so the first line optically aligns with the
    copy below it. Roughly the sidebearing of a double quote in a serif at display size. */
 .title-hang .title-line:first-child { text-indent: -.36em; }
 /* Body copy is Helvetica, the way the reference decks pair a serif headline with a plain
    sans paragraph. Regular weight, a touch of negative tracking, open leading. */
-.slide-content p { max-width: 100%; margin: 1.1em 0 0; color: var(--ink); font-family: var(--font-sans); font-size: var(--body-size); font-weight: 400; line-height: 1.4; letter-spacing: -.01em; font-kerning: normal; text-wrap: pretty; overflow-wrap: anywhere; }
-.slide-content h2 + p { margin-top: 1.1em; }
+.slide-content p { max-width: 100%; margin: 1.1em 0 0; color: var(--ink); font-family: var(--font-sans); font-size: var(--reading-size); font-weight: 400; line-height: 1.4; letter-spacing: -.01em; font-kerning: normal; text-wrap: pretty; overflow-wrap: anywhere; }
 
 .mark-italic { font-style: italic; }
-/* A highlighter stroke behind the phrase, drawn as a slightly skewed box so it reads
-   as a hand mark. box-decoration-break keeps the stroke on each wrapped line. */
-.mark-accent {
-  padding: 0 .06em; margin: 0 -.06em;
-  background: linear-gradient(104deg, transparent 2%, var(--highlight) 4%, var(--highlight) 96%, transparent 98%) 0 .3em / 100% .66em no-repeat;
-  -webkit-box-decoration-break: clone; box-decoration-break: clone;
-}
+.mark-accent { font-weight: 700; }
 
 /* Position and alignment are independent of colour and layout. */
 /* Top still clears the series label by a full measure of air, so the headline reads as
@@ -331,56 +307,21 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 /* Bottom clears the footer by the same measure Top clears the label. */
 .pos-bottom .slide-content { justify-content: flex-end; padding-bottom: 23%; }
 .align-center .slide-content { align-items: center; text-align: center; }
-.align-center .slide-content h2 { max-width: 92%; }
-.align-center .slide-content p { max-width: 100%; }
 
-/* Cover: the headline is the page. Its copy is a subtitle in sans, set low. */
-.layout-cover .slide-content { padding-inline: 6%; }
-.layout-cover .slide-content h2 { max-width: 100%; line-height: .92; }
-.layout-cover .slide-content p { position: absolute; left: 0; right: 0; bottom: 16%; max-width: none; margin: 0; padding: 0 12%; font-family: var(--font-sans); font-size: var(--body-size); font-weight: 400; line-height: 1.4; letter-spacing: -.01em; }
-/* With the headline already at the foot there is no room under it for a pinned
-   subtitle, so it follows the headline in flow instead. */
-.layout-cover.pos-bottom .slide-content p { position: static; margin-top: 1.8em; padding: 0; }
-.layout-cover.pos-bottom.align-left .slide-content p { padding-right: 20%; }
-.layout-cover.align-left .slide-content p { padding-right: 30%; }
-.layout-cover.align-left .slide-content { padding-inline: var(--margin); }
-
-.layout-closing .slide-content { padding-inline: var(--margin); }
-.layout-closing .slide-content h2 { max-width: 100%; line-height: 1.12; }
-
-/* Picture layouts. The sentence sits on the paper; the photographs are objects under
-   it, never behind it. Grid: equal squares inside the margin. Strip: a filmstrip of
-   portraits that runs off both edges. Figure: one contained picture. */
-.has-pictures .slide-content { flex: 0 0 auto; padding-top: 22%; padding-bottom: 0; }
-.slide-pictures { position: relative; z-index: 1; display: grid; flex: 1; min-height: 0; margin: 5% var(--margin) 20%; }
-.slide-picture { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; object-fit: cover; background-color: rgb(26 26 23 / .08); }
+/* Visuals use the same gutters and caption spacing, with copy above or below.
+   Text stays in flow, so multiple paragraphs never stack on a pinned subtitle. */
+.has-visual .slide-content { flex: 0 0 auto; padding: 18% var(--margin) 0; }
+.has-visual.pos-bottom .slide-content { order: 2; padding: 0 var(--margin) 18%; }
+.slide-pictures, .slide-diagram { position: relative; z-index: 1; flex: 1; min-height: 0; margin: 6% var(--margin) 18%; }
+.has-visual.pos-bottom .slide-pictures, .has-visual.pos-bottom .slide-diagram { margin-top: 18%; margin-bottom: 6%; }
+.slide-pictures { display: grid; grid-template-columns: 1fr; gap: 3cqw; }
+.photos-grid .slide-pictures { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); }
+.photos-grid.pictures-5 .slide-pictures, .photos-grid.pictures-6 .slide-pictures,
+.photos-grid.pictures-7 .slide-pictures, .photos-grid.pictures-8 .slide-pictures,
+.photos-grid.pictures-9 .slide-pictures { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.slide-picture { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; object-fit: contain; }
 .slide-picture.is-missing { background: repeating-linear-gradient(135deg, rgb(26 26 23 / .06) 0 6px, transparent 6px 14px); }
-/* A square that fits whichever is tighter: the column width or the height left under
-   the copy. The flex-resolved height is definite, so aspect-ratio sets the width. */
-.photos-grid .slide-pictures { grid-template-columns: repeat(3, 1fr); gap: 1.4cqw; align-self: center; flex: 1 1 0; width: auto; max-width: calc(100% - var(--margin) * 2); aspect-ratio: 1; margin-inline: auto; }
-.photos-grid .slide-pictures { grid-auto-rows: 1fr; }
-.photos-grid.pictures-4 .slide-pictures { grid-template-columns: repeat(2, 1fr); }
-.photos-grid .slide-picture { aspect-ratio: auto; }
-.photos-strip .slide-pictures { grid-auto-flow: column; grid-auto-columns: 62%; gap: 3.2cqw; margin-inline: -12%; margin-bottom: 20%; padding-inline: 12%; justify-content: center; align-items: stretch; }
-.photos-strip.pictures-2 .slide-pictures { grid-auto-columns: 54%; }
-.photos-strip.pictures-3 .slide-pictures { grid-auto-columns: 46%; }
-.photos-strip .slide-picture { aspect-ratio: auto; height: 100%; }
-.photos-figure .slide-pictures { grid-template-columns: 1fr; margin-bottom: 20%; }
-.has-pictures .slide-meta { z-index: 3; }
-
-/* Diagram: a centred 16:10 figure drawn in the slide's ink, with the headline as a
-   caption under it (position bottom) or a title over it (position top). The SVG is
-   authored with currentColor, so the same drawing works on paper, sage and black. */
-.visual-diagram .slide-content { flex: 0 0 auto; padding-top: 24%; padding-bottom: 14%; }
-.visual-diagram.pos-bottom .slide-content { order: 2; padding-top: 0; padding-bottom: 17%; }
-.visual-diagram.pos-top .slide-content { padding-top: 24%; padding-bottom: 0; }
-.visual-diagram .slide-content { align-items: center; text-align: center; }
-.visual-diagram.align-left .slide-content { align-items: flex-start; text-align: left; }
-/* The figure runs past the column margin to the slide's outer gutter, so it reads as
-   the page rather than an inset. */
-.slide-diagram { position: relative; z-index: 1; display: flex; flex: 1; align-items: center; justify-content: center; min-height: 0; margin: 3% 5%; color: var(--ink); }
-.visual-diagram.pos-bottom .slide-diagram { margin-top: 15%; margin-bottom: 4%; }
-.visual-diagram.pos-top .slide-diagram { margin-bottom: 14%; }
+.slide-diagram { display: flex; align-items: center; justify-content: center; color: var(--ink); }
 .slide-diagram-svg { width: 100%; max-height: 100%; aspect-ratio: 16 / 10; font-family: var(--font-sans); }
 .slide-diagram-svg svg { display: block; width: 100%; height: 100%; overflow: visible; }
 /* Keep the original font cascade for existing Editorial artwork. */
@@ -407,30 +348,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   --phrase: #cfad82;
   --veil-rgb: 12 17 15;
 }
-.template-ai-engineer .slide-rules { display: none; }
-.template-ai-engineer .slide-head { padding-bottom: 3cqw; border-bottom: .15cqw solid var(--rule); }
-.template-ai-engineer.has-background .slide-head { border-bottom: 0; }
-.template-ai-engineer .slide-content h2 { font-weight: 600; line-height: var(--title-leading); letter-spacing: var(--title-tracking); }
-.template-ai-engineer .slide-content p { max-width: 100%; }
+.template-ai-engineer .slide-content h2 { font-weight: 500; }
 .template-ai-engineer .mark-italic, .template-ai-engineer .mark-accent { color: var(--phrase); }
-.template-ai-engineer .mark-accent { padding: 0; margin: 0; background: none; font-weight: 700; }
-.template-ai-engineer.layout-cover .slide-content,
-.template-ai-engineer.layout-closing .slide-content { padding-inline: var(--margin); }
-.template-ai-engineer.layout-cover .slide-content p { left: var(--margin); right: var(--margin); padding: 0; }
-.template-ai-engineer.layout-cover.pos-bottom .slide-content p { margin-top: 1.2em; }
-/* Body 1 uses weight, paragraph spacing and a shared reading size for hierarchy.
-   Body 2 uses the same caption size; text-only statements get one modest step up. */
-.layout-content .slide-content h2, .layout-note .slide-content h2 {
-  max-width: 100%; font-family: var(--font-sans); font-size: var(--body-size);
-  font-weight: 600; line-height: 1.4; letter-spacing: -.01em;
-}
-.layout-note:not(.visual-diagram):not(.visual-photos) .slide-content h2 {
-  font-size: var(--statement-size); font-weight: 400; line-height: 1.3;
-}
-.layout-content .mark-accent, .layout-note .mark-accent {
-  padding: 0; margin: 0; background: none; font-weight: 700;
-}
-.layout-content .slide-rules, .layout-note .slide-rules { display: none; }
 .slide-overflow-warning { max-width: 520px; margin: 12px 0 0; color: var(--danger); font-size: 13px; line-height: 1.5; }
 
 .template-ai-engineer .slide-diagram-empty { border-color: var(--rule); color: var(--ink); }

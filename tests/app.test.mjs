@@ -138,6 +138,7 @@ test("the editor has four layouts and preserves a legacy diagram when switching 
   const type = view.document.querySelector("#slide-layout");
   assert.deepEqual([...type.options].map((option) => option.text), ["Cover", "Body 1", "Body 2", "CTA"]);
   assert.equal(type.value, "note");
+  assert.ok(![...view.document.querySelectorAll(".inspector button")].some((button) => button.textContent === "Middle"), "visual captions have only top and bottom positions");
   async function select(node, value) {
     await act(() => { node.value = value; node.dispatchEvent(new view.window.Event("change", { bubbles: true })); });
   }
@@ -152,6 +153,7 @@ test("the editor has four layouts and preserves a legacy diagram when switching 
   assert.equal(view.document.querySelector(".preview-frame svg text").textContent, "A useful example");
   await view.click("Layout");
   await select(view.document.querySelector("#slide-layout"), "cover");
+  assert.ok([...view.document.querySelectorAll(".inspector button")].some((button) => button.textContent === "Middle"), "text layouts keep the middle position");
   assert.equal(view.document.querySelector(".preview-frame .slide-diagram"), null);
   await select(view.document.querySelector("#slide-layout"), "note");
   assert.equal(view.document.querySelector(".preview-frame svg text").textContent, "A useful example");

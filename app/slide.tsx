@@ -3,7 +3,6 @@ import VideoBackground from "./video-background";
 import { videoUrl } from "./video-formats";
 import {
   bodyParagraphs,
-  AI_ENGINEER_TYPE_SCALE,
   carouselTheme,
   CarouselConfig,
   CarouselSlide,
@@ -61,8 +60,6 @@ export function Slide({
 }) {
   const slide = normalizeSlideLayout(sourceSlide);
   const theme = carouselTheme(config.theme);
-  const scale = theme === "ai-engineer" ? AI_ENGINEER_TYPE_SCALE : TYPE_SCALE;
-  const isCover = slide.layout === "cover";
   const visual = slide.layout === "note" ? slide.visual : undefined;
   const position = slidePosition(slide);
   const lines = titleLines(slide.title);
@@ -77,19 +74,15 @@ export function Slide({
   const showArrow = config.arrow !== false && !isLast;
 
   const style = {
-    "--title-size": `${isCover ? scale.cover : slide.layout === "closing" ? scale.cta : scale.body}cqw`,
-    "--title-tracking": `${scale.tracking}em`,
-    "--title-leading": `${scale.leading}`,
-    "--body-size": `${scale.body}cqw`,
-    "--statement-size": `${scale.statement}cqw`,
-    "--metadata-size": `${scale.metadata}cqw`,
+    "--reading-size": `${TYPE_SCALE.reading}cqw`,
+    "--metadata-size": `${TYPE_SCALE.metadata}cqw`,
     "--veil": String(slide.veil ?? DEFAULT_VEIL),
   } as CSSProperties;
 
   // A headline opening on a quote mark sits visibly indented against the copy below
   // it unless the mark is hung into the margin. CSS hanging-punctuation is Safari
   // only, so the indent is set by hand, and only where there is a margin to hang into.
-  const hangs = /^["“”'‘’]/.test(smartQuotes(lines[0])) && slideAlign(slide, theme) === "left";
+  const hangs = /^["“”'‘’]/.test(smartQuotes(lines[0])) && slideAlign(slide) === "left";
 
   const copy = (
     <>
@@ -111,8 +104,9 @@ export function Slide({
     `template-${theme}`,
     `layout-${slide.layout}`,
     visual ? `visual-${visual}` : "",
+    visual === "diagram" || pictures.length > 0 ? "has-visual" : "",
     `pos-${position}`,
-    `align-${slideAlign(slide, theme)}`,
+    `align-${slideAlign(slide)}`,
     `tone-${slideTone(slide, theme)}`,
     background || slide.video ? "has-background" : "",
     config.mark ? "has-mark" : "",
@@ -131,7 +125,6 @@ export function Slide({
           : <img key={`${slide.video.key}:${slide.video.start}`} className="slide-image" src={videoUrl(slide.video.key, "/poster")} data-video-key={slide.video.key} data-video-start={slide.video.start} alt="" />
         : background && <img className="slide-image" src={background} alt="" />}
       <div className="slide-overlay" />
-      <div className="slide-rules" aria-hidden="true">{Array.from({ length: 13 }, (_, index) => <span key={index} />)}</div>
       {slide.showHeader !== false && (
         <header className="slide-head">
           {config.mark && <span className="slide-mark">{config.mark}</span>}

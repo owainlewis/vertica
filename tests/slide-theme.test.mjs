@@ -42,9 +42,24 @@ test("a deck without a theme still renders an Editorial cover", () => {
   const node = dom.window.document.querySelector("article");
   assert.ok(node.classList.contains("template-editorial"));
   assert.ok(node.classList.contains("tone-paper"));
-  assert.ok(node.classList.contains("align-center"));
+  assert.ok(node.classList.contains("align-left"));
   const explicit = new JSDOM(renderToStaticMarkup(createElement(Slide, { config: { ...legacy, theme: "editorial" }, slide: legacy.slides[0], index: 0 })));
   assert.equal(node.getAttribute("style"), explicit.window.document.querySelector("article").getAttribute("style"));
   explicit.window.close();
   dom.window.close();
+});
+
+
+test("all layouts and themes share the same reading token without decorative rules", () => {
+  for (const theme of ["editorial", "ai-engineer"]) {
+    for (const source of config.slides) {
+      const dom = new JSDOM(renderToStaticMarkup(createElement(Slide, { config: { ...config, theme }, slide: source, index: 0 })));
+      const slide = dom.window.document.querySelector("article");
+      assert.ok(Math.abs(parseFloat(slide.style.getPropertyValue("--reading-size")) * 390 / 100 - 18) < 0.001);
+      assert.equal(slide.style.getPropertyValue("--title-size"), "");
+      assert.equal(slide.style.getPropertyValue("--statement-size"), "");
+      assert.equal(slide.querySelector(".slide-rules"), null);
+      dom.window.close();
+    }
+  }
 });
