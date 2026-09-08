@@ -3,6 +3,7 @@ import VideoBackground from "./video-background";
 import { videoUrl } from "./video-formats";
 import {
   bodyParagraphs,
+  AI_ENGINEER_TYPE_SCALE,
   carouselTheme,
   CarouselConfig,
   CarouselSlide,
@@ -60,6 +61,7 @@ export function Slide({
 }) {
   const slide = normalizeSlideLayout(sourceSlide);
   const theme = carouselTheme(config.theme);
+  const scale = theme === "ai-engineer" ? AI_ENGINEER_TYPE_SCALE : TYPE_SCALE;
   const visual = slide.layout === "note" ? slide.visual : undefined;
   const position = slidePosition(slide);
   const lines = titleLines(slide.title);
@@ -73,7 +75,11 @@ export function Slide({
   const isLast = index === config.slides.length - 1;
   const showArrow = config.arrow !== false && !isLast;
 
+  const titleSize = slide.layout === "cover" ? scale.cover
+    : slide.layout === "closing" ? scale.cta
+      : slide.layout === "note" && !visual ? scale.statement : scale.reading;
   const style = {
+    "--title-size": `${titleSize}cqw`,
     "--reading-size": `${TYPE_SCALE.reading}cqw`,
     "--metadata-size": `${TYPE_SCALE.metadata}cqw`,
     "--veil": String(slide.veil ?? DEFAULT_VEIL),
@@ -82,7 +88,7 @@ export function Slide({
   // A headline opening on a quote mark sits visibly indented against the copy below
   // it unless the mark is hung into the margin. CSS hanging-punctuation is Safari
   // only, so the indent is set by hand, and only where there is a margin to hang into.
-  const hangs = /^["“”'‘’]/.test(smartQuotes(lines[0])) && slideAlign(slide) === "left";
+  const hangs = /^["“”'‘’]/.test(smartQuotes(lines[0])) && slideAlign(slide, theme) === "left";
 
   const copy = (
     <>
@@ -106,7 +112,7 @@ export function Slide({
     visual ? `visual-${visual}` : "",
     visual === "diagram" || pictures.length > 0 ? "has-visual" : "",
     `pos-${position}`,
-    `align-${slideAlign(slide)}`,
+    `align-${slideAlign(slide, theme)}`,
     `tone-${slideTone(slide, theme)}`,
     background || slide.video ? "has-background" : "",
     config.mark ? "has-mark" : "",

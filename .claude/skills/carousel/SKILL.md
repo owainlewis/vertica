@@ -30,12 +30,12 @@ or course only when the user has it and wants to promote it.
 | Editor name | JSON layout | Job |
 |---|---|---|
 | Cover | `cover` | A clear headline and one short subtitle in `body` |
-| Body 1 | `content` | A lead in `title` followed by short paragraphs in `body` |
+| Body 1 | `content` | A bold lead in `title` followed by short paragraphs in `body` |
 | Body 2 | `note` | One statement or a visual example; `title` only |
 | CTA | `closing` | One next action in `title` and a supporting line in `body` |
 
-Use Body 1 for most teaching. Every layout uses the same reading size and margins;
-consistent heading treatment and space supply the hierarchy. Body 2 gives a concise statement room, or
+Use Body 1 for most teaching. Repeated text roles share a fixed type scale;
+large cover headlines, weight and space supply the hierarchy. Body 2 gives a concise statement room, or
 holds a diagram or pictures. Do not add layout changes to meet a quota.
 
 Body 2 may set `visual: "photos"` with an `images` list, or `visual: "diagram"`
@@ -49,11 +49,13 @@ Cinematic imagery is optional and should contribute to the idea or requested ton
 
 - Prefer a 4-10 word cover and about 15-35 words on teaching slides.
 - Give each slide one useful point. Use concrete actions and consequences.
-- All native headlines, statements, visual captions and paragraphs use 18px at a
-  390px feed width. Never ask for larger covers, smaller captions or fitting by
-  shrinking type. Each theme keeps one heading face and weight across the four layouts.
-- Default to left alignment, quiet grounds and the same margins. Avoid decorative
-  colour changes. Reuse the text layout when the explanation does not need a visual.
+- Keep the display headlines on covers. CTA headlines and standalone statements
+  use fixed smaller sizes. Body 1 leads, paragraphs and visual captions use 18px
+  at a 390px feed width. Consistency means repeated roles match, not that every
+  text element has the same size. Never shrink type to fit.
+- Editorial covers and CTAs centre by default; teaching copy aligns left. Keep
+  the theme's composition and quiet grounds. Avoid decorative colour changes.
+  Reuse the text layout when the explanation does not need a visual.
 - Separate paragraphs with a blank line. Let headlines wrap naturally. Use `|`
   only when a deliberate break improves the meaning.
 - Use `*italic*` or `**bold**` sparingly. No hype or invented first-person claims.

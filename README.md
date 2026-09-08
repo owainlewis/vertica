@@ -137,19 +137,24 @@ Set `"theme": "ai-engineer"` in a JSON config to use it; omit the field or use
 `"editorial"` for the original theme. Both themes use the same four layouts and
 renderer in the gallery, editor, reader preview and PDF/JPEG export.
 
-Every native headline, statement, visual caption and paragraph uses one reading
-size: 18px in a 390px feed and about 50px in a 1080px export, with 1.4 line height.
-Editorial keeps regular Signifier headlines and plain sans paragraphs; AI Engineer
-uses medium Geist headlines and regular paragraphs. Each theme uses the same
-heading face and weight on all four layouts. There are no display-size covers,
-smaller captions or automatic text shrinking. Metadata has its own quiet size.
+The type scale is consistent by role. Covers keep their expressive display
+headlines: about 50px for Editorial and 41px for AI Engineer at a 390px feed width.
+CTA headlines are 31px; standalone Body 2 statements are 23px. Paragraphs, Body 1
+leads and visual captions share the agreed 18px reading size, with 1.4 line height.
+All sizes scale with the slide for export. Editorial keeps Signifier on covers,
+CTAs and visual captions, paired with plain sans teaching copy. AI Engineer uses
+Geist. Body 1 leads use weight to separate them from paragraphs.
 
-All layouts share 9.5% side margins and default to left alignment. Text slides
-centre their copy block vertically. Supporting paragraphs follow the heading in
-normal flow, including on covers. Pictures and diagrams share a contained figure
-area, with a caption below by default; choose Top to put the caption above. Visual
-slides offer Top and Bottom only. Older visual slides set to Middle render their
-caption above the figure while retaining the saved value.
+Editorial covers and CTAs centre by default; teaching copy aligns left. AI
+Engineer keeps its left alignment. Explicit alignment always wins. Body layouts
+share 9.5% side margins; centred Editorial covers use a wider 6% margin for the
+display title. Text slides centre their copy block vertically. Supporting
+paragraphs follow the heading in normal flow, including on covers.
+
+Pictures and diagrams share a contained figure area, with a caption below by
+default; choose Top to put the caption above. Visual slides offer Top and Bottom
+only. Older visual slides set to Middle render their caption above the figure
+while retaining the saved value.
 
 Keep teaching slides around 30 words. The editor warns when rendered copy overlaps
 or leaves the frame. Explicit `|` breaks are preserved; generated copy wraps
@@ -169,7 +174,7 @@ author and swipe arrow independently. Settings apply to previews and exports.
 | Editor layout | JSON value | Purpose |
 |---|---|---|
 | Cover | `cover` | A specific promise and a short subtitle |
-| Body 1 | `content` | A lead followed by short paragraphs |
+| Body 1 | `content` | A bold lead followed by short paragraphs |
 | Body 2 | `note` | A short statement or visual example with a caption |
 | CTA | `closing` | One next action and a supporting line |
 

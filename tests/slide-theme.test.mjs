@@ -42,7 +42,7 @@ test("a deck without a theme still renders an Editorial cover", () => {
   const node = dom.window.document.querySelector("article");
   assert.ok(node.classList.contains("template-editorial"));
   assert.ok(node.classList.contains("tone-paper"));
-  assert.ok(node.classList.contains("align-left"));
+  assert.ok(node.classList.contains("align-center"));
   const explicit = new JSDOM(renderToStaticMarkup(createElement(Slide, { config: { ...legacy, theme: "editorial" }, slide: legacy.slides[0], index: 0 })));
   assert.equal(node.getAttribute("style"), explicit.window.document.querySelector("article").getAttribute("style"));
   explicit.window.close();
@@ -50,14 +50,18 @@ test("a deck without a theme still renders an Editorial cover", () => {
 });
 
 
-test("all layouts and themes share the same reading token without decorative rules", () => {
+test("display titles keep their hierarchy while reading copy stays at 18px", () => {
   for (const theme of ["editorial", "ai-engineer"]) {
     for (const source of config.slides) {
       const dom = new JSDOM(renderToStaticMarkup(createElement(Slide, { config: { ...config, theme }, slide: source, index: 0 })));
       const slide = dom.window.document.querySelector("article");
       assert.ok(Math.abs(parseFloat(slide.style.getPropertyValue("--reading-size")) * 390 / 100 - 18) < 0.001);
-      assert.equal(slide.style.getPropertyValue("--title-size"), "");
-      assert.equal(slide.style.getPropertyValue("--statement-size"), "");
+      const title = parseFloat(slide.style.getPropertyValue("--title-size"));
+      const layout = normalizeSlideLayout(source);
+      if (layout.layout === "cover") assert.equal(title, theme === "editorial" ? 12.8 : 10.6);
+      else if (layout.layout === "closing") assert.equal(title, 8);
+      else if (layout.layout === "note" && !layout.visual) assert.equal(title, 6);
+      else assert.ok(Math.abs(title * 390 / 100 - 18) < 0.001);
       assert.equal(slide.querySelector(".slide-rules"), null);
       dom.window.close();
     }

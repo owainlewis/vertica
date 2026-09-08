@@ -226,8 +226,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .slide-actions .danger-action:hover { color: var(--danger); }
 
 /* ---------------------------------------------------------------------------
-   The slide. One reading size, common margins and a quiet ground.
-   Heading faces belong to the theme, never to individual layouts. Sizes are in cqw against the
+   The slide. Display covers, readable teaching copy and a quiet ground.
+   Repeated roles share a fixed type scale. Sizes are in cqw against the
    slide itself, so the 520px preview and the 1080px export are the same drawing.
    --------------------------------------------------------------------------- */
 .carousel-slide {
@@ -286,8 +286,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 
 /* The copy. Vertical rhythm is in em against each element's own size. */
 .slide-content { position: relative; z-index: 1; min-height: 0; display: flex; flex: 1; flex-direction: column; align-items: flex-start; justify-content: flex-start; padding: 19% var(--margin) 15%; }
-.slide-content h2 { max-width: 100%; margin: 0; font-size: var(--reading-size); font-weight: 400; line-height: 1.4; letter-spacing: -.01em; word-spacing: 0; font-kerning: normal; font-variant-ligatures: common-ligatures contextual; overflow-wrap: anywhere; }
-.title-line { display: block; text-wrap: wrap; }
+.slide-content h2 { max-width: 100%; margin: 0; font-size: var(--title-size); font-weight: 400; line-height: 1.12; letter-spacing: -.02em; word-spacing: 0; font-kerning: normal; font-variant-ligatures: common-ligatures contextual; overflow-wrap: anywhere; }
+.title-line { display: block; text-wrap: balance; }
+.title-broken .title-line, .layout-content .title-line { text-wrap: wrap; }
 /* Hangs an opening quote into the margin so the first line optically aligns with the
    copy below it. Roughly the sidebearing of a double quote in a serif at display size. */
 .title-hang .title-line:first-child { text-indent: -.36em; }
@@ -307,6 +308,16 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 /* Bottom clears the footer by the same measure Top clears the label. */
 .pos-bottom .slide-content { justify-content: flex-end; padding-bottom: 23%; }
 .align-center .slide-content { align-items: center; text-align: center; }
+
+/* The cover keeps its broad display composition. Supporting copy stays in flow,
+   so a second paragraph cannot overlap the first. */
+.layout-cover .slide-content { padding-inline: 6%; }
+.layout-cover.align-left .slide-content { padding-inline: var(--margin); }
+.layout-cover .slide-content h2 { line-height: .92; }
+.layout-cover .slide-content p { max-width: 90%; }
+.layout-content .slide-content h2 { font-family: var(--font-sans); font-weight: 600; line-height: 1.4; letter-spacing: -.01em; }
+.layout-note:not(.has-visual) .slide-content h2 { font-family: var(--font-sans); font-weight: 400; line-height: 1.3; letter-spacing: -.01em; }
+.has-visual .slide-content h2 { line-height: 1.4; letter-spacing: -.01em; }
 
 /* Visuals use the same gutters and caption spacing, with copy above or below.
    Text stays in flow, so multiple paragraphs never stack on a pinned subtitle. */
@@ -348,7 +359,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   --phrase: #cfad82;
   --veil-rgb: 12 17 15;
 }
-.template-ai-engineer .slide-content h2 { font-weight: 500; }
+.template-ai-engineer.layout-cover .slide-content { padding-inline: var(--margin); }
+.template-ai-engineer.layout-cover .slide-content h2 { font-weight: 600; line-height: 1.06; letter-spacing: -.025em; }
+.template-ai-engineer.layout-closing .slide-content h2 { font-weight: 600; letter-spacing: -.025em; }
+.template-ai-engineer.has-visual .slide-content h2 { font-weight: 500; }
 .template-ai-engineer .mark-italic, .template-ai-engineer .mark-accent { color: var(--phrase); }
 .slide-overflow-warning { max-width: 520px; margin: 12px 0 0; color: var(--danger); font-size: 13px; line-height: 1.5; }
 

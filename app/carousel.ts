@@ -114,9 +114,12 @@ export function slidePosition(slide: CarouselSlide): SlidePosition {
   return slide.position ?? "middle";
 }
 
-/** A common left edge keeps a deck steady. Explicit alignment always wins. */
-export function slideAlign(slide: CarouselSlide): SlideAlign {
-  return slide.align ?? "left";
+/** Covers and CTAs keep the Editorial composition; explicit alignment always wins. */
+export function slideAlign(slide: CarouselSlide, theme?: CarouselTheme): SlideAlign {
+  if (slide.align) return slide.align;
+  if (theme === "ai-engineer") return "left";
+  const layout = normalizeLayout(slide.layout, "content");
+  return layout === "cover" || layout === "closing" ? "center" : "left";
 }
 
 export type CarouselConfig = {
@@ -617,11 +620,17 @@ function clamp(value: number, low: number, high: number) {
   return Math.min(high, Math.max(low, value));
 }
 
-/** One copy size across layouts and themes, scaled with the slide rather than the viewport. */
+/** Fixed sizes for repeated roles preserve hierarchy while previews and exports scale together. */
 export const TYPE_SCALE = {
+  cover: 12.8,
+  cta: 8,
+  statement: 6,
   reading: (18 / 390) * 100, // 18px at phone width, about 50px in a 1080px export.
   metadata: 2.7,
 } as const;
+
+/** Geist's heavier shapes need a smaller display size than the Editorial serif. */
+export const AI_ENGINEER_TYPE_SCALE = { ...TYPE_SCALE, cover: 10.6 } as const;
 
 export function aiPrompt(config: CarouselConfig) {
   const branded = config.theme === "ai-engineer";
@@ -634,8 +643,8 @@ Rules:
 - Bodies: 30 words or fewer. Separate paragraphs with a blank line. The cover body is its subtitle: one short line.
 - Emphasis is optional: *italic* or **bold** on a short phrase. Do not add emphasis or decoration to meet a quota.
 - Four layouts: "cover" (Cover), "content" (Body 1), "note" (Body 2), "closing" (CTA). Start with a cover and finish with one useful action.
-- All native headlines, statements, captions and paragraphs share one reading size: 18px at a 390px phone width. Keep titles short; do not request larger covers or smaller captions.
-- Body 1 is a lead followed by short paragraphs, separated by space. Use it for most teaching slides. No introduction or agenda slide: begin delivering the cover's promise on slide two.
+- Keep a consistent hierarchy: large display headlines on covers, a smaller CTA headline, and a modest step up for standalone statements. Paragraphs, Body 1 leads and visual captions stay at 18px at a 390px phone width. Do not flatten all roles to one size or shrink text to fit.
+- Body 1 is a bold sans lead followed by short paragraphs, separated by space. Use it for most teaching slides. No introduction or agenda slide: begin delivering the cover's promise on slide two.
 - Body 2 holds one short statement or a visual example with its title as the caption. It draws the title only; omit body. Use it when the idea benefits, not to meet a layout quota.
 - For pictures on Body 2, set "visual": "photos" and add image references to "images". For an SVG, set "visual": "diagram" and put the drawing in "diagram". Images and diagrams are optional.
 - SVG rules: viewBox="0 0 800 500", no width or height attributes, stroke="currentColor" and fill="none" for shapes, fill="currentColor" for text, stroke-width 2, rx 8 on boxes, font-family="${branded ? "inherit" : "Helvetica Neue, Helvetica, Arial, sans-serif"}", labels and notes 48px, one text size, nothing smaller, at most six boxes, arrows drawn with a line plus a small polygon head, generous space, no colour, no gradients, no scripts.

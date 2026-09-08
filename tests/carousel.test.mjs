@@ -43,8 +43,8 @@ test("AI Engineer chooses automatic grounds and alignment while preserving expli
   const layouts = ["cover", "content", "note", "poster", "diagram", "photos", "closing"];
   assert.deepEqual(layouts.map((layout) => slideTone({ layout }, "ai-engineer")), ["black", "paper", "paper", "paper", "paper", "paper", "paper"]);
   assert.ok(layouts.every((layout) => slideTone({ layout }) === "paper"));
-  assert.ok(layouts.every((layout) => slideAlign({ layout }) === "left"));
-  assert.equal(slideAlign({ layout: "cover" }), "left");
+  assert.ok(layouts.every((layout) => slideAlign({ layout }, "ai-engineer") === "left"));
+  assert.equal(slideAlign({ layout: "cover" }), "center");
   assert.equal(slideAlign({ layout: "cover", align: "center" }), "center");
   assert.equal(slideTone({ layout: "cover", tone: "paper" }, "ai-engineer"), "paper");
   assert.equal(slideTone({ layout: "content", tone: "black" }, "ai-engineer"), "black");
@@ -66,6 +66,8 @@ test("generating slides and copying the AI prompt preserve the chosen theme", ()
     const instructions = aiPrompt({ ...deck, theme });
     assert.match(instructions, /Four layouts/);
     assert.match(instructions, /18px at a 390px phone width/);
+    assert.match(instructions, /large display headlines on covers/);
+    assert.doesNotMatch(instructions, /share one reading size/);
     assert.match(instructions, /Bodies: 30 words or fewer/);
     assert.match(instructions, /labels and notes 48px, one text size/);
   }
@@ -393,7 +395,7 @@ test("placement defaults from the slide type and stays independent of colour", (
     ],
   }));
   assert.equal(slidePosition(config.slides[0]), "middle");
-  assert.equal(slideAlign(config.slides[0]), "left");
+  assert.equal(slideAlign(config.slides[0]), "center");
   assert.equal(slidePosition(config.slides[1]), "middle");
   assert.equal(slideAlign(config.slides[1]), "left");
   assert.equal(slidePosition(config.slides[2]), slidePosition(config.slides[1]), "a tone never moves the text");

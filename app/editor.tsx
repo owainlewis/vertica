@@ -72,8 +72,8 @@ const layoutNames: Record<SlideLayout, string> = {
 };
 
 const layoutHints: Record<SlideLayout, string> = {
-  cover: "A clear promise with one short supporting line. The same reading size as every slide.",
-  content: "A lead and short paragraphs at the same readable size. One idea per slide.",
+  cover: "A clear promise in a large headline, with one short supporting line.",
+  content: "A bold lead and short paragraphs at the same readable size. One idea per slide.",
   note: "A short statement or visual example. Add pictures or a diagram under Content.",
   closing: "One useful next action, with a short supporting line.",
 };
@@ -182,7 +182,7 @@ export default function Editor({
   const signifierMissing = useSignifierCheck();
   const activePosition = slidePosition(selectedSlide);
   const theme = carouselTheme(config.theme);
-  const activeAlign = slideAlign(selectedSlide);
+  const activeAlign = slideAlign(selectedSlide, theme);
   const activeTone = slideTone(selectedSlide, theme);
 
   useEffect(() => {
@@ -673,7 +673,7 @@ export default function Editor({
                 <option value="editorial">Editorial</option>
                 <option value="ai-engineer">AI Engineer</option>
               </select><ChevronDown size={14} /></div>
-              <p className="field-hint">{theme === "ai-engineer" ? "Geist type with a dark cover and soft-grey slides. One reading size across every layout." : "Signifier headlines and plain supporting copy. One reading size across every layout."}</p>
+              <p className="field-hint">{theme === "ai-engineer" ? "Geist type with a dark cover and soft-grey slides. Display covers and consistent reading text." : "Signifier headlines and plain supporting copy. Display covers and consistent reading text."}</p>
               <h3 className="settings-heading settings-divider">This slide</h3>
               <span className="field-label">Background colour</span>
               <div className="segmented" aria-label="Slide ground colour">
