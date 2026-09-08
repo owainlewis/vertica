@@ -21,7 +21,6 @@ import {
   slidePosition,
   slideTone,
   smartQuotes,
-  suggestBreak,
   titleLines,
   usesImages,
 } from "../app/carousel.ts";
@@ -46,7 +45,7 @@ test("AI Engineer chooses automatic grounds and alignment while preserving expli
   assert.ok(layouts.every((layout) => slideTone({ layout }) === "paper"));
   assert.ok(layouts.every((layout) => slideAlign({ layout }, "ai-engineer") === "left"));
   assert.equal(slideAlign({ layout: "cover" }), "center");
-  assert.equal(slideAlign({ layout: "cover", align: "center" }, "ai-engineer"), "center");
+  assert.equal(slideAlign({ layout: "cover", align: "center" }), "center");
   assert.equal(slideTone({ layout: "cover", tone: "paper" }, "ai-engineer"), "paper");
   assert.equal(slideTone({ layout: "content", tone: "black" }, "ai-engineer"), "black");
   assert.equal(slideTone({ layout: "poster", tone: "sage" }, "ai-engineer"), "paper");
@@ -63,10 +62,18 @@ test("generating slides and copying the AI prompt preserve the chosen theme", ()
   assert.doesNotMatch(prompt, /"tone": "paper \| sage \| black"/);
   assert.match(prompt, /font-family="inherit"/);
   assert.doesNotMatch(prompt, /one short serif statement|for a highlighter stroke/);
-  assert.match(aiPrompt({ ...deck, theme: "editorial" }), /one short serif statement/);
+  for (const theme of ["editorial", "ai-engineer"]) {
+    const instructions = aiPrompt({ ...deck, theme });
+    assert.match(instructions, /Four layouts/);
+    assert.match(instructions, /18px at a 390px phone width/);
+    assert.match(instructions, /large display headlines on covers/);
+    assert.doesNotMatch(instructions, /share one reading size/);
+    assert.match(instructions, /Bodies: 30 words or fewer/);
+    assert.match(instructions, /labels and notes 48px, one text size/);
+  }
 });
 
-test("gives generated decks the reference rhythm", () => {
+test("generates a useful sequence without decorative colour changes or forced breaks", () => {
   const config = generateCarouselFromText([
     "AI will not replace developers. But the ones who direct it will move faster.",
     "The bottleneck moved. Writing code is cheap now, and deciding what to build is not.",
@@ -77,19 +84,17 @@ test("gives generated decks the reference rhythm", () => {
   ].join("\n\n"));
 
   const layouts = config.slides.map((slide) => slide.layout);
-  assert.deepEqual(layouts, ["cover", "content", "poster", "poster", "content", "closing"]);
+  assert.deepEqual(layouts, ["cover", "content", "note", "note", "content", "closing"]);
   assert.equal(config.slides[0].body, "But the ones who direct it will move faster.", "the second sentence is the cover subtitle");
-  assert.equal(config.slides[2].tone, "sage", "the first poster after the setup gets the colour");
-  assert.equal(config.slides[3].tone, undefined, "and only that one");
-  assert.equal(config.slides[0].title, "AI will not | replace developers", "long titles get one suggested break");
+  assert.ok(config.slides.every((slide) => slide.tone === undefined), "keep the ground consistent");
+  assert.equal(config.slides[0].title, "AI will not replace developers", "titles wrap naturally");
   assert.equal(config.title, "AI will not replace developers", "the deck title has no break marker in it");
 });
 
-test("suggests a break before the tail of a long title and leaves short or broken ones alone", () => {
-  assert.equal(suggestBreak("Four words is short"), "Four words is short");
-  assert.equal(suggestBreak("Five words gets a break"), "Five words gets | a break");
-  assert.equal(suggestBreak("Seven words get three at the end"), "Seven words get three | at the end");
-  assert.equal(suggestBreak("An author's | own break"), "An author's | own break");
+test("generation preserves an author's explicit headline breaks", () => {
+  const config = generateCarouselFromText("A useful | first step\n\nKeep the next | action clear");
+  assert.equal(config.slides[0].title, "A useful | first step");
+  assert.equal(config.slides[1].title, "Keep the next | action clear");
 });
 
 test("rejects empty source text", () => {
@@ -135,10 +140,10 @@ test("keeps picture lists and the arrow while ignoring retired avatar and number
   assert.deepEqual(config.slides[0].images, ["data:image/png;base64,YQ==", "img:abc"]);
   assert.equal(config.slides[1].images, undefined);
   assert.deepEqual(slideImageRefs(config.slides[0]), ["data:image/png;base64,YQ==", "img:abc"]);
-  assert.ok(usesImages("photos") && !usesImages("content"));
-  assert.equal(imageCapacity("photos"), 9);
-  assert.equal(imageCapacity("content"), 0);
-  assert.equal(slidePosition(config.slides[0]), "top", "pictures sit under the copy");
+  assert.ok(usesImages({ layout: "note", visual: "photos" }) && !usesImages({ layout: "content" }));
+  assert.equal(imageCapacity({ layout: "note", visual: "photos" }), 9);
+  assert.equal(imageCapacity({ layout: "content" }), 0);
+  assert.equal(slidePosition(config.slides[0]), "bottom", "captions sit below pictures by default");
 
   const plain = parseCarouselConfig(JSON.stringify({ slides: [{ title: "Plain" }] }));
   assert.equal(plain.avatar, undefined);
@@ -177,7 +182,8 @@ test("keeps a diagram drawable and strips anything that could run or fetch", () 
   const config = parseCarouselConfig(JSON.stringify({
     slides: [{ title: "Flow", layout: "diagram", diagram: dirty }, { title: "Plain", diagram: "   " }],
   }));
-  assert.equal(config.slides[0].layout, "diagram");
+  assert.equal(config.slides[0].layout, "note");
+  assert.equal(config.slides[0].visual, "diagram");
   assert.equal(config.slides[0].diagram, clean, "stored already sanitised");
   assert.equal(config.slides[1].diagram, undefined);
   assert.equal(slidePosition(config.slides[0]), "bottom", "the headline is a caption by default");
@@ -364,15 +370,15 @@ test("parses AI-generated JSON, applies defaults, and maps old layout names", ()
   assert.equal(config.version, 1);
   assert.equal(config.author, "Jane Doe");
   assert.equal(config.mark, BRAND_MARK, "the brand is the default series label");
-  assert.deepEqual(config.slides.map((slide) => slide.layout), ["cover", "content", "content", "photos", "content", "poster"]);
+  assert.deepEqual(config.slides.map((slide) => slide.layout), ["cover", "content", "content", "note", "content", "note"]);
   assert.equal(config.slides[2].tone, undefined, "unknown tones are dropped");
   assert.equal(config.slides[5].tone, "sage");
-  assert.equal(normalizeLayout("strip", "cover"), "photos");
+  assert.equal(normalizeLayout("strip", "cover"), "note");
   assert.equal(normalizeLayout(undefined, "cover"), "cover");
   assert.ok(showsBody("cover") && showsBody("content") && showsBody("closing"));
   assert.ok(!showsBody("note") && !showsBody("poster") && !showsBody("diagram") && !showsBody("photos"));
   assert.equal(photoArrangement(1), "figure");
-  assert.equal(photoArrangement(3), "strip");
+  assert.equal(photoArrangement(3), "grid");
   assert.equal(photoArrangement(4), "grid");
 });
 
@@ -396,14 +402,25 @@ test("placement defaults from the slide type and stays independent of colour", (
   assert.equal(slidePosition(config.slides[3]), "top");
   assert.equal(slideAlign(config.slides[3]), "center");
   assert.equal(config.slides[4].position, undefined, "unknown values never reach a class name");
-  assert.equal(slidePosition(config.slides[5]), "top", "pictures hang under their title");
+  assert.equal(slidePosition(config.slides[5]), "bottom", "pictures and diagrams share caption placement");
   assert.equal(slidePosition(config.slides[6]), "bottom", "a diagram's headline is its caption");
+});
+
+test("visual captions offer two real positions while retaining legacy settings", () => {
+  for (const visual of ["photos", "diagram"]) {
+    for (const [position, expected] of [[undefined, "bottom"], ["top", "top"], ["bottom", "bottom"], ["middle", "top"]]) {
+      const slide = { layout: "note", visual, position };
+      assert.equal(slidePosition(slide), expected);
+      assert.equal(slide.position, position);
+      assert.equal(slidePosition({ ...slide, layout: "content" }), position ?? "middle", "retained visuals do not move text layouts");
+    }
+  }
 });
 
 test("produces a copyable prompt with the supported config contract", () => {
   const prompt = aiPrompt(parseCarouselConfig(JSON.stringify({ slides: [{ title: "Any" }] })));
   assert.match(prompt, /Return JSON only/);
-  assert.match(prompt, /cover \| content \| note \| poster \| diagram \| photos \| closing/);
+  assert.match(prompt, /cover \| content \| note \| closing/);
   assert.match(prompt, /Sentence case/);
   assert.match(prompt, /currentColor/);
   assert.match(prompt, /SOURCE TEXT:/);
@@ -468,4 +485,23 @@ test("slide visibility survives JSON round trips and duplication, defaulting to 
   assert.deepEqual(visibility(config), expected);
   assert.deepEqual(visibility(parseCarouselConfig(JSON.stringify(config))), expected);
   assert.deepEqual(visibility(duplicateCarouselConfig(config)), expected);
+});
+
+
+test("retired layouts become Body 2 without losing visuals or hidden supporting copy", () => {
+  const diagram = '<svg viewBox="0 0 800 500"><text x="10" y="50">A check</text></svg>';
+  const original = [
+    { layout: "poster", title: "A statement", body: "Retained for later" },
+    { layout: "diagram", title: "A flow", diagram, body: "Hidden caption draft" },
+    { layout: "photos", title: "An example", images: ["img:kept"], body: "Hidden image notes" },
+  ];
+  const parsed = parseCarouselConfig(JSON.stringify({ slides: original }));
+  assert.deepEqual(parsed.slides.map(({ layout, visual }) => [layout, visual]), [["note", undefined], ["note", "diagram"], ["note", "photos"]]);
+  assert.deepEqual(parsed.slides.map(({ body }) => body), original.map(({ body }) => body));
+  assert.equal(parsed.slides[1].diagram, diagram);
+  assert.deepEqual(parsed.slides[2].images, ["img:kept"]);
+  assert.deepEqual(parseCarouselConfig(JSON.stringify(parsed)), parsed);
+  assert.equal(usesImages({ layout: "cover", visual: "photos" }), false, "a retained visual is not painted on other layouts");
+  const plain = parseCarouselConfig(JSON.stringify({ slides: [{ layout: "note", title: "Text", visual: "unknown" }] }));
+  assert.equal(plain.slides[0].visual, undefined);
 });

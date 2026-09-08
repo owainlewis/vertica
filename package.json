@@ -1,7 +1,7 @@
 {
   "name": "vertica",
   "version": "0.1.0",
-  "description": "A studio for LinkedIn and Instagram carousels: one editorial design system, seven layouts, PDF and JPEG export.",
+  "description": "A studio for LinkedIn and Instagram carousels: one editorial design system, four layouts, PDF and JPEG export.",
   "license": "MIT",
   "private": true,
   "type": "module",

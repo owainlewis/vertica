@@ -1,6 +1,6 @@
 # Vertica
 
-A studio for LinkedIn and Instagram carousels. Two themes, seven
+A studio for LinkedIn and Instagram carousels. Two themes, four
 slide layouts, a media library, and one-click export to PDF or numbered JPEGs.
 
 Every deck is a small JSON document. You can write it by hand, paste it from Claude,
@@ -119,12 +119,14 @@ on any machine. Deleting a library image is refused while a deck still uses it.
 
 Choose **Editorial** or **AI Engineer** in the editor's **Design → Carousel theme**.
 The theme applies to the whole deck and is saved, duplicated, imported and exported
-with it. Existing decks default to Editorial.
+with it. Existing decks default to Editorial. Both themes use the same Forest
+background (`#0c110f`). The saved tone value remains `"black"`, so existing dark
+slides adopt Forest without a document migration.
 
 AI Engineer pairs bundled Geist regular and italic fonts with a forest cover
 (`#0c110f`) and soft-grey slides (`#efeeea`, the same paper as Editorial). Unset
 backgrounds use forest for covers and soft grey for every other layout, including
-posters and closing slides. Choose Soft grey (`paper`) or Forest (`black`) for an
+Body 2 and CTA slides. Choose Soft grey (`paper`) or Forest (`black`) for an
 explicit background. Older AI Engineer decks with `sage` tones also render soft
 grey; their stored choices are kept so switching to Editorial restores sage.
 Alignment choices survive switching themes. Automatic alignment is left. Forest
@@ -134,70 +136,108 @@ AI Engineer diagrams inherit the theme font unless their markup sets a font expl
 use `font-family="inherit"` for labels that should follow the deck.
 
 Set `"theme": "ai-engineer"` in a JSON config to use it; omit the field or use
-`"editorial"` for the original theme. Both themes use the same seven layouts and
+`"editorial"` for the original theme. Both themes use the same four layouts and
 renderer in the gallery, editor, reader preview and PDF/JPEG export.
 
-Both themes share body, subtitle, note and metadata sizes for phone reading.
-Body copy is 4% of the slide width, about 16px in a 390px Instagram feed. Editorial
-headlines run slightly larger to balance Signifier's lighter shapes against Geist's
-semibold weight. Keep teaching slides to about 30 words for a comfortable pace.
-Generated diagrams use the same minimum label sizes in both themes; existing SVG
-font choices remain intact.
+The type scale is consistent by role. Covers keep their expressive display
+headlines: about 50px for Editorial and 41px for AI Engineer at a 390px feed width.
+CTA headlines are 31px; standalone Body 2 statements are 23px. Paragraphs, Body 1
+leads and visual captions share the agreed 18px reading size, with 1.4 line height.
+All sizes scale with the slide for export. Editorial keeps Signifier on covers,
+CTAs and visual captions, paired with plain sans teaching copy. AI Engineer uses
+Geist. Body 1 leads use weight to separate them from paragraphs.
 
-Signifier for headlines, Helvetica for copy and furniture, paper ground with sage
-and black as the two alternative grounds. A faint twelve-column field sits under
-every text slide. Series label top left, a two-digit page number top right, footer
-bottom left, a swipe arrow bottom right on every slide but the last. In the editor,
-**Layout → Show header / Show footer** controls these independently for each
-slide. Turn both off on a note to show only its main text. The settings are saved
-with the deck and apply to previews, thumbnails, and exports.
+Editorial covers and CTAs centre by default; teaching copy aligns left. AI
+Engineer keeps its left alignment. Explicit alignment always wins. Body layouts
+share 9.5% side margins; centred Editorial covers use a wider 6% margin for the
+display title. Text slides centre their copy block vertically. Supporting
+paragraphs follow the heading in normal flow, including on covers.
 
-Seven layouts, each with one job. Note, poster, diagram and photos draw the headline
-only, so nothing can collide with the figure.
+Pictures and diagrams share a contained figure area, with a caption below by
+default; choose Top to put the caption above. Visual slides offer Top and Bottom
+only. Older visual slides set to Middle render their caption above the figure
+while retaining the saved value.
 
-| Layout | Draws | Use it for |
+Keep teaching slides around 30 words. The editor warns when rendered copy overlaps
+or leaves the frame. Explicit `|` breaks are preserved; generated copy wraps
+naturally. Generated Editorial decks keep a paper ground instead of inserting
+colour changes. Background choices remain available. Pages have no decorative
+column rules or header borders, and inline emphasis uses weight rather than a
+highlighter stroke.
+
+SVG text keeps its authored size and font. The AI prompt recommends one 48-unit
+size for labels and notes in an 800-unit-wide drawing, approximately 19px at phone
+width when the full figure fits. Inspect dense or tall diagrams at phone size;
+labels can be smaller when the figure is constrained by height.
+
+**Layout → Show header / Show footer** controls the series label, page number,
+author and swipe arrow independently. Settings apply to previews and exports.
+
+| Editor layout | JSON value | Purpose |
 |---|---|---|
-| `cover` | headline, one-line subtitle | the opener |
-| `content` | headline, copy | most slides |
-| `note` | one sans statement, `**bold**` for emphasis | an aside |
-| `poster` | one short serif statement | the strongest line |
-| `diagram` | inline SVG, headline as caption | architecture and flows |
-| `photos` | one to nine pictures under a title | a figure, a filmstrip, a grid |
-| `closing` | headline, one line | the finish |
+| Cover | `cover` | A specific promise and a short subtitle |
+| Body 1 | `content` | A bold lead followed by short paragraphs |
+| Body 2 | `note` | A short statement or visual example with a caption |
+| CTA | `closing` | One next action and a supporting line |
 
-Inline marks: `*word*` for italic, `**phrase**` for a highlighter stroke, `|` in a
-headline to force the line break. Photos can also sit behind the copy on any slide,
-with a per-slide veil dial.
+For Body 2, choose **Content → Visual example → Pictures / Diagram**, or keep
+**Text only**. JSON uses `visual: "photos"` with `images`, or `visual: "diagram"`
+with an inline `diagram` SVG. One picture is contained in the figure area; two to
+nine form a grid inside the same margins. Images are shown in full, without
+filmstrip overflow or cropping. Switching
+layouts or visual types keeps the unused copy and assets for switching back.
 
-`.claude/skills/carousel/SKILL.md` is the house style for writing a deck: the
-seven-slide arc, the one character slide, copy rules, diagram rules, and the JSON
-shape. In Claude Code, `/carousel` loads it.
+Older `poster`, `diagram`, `photos`, `grid`, `strip` and `figure` layouts load as
+Body 2, retaining their visuals and hidden supporting copy. Older `quote` and
+`split` layouts become Body 1. Existing text remains editable; it adopts the new
+type scale. The four roles share one renderer across the editor, reader, gallery
+and exports.
+
+Inline marks: `*word*` for italic, `**phrase**` for emphasis, `|` for an explicit
+headline break. Pictures and videos can also sit behind the copy on any layout.
+
+`.claude/skills/carousel/SKILL.md` describes the house writing framework, the four
+layouts, typography and diagram guidance. In Claude Code, `/carousel` loads it.
 
 ## The document
 
 ```json
 {
   "version": 1,
-  "title": "What is a software factory?",
+  "title": "Choose a design for the work",
   "author": "aiengineer.co",
-  "mark": "Software factories",
+  "mark": "AI system design",
   "slides": [
-    { "layout": "cover", "title": "What is a | software *factory*?", "body": "A thesis, and the place it breaks" },
-    { "layout": "content", "title": "Agents are | inconsistent", "body": "Fifty runs, fifty answers.\n\nPrompts narrow the spread. They do not close it." },
-    { "layout": "poster", "tone": "sage", "title": "*Except…*" },
-    { "layout": "diagram", "title": "Control plane and data plane", "diagram": "<svg viewBox=\"0 0 800 500\">…</svg>" },
-    { "layout": "closing", "title": "Build the tool. | Keep the agent for *judgment*.", "body": "Link in the comments." }
+    {
+      "layout": "cover",
+      "title": "Choose a design | for the *work*.",
+      "body": "Start with the task you need to complete."
+    },
+    {
+      "layout": "content",
+      "title": "Put known steps in code.",
+      "body": "A model can read a request while code controls the next step.\n\nEach path has a rule you can test."
+    },
+    {
+      "layout": "note",
+      "title": "The model can help | inside a fixed workflow."
+    },
+    {
+      "layout": "closing",
+      "title": "Map the next step.",
+      "body": "If the route is known, code it. If it must be discovered, consider an agent."
+    }
   ]
 }
 ```
 
 Optional fields: `arrow: false`, and per slide `tone`, `position`, `align`,
-`background`, `video`, `veil`, `images`, `showHeader`, `showFooter`. Header and
+`background`, `video`, `veil`, `visual`, `diagram`, `images`, `showHeader`, `showFooter`. Header and
 footer default to visible; set either to `false` to hide it on that slide. Page
 numbers always use `01`, `02`, etc.
 `parseCarouselConfig` in `app/carousel.ts` is the contract; it
 throws a plain message for anything the app would refuse, and it maps older layout
-names onto the current seven.
+names onto the current four.
 
 Diagrams are sanitised on the way in. Scripts, event handlers, embedded HTML,
 stylesheets, and external references are stripped. Use SVG presentation attributes
