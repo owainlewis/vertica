@@ -180,3 +180,31 @@ test("gallery previews keep the visuals from legacy first-slide layouts", async 
     else assert.equal(card.querySelector(".slide-pictures img")?.getAttribute("src"), "data:image/png;base64,YQ==");
   }
 });
+
+
+test("deck-wide footer edits recheck overflow without changing the selected slide", async (t) => {
+  const view = await app(t);
+  // JSDOM has no layout. Model copy near a footer whose height changes with its arrow.
+  t.mock.method(view.window.HTMLElement.prototype, "getBoundingClientRect", function () {
+    const rect = (top, height) => new view.window.DOMRect(0, top, 400, height);
+    if (this.matches("article")) return rect(0, 500);
+    if (this.matches(".slide-head")) return rect(20, 20);
+    if (this.matches(".slide-meta")) return rect(this.querySelector(".slide-arrow") ? 450 : 470, 20);
+    if (this.matches("h2")) return rect(100, 40);
+    if (this.matches(".slide-content p")) return rect(430, 30);
+    return rect(0, 0);
+  });
+  const slide = { id: "one", layout: "content", title: "A useful point", body: "Copy near the footer." };
+  await view.finish("old", 200, { version: 1, title: "Boundary", author: "Author", mark: "Series", slides: [slide, { ...slide, id: "two" }] });
+  const measure = () => act(() => new Promise((resolve) => setTimeout(resolve, 10)));
+  await measure();
+  assert.ok(view.document.querySelector(".slide-overflow-warning"), "overlap is reported");
+  await view.click("Design");
+  const arrow = [...view.document.querySelectorAll("label.check-row")].find((node) => node.textContent.includes("Swipe arrow")).querySelector("input");
+  await act(() => arrow.click());
+  await measure();
+  assert.equal(Boolean(view.document.querySelector(".slide-overflow-warning")), false, "the warning clears after the footer changes");
+  await act(() => arrow.click());
+  await measure();
+  assert.ok(view.document.querySelector(".slide-overflow-warning"), "the warning returns when the footer overlaps again");
+});

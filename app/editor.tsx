@@ -195,7 +195,7 @@ export default function Editor({
     if (previewRef.current) observer?.observe(previewRef.current);
     void document.fonts?.ready.then(check);
     return () => { active = false; clearTimeout(timer); observer?.disconnect(); };
-  }, [selectedSlide, theme]);
+  }, [selectedSlide, config]);
   const exportFileName = useMemo(() => fileNameFor(config.title), [config.title]);
   const zipFileName = useMemo(() => fileNameFor(config.title, "zip"), [config.title]);
 
