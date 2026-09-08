@@ -651,7 +651,7 @@ function clamp(value: number, low: number, high: number) {
 export const TYPE_SCALE = {
   cover: 12.8,
   cta: 8,
-  body: 5,
+  body: (18 / 390) * 100, // 18px at a 390px feed width, in container-width units.
   statement: 6,
   metadata: 2.7,
   tracking: -0.02,

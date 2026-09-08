@@ -137,8 +137,8 @@ Set `"theme": "ai-engineer"` in a JSON config to use it; omit the field or use
 `"editorial"` for the original theme. Both themes use the same four layouts and
 renderer in the gallery, editor, reader preview and PDF/JPEG export.
 
-Both themes use 5% of the slide width for paragraphs, Body 1 leads and visual
-captions: 19.5px in a 390px feed and 54px in a 1080px export. Body 1 uses a bold
+Both themes use approximately 4.615% of the slide width for paragraphs, Body 1
+leads and visual captions: 18px in a 390px feed and about 50px in a 1080px export. Body 1 uses a bold
 sans lead at the same size as its paragraphs, with 1.4 line height. Body 2 statements
 use 6%; CTA headlines use 8%. Cover headlines retain each theme's display face and
 scale. Body layouts use a quiet ground and consistent 9.5% side margins.

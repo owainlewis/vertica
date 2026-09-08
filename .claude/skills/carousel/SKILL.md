@@ -47,8 +47,8 @@ Cinematic imagery is optional and should contribute to the idea or requested ton
 
 - Prefer a 4-10 word cover and about 15-35 words on teaching slides.
 - Give each slide one useful point. Use concrete actions and consequences.
-- Body 1 uses a bold sans lead and regular paragraphs at 5% of the slide width,
-  about 19.5px at a 390px feed width. Keep the prose readable at that size.
+- Body 1 uses a bold sans lead and regular paragraphs at about 4.615% of the slide width,
+  18px at a 390px feed width. Keep the prose readable at that size.
 - Separate paragraphs with a blank line. Use `|` sparingly for deliberate breaks
   on covers or CTAs; let Body 1 wrap naturally.
 - Use `*italic*` or `**bold**` sparingly. No hype or invented first-person claims.
