@@ -679,7 +679,7 @@ export default function Editor({
               <div className="segmented" aria-label="Slide ground colour">
                 <button type="button" aria-pressed={activeTone === "paper"} className={activeTone === "paper" ? "active" : ""} onClick={() => updateSlide({ tone: "paper" })}>{theme === "ai-engineer" ? "Soft grey" : "Paper"}</button>
                 {theme === "editorial" && <button type="button" aria-pressed={activeTone === "sage"} className={activeTone === "sage" ? "active" : ""} onClick={() => updateSlide({ tone: "sage" })}>Sage</button>}
-                <button type="button" aria-pressed={activeTone === "black"} className={activeTone === "black" ? "active" : ""} onClick={() => updateSlide({ tone: "black" })}>{theme === "ai-engineer" ? "Forest" : "Black"}</button>
+                <button type="button" aria-pressed={activeTone === "black"} className={activeTone === "black" ? "active" : ""} onClick={() => updateSlide({ tone: "black" })}>Forest</button>
               </div>
               {theme === "ai-engineer" && <button type="button" className="text-button subtle" disabled={!selectedSlide.tone} onClick={() => updateSlide({ tone: undefined })}>Use automatic background</button>}
               <span className="field-label">Background photo</span>

@@ -231,6 +231,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
    slide itself, so the 520px preview and the 1080px export are the same drawing.
    --------------------------------------------------------------------------- */
 .carousel-slide {
+  --forest: #0c110f;
   --ink: #1a1a17;
   --paper: #efeeea;
   --rule: rgb(26 26 23 / .05);
@@ -249,7 +250,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 .carousel-slide.tone-black {
   --ink: #f4f2ea;
-  --paper: #151513;
+  --paper: var(--forest);
   --rule: rgb(244 242 234 / .055);
 }
 
@@ -354,7 +355,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 .template-ai-engineer.tone-black {
   --ink: #f2eee4;
-  --paper: #0c110f;
+  --paper: var(--forest);
   --rule: #29332f;
   --phrase: #cfad82;
   --veil-rgb: 12 17 15;

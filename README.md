@@ -119,7 +119,9 @@ on any machine. Deleting a library image is refused while a deck still uses it.
 
 Choose **Editorial** or **AI Engineer** in the editor's **Design → Carousel theme**.
 The theme applies to the whole deck and is saved, duplicated, imported and exported
-with it. Existing decks default to Editorial.
+with it. Existing decks default to Editorial. Both themes use the same Forest
+background (`#0c110f`). The saved tone value remains `"black"`, so existing dark
+slides adopt Forest without a document migration.
 
 AI Engineer pairs bundled Geist regular and italic fonts with a forest cover
 (`#0c110f`) and soft-grey slides (`#efeeea`, the same paper as Editorial). Unset
