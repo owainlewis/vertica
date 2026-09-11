@@ -513,3 +513,11 @@ test("slide IDs are unique after import normalization", () => {
   const missing = parseCarouselConfig(JSON.stringify({ slides: [{ title: "First" }, { title: "Second" }] }));
   assert.equal(new Set(missing.slides.map(({ id }) => id)).size, 2);
 });
+
+
+test("generated import IDs cannot collide with explicit slide IDs", (t) => {
+  t.mock.method(Date, "now", () => 1234);
+  assert.throws(() => parseCarouselConfig(JSON.stringify({ slides: [
+    { id: `slide-${(1234).toString(36)}-1`, title: "First" }, { title: "Second" },
+  ] })), /duplicate id/);
+});

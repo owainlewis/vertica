@@ -239,9 +239,15 @@ export async function removeMediaAsset(bucket: Bucket, key: string) {
   const existing = await bucket.get(objectKey);
   if (!existing || existing.meta.custom.library !== "1") return "missing" as const;
   if (await mediaInUse(bucket, key)) return "in-use" as const;
-  await bucket.put(objectKey, existing.bytes, {
-    contentType: existing.meta.contentType,
-    custom: { ...existing.meta.custom, library: "0" },
-  });
+  try {
+    await bucket.put(objectKey, existing.bytes, {
+      contentType: existing.meta.contentType,
+      custom: { ...existing.meta.custom, library: "0" },
+      ifGeneration: existing.meta.generation,
+    });
+  } catch (error) {
+    if (error instanceof PreconditionError) return "changed" as const;
+    throw error;
+  }
   return "deleted" as const;
 }
