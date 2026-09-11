@@ -16,7 +16,7 @@ const config = {
   })),
 };
 
-for (const theme of ["editorial", "ai-engineer"]) {
+for (const theme of ["editorial", "ai-engineer", "cinematic"]) {
   test(`${theme}: current and legacy layouts use the same content and scale in preview and export`, () => {
     const themed = { ...config, theme };
     const exported = new JSDOM(renderToStaticMarkup(createElement(ExportStage, { config: themed })));
@@ -35,6 +35,38 @@ for (const theme of ["editorial", "ai-engineer"]) {
     exported.window.close();
   });
 }
+
+test("Cinematic photo and video defaults differ while explicit positions and saved tones survive", () => {
+  for (const [format, expected] of [["image", "top"], ["video", "middle"]]) {
+    const themed = { ...config, theme: "cinematic", format };
+    const source = { ...config.slides[0], label: "Rule 01", tone: "paper" };
+    const dom = new JSDOM(renderToStaticMarkup(createElement(Slide, { config: themed, slide: source, index: 0 })));
+    const node = dom.window.document.querySelector("article");
+    assert.ok(node.classList.contains(`pos-${expected}`));
+    assert.ok(node.classList.contains("tone-black"));
+    assert.equal(node.querySelector(".slide-label").textContent, "Rule 01");
+    assert.equal(source.tone, "paper");
+    dom.window.close();
+    const explicit = new JSDOM(renderToStaticMarkup(createElement(Slide, { config: themed, slide: { ...source, position: "bottom", align: "center" }, index: 0 })));
+    assert.ok(explicit.window.document.querySelector("article.pos-bottom.align-center"));
+    explicit.window.close();
+  }
+});
+
+test("Cinematic uses a fixed cover, heading and body scale across image and video carousels", () => {
+  for (const format of ["image", "video"]) {
+    for (const layout of ["cover", "content", "note", "closing"]) {
+      const themed = { ...config, theme: "cinematic", format };
+      const source = { ...config.slides[0], layout };
+      const dom = new JSDOM(renderToStaticMarkup(createElement(Slide, { config: themed, slide: source, index: 0 })));
+      const style = dom.window.document.querySelector("article").style;
+      const phonePixels = (property) => parseFloat(style.getPropertyValue(property)) * 390 / 100;
+      assert.ok(Math.abs(phonePixels("--title-size") - (layout === "cover" ? 32 : 22)) < 0.001);
+      assert.ok(Math.abs(phonePixels("--reading-size") - 18) < 0.001);
+      dom.window.close();
+    }
+  }
+});
 
 test("a deck without a theme still renders an Editorial cover", () => {
   const legacy = { ...config, theme: undefined };

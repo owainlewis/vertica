@@ -1,7 +1,7 @@
 # Vertica
 
-A studio for LinkedIn and Instagram carousels. Two themes, four
-slide layouts, a media library, and one-click export to PDF or numbered JPEGs.
+A studio for image and video carousels. Three themes, four slide layouts,
+a media library, and exports to PDF, numbered JPEGs, or numbered MP4s.
 
 Every deck is a small JSON document. You can write it by hand, paste it from Claude,
 or generate it from plain text, and the app renders it the same way in the editor,
@@ -26,7 +26,27 @@ nothing leaves your machine.
 
 `npm test` typechecks, builds, and runs the tests. `npm run lint` runs ESLint.
 
-## Experimental video backgrounds
+## Image and video carousels
+
+Choose **New image carousel** or **New video carousel** in the library. Both
+start with the Cinematic theme. **Content** puts the background picker beside
+the slide copy; **Design → Carousel format** changes the output intent while
+keeping the existing media and text. Older decks remain image carousels unless
+you change their format. Reels are edited outside Vertica.
+
+Image carousels export through **Export → JPEG images** as ordered files in a
+ZIP. Video carousels export through **Export → Video carousel** as one numbered,
+silent MP4 per slide in a ZIP. Attach a video to every slide first. Reuse a
+library clip on several slides or choose different footage for each, then set
+each clip's start and duration in Design.
+
+Video carousel export checks every slide before starting, renders one clip at a
+time, and reports progress. A missing clip or failed render stops the export
+with a slide number; it never downloads an incomplete archive. ZIPs are limited
+to 256 MB to bound browser memory. For larger decks, shorten the clips or export
+the video slides individually. Keep the tab open until the download finishes.
+
+## Video backgrounds
 
 Install `ffmpeg` and `ffprobe` on the server's PATH (`brew install ffmpeg` on
 macOS). The Docker image includes them. In the editor, open **Design → Choose a
@@ -40,8 +60,8 @@ branding, and veil. New uploads retain their exact original file; MP4 export
 encodes directly from that original at CRF 16 with the medium preset and Lanczos
 scaling. PDF and JPEG exports also read their selected first frame from the
 original. The final resize and H.264 encode are not mathematically lossless.
-MP4 export currently produces one slide at a time; there is no audio, animated
-text, timeline, or combined deck video.
+The video carousel ZIP contains separate clips in slide order. There is no
+audio, animated text, timeline, or combined deck video.
 
 Sources can be 1–120 seconds, up to 512 MB and 4096 pixels on either side. Clips
 can be 1–30 seconds. The editor reads and stores the source duration and constrains
@@ -126,11 +146,24 @@ on any machine. Deleting a library image is refused while a deck still uses it.
 
 ## The design system
 
-Choose **Editorial** or **AI Engineer** in the editor's **Design → Carousel theme**.
+Choose **Cinematic**, **Editorial** or **AI Engineer** in **Design → Carousel theme**.
 The theme applies to the whole deck and is saved, duplicated, imported and exported
-with it. Existing decks default to Editorial. Both themes use the same Forest
+with it. Existing decks default to Editorial. Editorial and AI Engineer use the same Forest
 background (`#0c110f`). The saved tone value remains `"black"`, so existing dark
 slides adopt Forest without a document migration.
+
+Cinematic uses bundled Geist and white text with plain bold or italic emphasis over
+full-bleed photos or video. Image slides start with their text near the top;
+video slides start in the middle. Explicit alignment and position choices win.
+Use **Content → Slide label** for a short tag such as “Rule 01”, and `**phrase**`
+for bold emphasis. There are no coloured highlights or badges. Both formats use
+the same scale at a 390px phone width: 32px cover titles, 22px headings on every
+other layout, and 18px body copy. The background veil controls readability over footage.
+The theme always renders a dark ground while preserving saved tone choices for
+switching back to another theme. The gallery, editor, reader and exports all use
+the same renderer. Set `"theme": "cinematic"` and `"format": "image"` or
+`"format": "video"` in JSON; each slide can carry an optional `label` of up to
+30 characters.
 
 AI Engineer pairs bundled Geist regular and italic fonts with a forest cover
 (`#0c110f`) and soft-grey slides (`#efeeea`, the same paper as Editorial). Unset
@@ -145,7 +178,7 @@ AI Engineer diagrams inherit the theme font unless their markup sets a font expl
 use `font-family="inherit"` for labels that should follow the deck.
 
 Set `"theme": "ai-engineer"` in a JSON config to use it; omit the field or use
-`"editorial"` for the original theme. Both themes use the same four layouts and
+`"editorial"` for the original theme. All three themes use the same four layouts and
 renderer in the gallery, editor, reader preview and PDF/JPEG export.
 
 The type scale is consistent by role. Covers keep their expressive display

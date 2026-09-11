@@ -4,6 +4,8 @@ import {
   type CarouselConfig,
   type CarouselSlide,
   type CarouselTheme,
+  type CarouselFormat,
+  carouselFormat,
   imageCapacity,
   type SlideAlign,
   slideAlign,
@@ -87,7 +89,7 @@ export default function Inspector(props: InspectorProps) {
 }
 
 function LayoutPanel({ config, slide, theme, updateSlide, commit }: PanelProps) {
-  const position = slidePosition(slide);
+  const position = slidePosition(slide, theme, carouselFormat(config.format));
   const align = slideAlign(slide, theme);
   // Visual captions sit above or below the figure; only text slides can centre.
   const positions: SlidePosition[] = slide.layout === "note" && slide.visual ? ["top", "bottom"] : ["top", "middle", "bottom"];
@@ -122,7 +124,7 @@ function LayoutPanel({ config, slide, theme, updateSlide, commit }: PanelProps) 
   );
 }
 
-function ContentPanel({ slide, updateSlide, onAddPicture }: InspectorProps) {
+function ContentPanel({ config, slide, theme, updateSlide, onAddPicture, onChooseImage, onChooseVideo }: InspectorProps) {
   const images = slide.images ?? [];
   const capacity = imageCapacity(slide);
   const isDiagram = slide.layout === "note" && slide.visual === "diagram";
@@ -134,10 +136,19 @@ function ContentPanel({ slide, updateSlide, onAddPicture }: InspectorProps) {
 
   return (
     <div className="inspector-panel">
+      <button className="wide-upload" type="button" onClick={config.format === "video" ? onChooseVideo : onChooseImage}>
+        {config.format === "video" ? <Film size={15} /> : <Images size={15} />}
+        {config.format === "video" ? (slide.video ? "Change video" : "Choose a video") : (slide.background ? "Change image" : "Choose an image")}
+      </button>
+      {config.format === "video" && !slide.video && <p className="field-hint">Add an MP4 to this slide. Reuse a clip across slides or choose different footage for each.</p>}
+      {theme === "cinematic" && <>
+        <label className="field-label" htmlFor="slide-label">Slide label</label>
+        <input id="slide-label" maxLength={30} value={slide.label ?? ""} placeholder="e.g. Rule 01" onChange={(event) => updateSlide({ label: event.target.value || undefined }, "label")} />
+      </>}
       <label className="field-label" htmlFor="headline">Headline</label>
       <textarea id="headline" maxLength={120} rows={5} value={slide.title} onChange={(event) => updateSlide({ title: event.target.value }, "title")} />
       <div className="character-count" style={{ visibility: slide.title.length >= 100 ? "visible" : "hidden" }}>{slide.title.length} / 120</div>
-      <details className="format-help"><summary>Formatting help</summary><p className="field-hint"><em>|</em> starts a headline line. <em>*italic*</em> adds emphasis. <em>**highlight**</em> marks a phrase. A blank line starts a paragraph.</p></details>
+      <details className="format-help"><summary>Formatting help</summary><p className="field-hint"><em>|</em> starts a headline line. <em>*italic*</em> adds emphasis. <em>**bold**</em> marks a phrase. A blank line starts a paragraph.</p></details>
       {slide.layout === "note" && (
         <>
           <label className="field-label" htmlFor="slide-visual">Visual example</label>
@@ -226,30 +237,42 @@ function DesignPanel({ config, slide, theme, updateSlide, commit, onChooseImage,
 
   return (
     <div className="inspector-panel">
+      <label className="field-label" htmlFor="carousel-format">Carousel format</label>
+      <div className="select-wrap">
+        <select id="carousel-format" value={carouselFormat(config.format)} onChange={(event) => commit({ ...config, format: event.target.value as CarouselFormat })}>
+          <option value="image">Image carousel</option>
+          <option value="video">Video carousel</option>
+        </select>
+        <ChevronDown size={14} />
+      </div>
+      <p className="field-hint">{config.format === "video" ? "One MP4 per slide, with your text over b-roll. Add a video to every slide before exporting." : "Numbered still images, ready to upload in order."}</p>
       <label className="field-label" htmlFor="carousel-theme">Carousel theme</label>
       <div className="select-wrap">
         <select id="carousel-theme" value={theme} onChange={(event) => commit({ ...config, theme: event.target.value as CarouselTheme })}>
           <option value="editorial">Editorial</option>
           <option value="ai-engineer">AI Engineer</option>
+          <option value="cinematic">Cinematic</option>
         </select>
         <ChevronDown size={14} />
       </div>
-      <p className="field-hint">{theme === "ai-engineer" ? "Geist type with a dark cover and soft-grey slides. Display covers and consistent reading text." : "Signifier headlines and plain supporting copy. Display covers and consistent reading text."}</p>
+      <p className="field-hint">{theme === "cinematic" ? "White Geist type over photos or video, with plain bold and italic emphasis. Both formats share one type scale: covers, headings and body copy. Use Layout to position the text." : theme === "ai-engineer" ? "Geist type with a dark cover and soft-grey slides. Display covers and consistent reading text." : "Signifier headlines and plain supporting copy. Display covers and consistent reading text."}</p>
 
       <h3 className="settings-heading settings-divider">This slide</h3>
-      <span className="field-label">Background colour</span>
-      <Segmented options={[...tones]} value={tone} onChange={(next) => updateSlide({ tone: next })} label={(option) => toneNames[option]} />
+      {theme !== "cinematic" && <>
+        <span className="field-label">Background colour</span>
+        <Segmented options={[...tones]} value={tone} onChange={(next) => updateSlide({ tone: next })} label={(option) => toneNames[option]} />
+      </>}
       {theme === "ai-engineer" && <button type="button" className="text-button subtle" disabled={!slide.tone} onClick={() => updateSlide({ tone: undefined })}>Use automatic background</button>}
 
       <span className="field-label">Background photo</span>
       <button className="wide-upload" type="button" onClick={onChooseImage}><Images size={15} /> {slide.background ? "Choose another image" : "Choose from media"}</button>
 
-      <span className="field-label">Video background · Experimental</span>
+      <span className="field-label">Video background</span>
       <button className="wide-upload" type="button" onClick={onChooseVideo}><Film size={15} /> {slide.video ? "Change video" : "Choose a video"}</button>
       {slide.video && (
         <>
           <VideoClipFields video={slide.video} onChange={(video, key) => updateSlide({ video }, key)} />
-          <p className="field-hint">{slide.video.sourceDuration ? `Source: ${slide.video.sourceDuration.toFixed(1)}s. ` : "Loading source duration… "}Silent, centred crop. Export → Video slide creates one MP4. PDF and JPEG use the clip’s first frame.</p>
+          <p className="field-hint">{slide.video.sourceDuration ? `Source: ${slide.video.sourceDuration.toFixed(1)}s. ` : "Loading source duration… "}Silent, centred crop. Export → Video carousel creates numbered MP4s when every slide has video. Video slide exports just this clip.</p>
           <button type="button" className="text-button" onClick={() => updateSlide({ video: undefined, veil: undefined })}>Remove video</button>
         </>
       )}

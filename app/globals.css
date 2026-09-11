@@ -374,6 +374,29 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .template-ai-engineer.has-background .slide-head,
 .template-ai-engineer.has-background .slide-meta { text-shadow: 0 0 1.2cqw rgb(var(--veil-rgb) / .9); }
 
+/* Cinematic artwork follows the supplied photo and b-roll references. The app
+   chrome retains its existing design; every preview and export shares this CSS. */
+.carousel-slide.template-cinematic {
+  --font-sans: "Geist", "Helvetica Neue", Arial, sans-serif;
+  --ink: #ffffff;
+  --paper: #121715;
+  --margin: 11%;
+  font-family: var(--font-sans);
+}
+.carousel-slide.template-cinematic .slide-content h2 { font-family: var(--font-sans); font-weight: 650; line-height: 1.08; letter-spacing: -.03em; }
+.template-cinematic .slide-content p { line-height: 1.4; margin-top: 1em; }
+.template-cinematic.layout-cover .slide-content { padding-inline: var(--margin); }
+.template-cinematic.pos-top:not(.has-visual) .slide-content { padding-top: 23%; }
+.template-cinematic .slide-label { align-self: flex-start; max-width: 100%; margin-bottom: 1.4em; color: var(--ink); font-size: 2.8cqw; font-weight: 500; line-height: 1.3; letter-spacing: .04em; text-transform: uppercase; overflow-wrap: anywhere; }
+.template-cinematic.align-center .slide-label { align-self: center; }
+.template-cinematic .mark-accent { color: inherit; font-weight: 750; }
+.template-cinematic .slide-head { top: 7%; }
+.template-cinematic .slide-meta { bottom: 7%; }
+.template-cinematic .slide-mark { max-width: 82%; }
+.carousel-slide.template-cinematic.has-background .slide-overlay { background: linear-gradient(180deg, rgb(0 0 0 / .85), rgb(0 0 0 / .45) 55%, rgb(0 0 0 / .65)); }
+.template-cinematic.has-background .slide-head, .template-cinematic.has-background .slide-meta { text-shadow: 0 1px 3px rgb(0 0 0 / .7); }
+.new-carousel-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
 .font-warning { width: min(52vh, 520px, 100%); margin: 0 0 12px; padding: 9px 12px; border: 1px solid #ddc9a2; border-radius: var(--radius); background: #fbf5e8; color: #6d5a2c; font-size: 11px; line-height: 1.5; }
 .picture-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }
 .picture-list li { position: relative; aspect-ratio: 1; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel-2) center / cover no-repeat; }

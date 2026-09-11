@@ -1,7 +1,7 @@
 import { Images, LayoutGrid, LoaderCircle, Lock } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { getSession, loadCarousel, resolveMedia, signIn, type CarouselSummary } from "./api-client";
-import { BRAND_FOOTER, BRAND_MARK, newSlideId, type CarouselConfig } from "./carousel";
+import { BRAND_FOOTER, BRAND_MARK, newSlideId, type CarouselConfig, type CarouselFormat } from "./carousel";
 import Dashboard from "./dashboard";
 import Editor, { type EditorHandle } from "./editor";
 import MediaGallery from "./media-gallery";
@@ -20,12 +20,14 @@ type View =
   | { kind: "editor"; key: string; id: string | null; config: CarouselConfig; version: number | null };
 
 /** A blank deck, so a new carousel does not open on last time's words. */
-function emptyConfig(): CarouselConfig {
+function emptyConfig(format: CarouselFormat): CarouselConfig {
   return {
     version: 1,
     title: "Untitled carousel",
     author: BRAND_FOOTER,
     mark: BRAND_MARK,
+    format,
+    theme: "cinematic",
     slides: [
       { id: newSlideId(), layout: "cover", title: "Your headline here", body: "" },
     ],
@@ -201,10 +203,10 @@ export default function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, [openCarousel]);
 
-  function createCarousel() {
+  function createCarousel(format: CarouselFormat = "image") {
     navigation.current += 1;
     setError(null);
-    setView({ kind: "editor", key: `new-${Date.now().toString(36)}`, id: null, config: emptyConfig(), version: null });
+    setView({ kind: "editor", key: `new-${Date.now().toString(36)}`, id: null, config: emptyConfig(format), version: null });
     pushHistory("/");
   }
 

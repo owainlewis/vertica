@@ -2,6 +2,8 @@ import { dataUrlToBytes } from "./data-url";
 import { createZip } from "./zip";
 import { videoFrame, videoRequest } from "./video-client";
 import type { VideoBackground } from "./video-formats";
+import type { CarouselConfig } from "./carousel";
+import { renderVideoCarousel } from "./video-carousel-export";
 
 /** LinkedIn's portrait page box, in points. Instagram takes the same 4:5 frame. */
 export const SLIDE_WIDTH = 1080;
@@ -88,7 +90,7 @@ async function rasteriseStage(expectedPages: number) {
 }
 
 /** Capture the existing artwork with alpha, then composite it onto the clip. */
-export async function exportStageToMp4(fileName: string, expectedPages: number, index: number, video: VideoBackground) {
+async function renderStageVideo(expectedPages: number, index: number, video: VideoBackground) {
   const node = stageNodes(expectedPages)[index];
   if (!node) throw new Error("Select a video slide to export.");
   await document.fonts.ready;
@@ -103,7 +105,18 @@ export async function exportStageToMp4(fileName: string, expectedPages: number, 
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ video, overlay }),
   });
-  downloadBlob(await response.blob(), fileName);
+  return response.blob();
+}
+
+export async function exportStageToMp4(fileName: string, expectedPages: number, index: number, video: VideoBackground) {
+  downloadBlob(await renderStageVideo(expectedPages, index, video), fileName);
+}
+
+/** Separate, numbered MP4s for a swipeable carousel. */
+export async function exportStageToVideoZip(fileName: string, config: CarouselConfig, onProgress: (message: string) => void) {
+  const zip = await renderVideoCarousel(fileName.replace(/\.zip$/, ""), config.slides,
+    (index, video) => renderStageVideo(config.slides.length, index, video), onProgress);
+  downloadBlob(zip, fileName);
 }
 
 export async function exportStageToPdf(fileName: string, expectedPages: number) {

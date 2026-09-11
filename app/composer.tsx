@@ -26,7 +26,12 @@ export default function Composer({ config, initialMode, sourceText, onSourceText
 
   function apply() {
     try {
-      onApply(mode === "json" ? parseCarouselConfig(jsonText) : generateCarouselFromText(sourceText, config.author, config.theme));
+      onApply(mode === "json" ? parseCarouselConfig(jsonText) : {
+        ...generateCarouselFromText(sourceText, config.author, config.theme),
+        format: config.format,
+        mark: config.mark,
+        arrow: config.arrow,
+      });
     } catch (error) {
       setMessage({ kind: "error", message: error instanceof Error ? error.message : "Could not create the carousel." });
     }

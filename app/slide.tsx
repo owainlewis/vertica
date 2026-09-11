@@ -4,6 +4,8 @@ import { videoUrl } from "./video-formats";
 import {
   bodyParagraphs,
   AI_ENGINEER_TYPE_SCALE,
+  CINEMATIC_TYPE_SCALE,
+  carouselFormat,
   carouselTheme,
   type CarouselConfig,
   type CarouselSlide,
@@ -63,7 +65,7 @@ export function Slide({
   const theme = carouselTheme(config.theme);
   const scale = theme === "ai-engineer" ? AI_ENGINEER_TYPE_SCALE : TYPE_SCALE;
   const visual = slide.layout === "note" ? slide.visual : undefined;
-  const position = slidePosition(slide);
+  const position = slidePosition(slide, theme, carouselFormat(config.format));
   const lines = titleLines(slide.title);
   // Title-only layouts keep their body in the document but never draw it.
   const paragraphs = showsBody(slide.layout) ? bodyParagraphs(slide.body) : [];
@@ -75,13 +77,14 @@ export function Slide({
   const isLast = index === config.slides.length - 1;
   const showArrow = config.arrow !== false && !isLast;
 
-  const titleSize = slide.layout === "cover" ? scale.cover
+  const titleSize = theme === "cinematic" ? (slide.layout === "cover" ? CINEMATIC_TYPE_SCALE.cover : CINEMATIC_TYPE_SCALE.heading)
+    : slide.layout === "cover" ? scale.cover
     : slide.layout === "closing" ? scale.cta
       : slide.layout === "note" && !visual ? scale.statement : scale.reading;
   const style = {
     "--title-size": `${titleSize}cqw`,
-    "--reading-size": `${TYPE_SCALE.reading}cqw`,
-    "--metadata-size": `${TYPE_SCALE.metadata}cqw`,
+    "--reading-size": `${scale.reading}cqw`,
+    "--metadata-size": `${theme === "cinematic" ? CINEMATIC_TYPE_SCALE.metadata : scale.metadata}cqw`,
     "--veil": String(slide.veil ?? DEFAULT_VEIL),
   } as CSSProperties;
 
@@ -92,6 +95,7 @@ export function Slide({
 
   const copy = (
     <>
+      {theme === "cinematic" && slide.label && <span className="slide-label">{slide.label}</span>}
       <h2 className={`${lines.length > 1 ? "title-broken" : ""} ${hangs ? "title-hang" : ""}`}>
         {lines.map((line, lineIndex) => (
           <span className="title-line" key={lineIndex}><Marked text={line} /></span>
@@ -108,6 +112,7 @@ export function Slide({
   const classes = [
     "carousel-slide",
     `template-${theme}`,
+    `format-${carouselFormat(config.format)}`,
     `layout-${slide.layout}`,
     visual ? `visual-${visual}` : "",
     visual === "diagram" || pictures.length > 0 ? "has-visual" : "",
