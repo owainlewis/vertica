@@ -96,6 +96,7 @@ export default function Dashboard({
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("updated");
+  const [visibleCount, setVisibleCount] = useState(24);
   const visibleCarousels = useMemo(() => {
     const search = query.trim().toLocaleLowerCase();
     return (carousels ?? [])
@@ -104,6 +105,7 @@ export default function Dashboard({
         ? a.title.localeCompare(b.title)
         : Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
   }, [carousels, query, sort]);
+  const pageCarousels = useMemo(() => visibleCarousels.slice(0, visibleCount), [visibleCarousels, visibleCount]);
   // Downloading needs the slides on the page, so the chosen deck is mounted
   // offscreen and rasterised once React has painted it.
   const [pending, setPending] = useState<{ config: CarouselConfig; title: string; kind: "pdf" | "zip" } | null>(null);
@@ -125,9 +127,9 @@ export default function Dashboard({
   }, [reloadToken]);
 
   useEffect(() => {
-    if (!carousels?.length) return;
+    if (!pageCarousels.length) return;
     let live = true;
-    const keys = carousels.flatMap((row) => {
+    const keys = pageCarousels.flatMap((row) => {
       const stored = readCover(row.cover);
       return [stored.slide?.background ?? "", ...(stored.slide?.images ?? [])];
     }).filter(Boolean);
@@ -135,7 +137,7 @@ export default function Dashboard({
       if (live) setCovers(images);
     });
     return () => { live = false; };
-  }, [carousels]);
+  }, [pageCarousels]);
 
   useEffect(() => {
     if (!pending) return;
@@ -210,8 +212,8 @@ export default function Dashboard({
 
         <div className="library-toolbar">
           <div className="library-filters">
-            <label className="library-search"><Search size={16} aria-hidden="true" /><input type="search" aria-label="Search carousels" placeholder="Search carousels…" value={query} onChange={(event) => setQuery(event.target.value)} />{query && <button type="button" aria-label="Clear search" onClick={() => setQuery("")}><X size={14} /></button>}</label>
-            <select aria-label="Sort carousels" value={sort} onChange={(event) => setSort(event.target.value)}><option value="updated">Last edited</option><option value="title">Name A–Z</option></select>
+            <label className="library-search"><Search size={16} aria-hidden="true" /><input type="search" aria-label="Search carousels" placeholder="Search carousels…" value={query} onChange={(event) => { setQuery(event.target.value); setVisibleCount(24); }} />{query && <button type="button" aria-label="Clear search" onClick={() => setQuery("")}><X size={14} /></button>}</label>
+            <select aria-label="Sort carousels" value={sort} onChange={(event) => { setSort(event.target.value); setVisibleCount(24); }}><option value="updated">Last edited</option><option value="title">Name A–Z</option></select>
           </div>
         </div>
 
@@ -232,7 +234,7 @@ export default function Dashboard({
         )}
 
         <ul className="gallery">
-          {visibleCarousels.map((carousel) => (
+          {pageCarousels.map((carousel) => (
             <li className="gallery-card" key={carousel.id}>
               <button className="card-open" type="button" onClick={() => onOpen(carousel.id)} aria-label={`Open ${carousel.title}`}>
                 <CardPreview carousel={carousel} images={covers} />
@@ -269,6 +271,11 @@ export default function Dashboard({
             </li>
           ))}
         </ul>
+        {visibleCount < visibleCarousels.length && (
+          <button className="secondary-button media-load-more" type="button" onClick={() => setVisibleCount((count) => count + 24)}>
+            Load more carousels ({visibleCarousels.length - visibleCount} remaining)
+          </button>
+        )}
       </section>
 
       {pending && <ExportStage config={pending.config} />}

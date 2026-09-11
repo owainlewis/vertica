@@ -38,6 +38,7 @@ import {
   CarouselTheme,
   generateCarouselFromText,
   imageCapacity,
+  MAX_SLIDES,
   parseCarouselConfig,
   slideAlign,
   SlideAlign,
@@ -57,7 +58,7 @@ import { DEFAULT_VEIL, ExportStage, Slide } from "./slide";
 type Notice = { kind: "success" | "error"; message: string } | null;
 
 /** What the shell can ask of an open editor: finish saving before leaving it. */
-export type EditorHandle = { flush: () => Promise<boolean> };
+export type EditorHandle = { flush: () => Promise<boolean>; isDirty: () => boolean };
 
 const SAVE_LABEL = {
   saved: "Saved",
@@ -223,7 +224,7 @@ export default function Editor({
     }
   }, []);
 
-  useImperativeHandle(ref, () => ({ flush: flushSave }), [flushSave]);
+  useImperativeHandle(ref, () => ({ flush: flushSave, isDirty: () => saveQueueRef.current?.dirty ?? false }), [flushSave]);
 
   // Undo holds whole configs. The deck is a small plain object, so keeping sixty of
   // them costs less than the machinery to diff them would.
@@ -314,22 +315,6 @@ export default function Editor({
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, []);
 
-  // Back is same-document navigation here, so beforeunload does not run. Hold the
-  // editor in place, flush it, then repeat the Back action with a clean queue.
-  useEffect(() => {
-    const onPop = (event: PopStateEvent) => {
-      if (!saveQueueRef.current?.dirty) return;
-      event.stopImmediatePropagation();
-      const editorUrl = savedIdRef.current ? `/?id=${encodeURIComponent(savedIdRef.current)}` : "/";
-      window.history.pushState(savedIdRef.current ? { id: savedIdRef.current } : {}, "", editorUrl);
-      void flushSave().then((saved) => {
-        if (saved && mounted.current) window.history.back();
-      });
-    };
-    window.addEventListener("popstate", onPop, { capture: true });
-    return () => window.removeEventListener("popstate", onPop, { capture: true });
-  }, [flushSave]);
-
   /**
    * `key` groups a burst of edits into one undo step. Text fields pass a stable key
    * so a sentence typed straight through undoes as a sentence; discrete choices pass
@@ -346,6 +331,7 @@ export default function Editor({
   }
 
   function addSlide() {
+    if (config.slides.length >= MAX_SLIDES) return;
     const slide: CarouselSlide = {
       id: newSlideId(),
       layout: "content",
@@ -357,6 +343,7 @@ export default function Editor({
   }
 
   function duplicateSlide() {
+    if (config.slides.length >= MAX_SLIDES) return;
     const copy = { ...selectedSlide, id: newSlideId() };
     const slides = [...config.slides];
     slides.splice(selectedIndex + 1, 0, copy);
@@ -511,7 +498,7 @@ export default function Editor({
       {exporting && <p className="video-export-status" role="status">{exporting === "mp4" ? "Rendering MP4… This may take a minute." : "Exporting slides…"} Keep this tab open.</p>}
       <section className="workspace" inert={Boolean(exporting)}>
         <aside className="rail">
-          <div className="rail-heading"><span>Slides</span><button type="button" onClick={addSlide} aria-label="Add slide"><Plus size={15} /></button></div>
+          <div className="rail-heading"><span>Slides</span><button type="button" onClick={addSlide} disabled={config.slides.length >= MAX_SLIDES} aria-label="Add slide"><Plus size={15} /></button></div>
           <div className="slide-list">
             {config.slides.map((slide, index) => (
               <button className={`slide-thumb ${index === selectedIndex ? "selected" : ""}`} type="button" key={slide.id} onClick={() => setSelectedIndex(index)} aria-pressed={index === selectedIndex} aria-label={`Slide ${index + 1}: ${titleLines(slide.title).join(" ").replace(/\*/g, "")}`}>
@@ -559,7 +546,7 @@ export default function Editor({
             {selectedSlide.video && <button type="button" onClick={() => setVideoPlaying(!videoPlaying)}>{videoPlaying ? <Pause size={14} /> : <Play size={14} />}{videoPlaying ? "Pause video" : "Play video"}</button>}
             <button type="button" onClick={() => moveSlide(-1)} disabled={selectedIndex === 0} aria-label="Move slide up"><ArrowUp size={15} /></button>
             <button type="button" onClick={() => moveSlide(1)} disabled={selectedIndex === config.slides.length - 1} aria-label="Move slide down"><ArrowDown size={15} /></button>
-            <button type="button" onClick={duplicateSlide}><Copy size={14} /> Duplicate</button>
+            <button type="button" onClick={duplicateSlide} disabled={config.slides.length >= MAX_SLIDES}><Copy size={14} /> Duplicate</button>
             <button className="danger-action" type="button" onClick={deleteSlide}><Trash2 size={14} /> Delete</button>
           </div>
         </section>

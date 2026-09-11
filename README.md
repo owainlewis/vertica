@@ -56,9 +56,13 @@ Other formats or playback files over 96 MB get a smaller H.264 preview capped at
 exports still use the untouched original. Short compatible clips usually avoid
 that fallback. Each upload has its own ID so failed writes can be rolled back
 without deleting another upload, even when the original files are identical.
-The server deletes temporary upload chunks after processing, and deleting an
-unused video removes both copies and its poster. Interrupted uploads expire
-after an hour and are cleaned up on the next upload.
+The server deletes temporary upload chunks after processing. Removing unused
+media hides it from the library while retaining its files, so a concurrent deck
+save cannot lose its image or video. Retained files continue to incur storage
+costs; there is no automatic purge. Uploading an image again restores its library
+entry. Uploading a video again creates a new entry; the retained original remains
+available to existing references. Interrupted uploads expire after an hour and
+are cleaned up on the next upload.
 
 Existing videos can be reused from the video picker. Uploads made before original
 retention still export from their playback copy. Re-upload those videos to gain

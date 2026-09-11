@@ -1,5 +1,6 @@
 /** The JSON API. Mounted under /api; the same routes the client has always called. */
 import { Hono } from "hono";
+import { validateCarouselSlides } from "../app/carousel-validation.ts";
 import { videoRoutes } from "./video.ts";
 import { SUPPORTED_IMAGE_MIME_TYPES } from "../app/image-formats.ts";
 import { clearSessionCookie, createSessionCookie, isAuthorised, isSecureRequest, passwordMatches } from "./auth.ts";
@@ -47,8 +48,12 @@ function readInput(body: unknown) {
     throw new InvalidInput("The carousel config is not valid JSON.");
   }
 
-  const slides = Array.isArray(parsed.slides) ? parsed.slides : [];
-  if (!slides.length) throw new InvalidInput("A carousel needs at least one slide.");
+  const slides = parsed?.slides;
+  try {
+    validateCarouselSlides(slides);
+  } catch (cause) {
+    throw new InvalidInput(cause instanceof Error ? cause.message : "Invalid slides.");
+  }
 
   const cover = slides[0] as Record<string, unknown> | undefined;
   const text = (value: unknown, fallback: string) =>
@@ -168,7 +173,10 @@ export function createApi({ bucket, secret }: ApiOptions) {
     const result = await removeMediaAsset(bucket, key);
     if (result === "missing") return c.json({ error: "That image is not in your media library." }, 404);
     if (result === "in-use") {
-      return c.json({ error: "This image is used by a carousel. Remove it from every slide before deleting it." }, 409);
+      return c.json({ error: "This image is used by a carousel. Remove it from every slide before removing it from the library." }, 409);
+    }
+    if (result === "changed") {
+      return c.json({ error: "This image changed while you were removing it. Reload the library before trying again." }, 409);
     }
     return c.json({ ok: true });
   });

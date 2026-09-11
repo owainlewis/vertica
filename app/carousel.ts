@@ -1,5 +1,8 @@
+import { validateCarouselSlides } from "./carousel-validation.ts";
 import { isSupportedImageDataUrl } from "./image-formats.ts";
 import { parseVideoBackground, type VideoBackground } from "./video-formats.ts";
+
+export { MAX_SLIDES } from "./carousel-validation.ts";
 
 /** Four authoring layouts; older documents are mapped without dropping their content. */
 export type SlideLayout = "cover" | "content" | "note" | "closing";
@@ -214,18 +217,9 @@ export function parseCarouselConfig(input: string): CarouselConfig {
   }
 
   const record = value as Record<string, unknown>;
-  if (!Array.isArray(record.slides) || record.slides.length === 0) {
-    throw new Error("Add at least one slide.");
-  }
-  if (record.slides.length > 20) {
-    throw new Error("Keep the carousel to 20 slides or fewer.");
-  }
+  validateCarouselSlides(record.slides);
 
-  const slides = record.slides.map((item, index) => {
-    if (!item || typeof item !== "object" || Array.isArray(item)) {
-      throw new Error(`Slide ${index + 1} must be an object.`);
-    }
-    const slide = item as Record<string, unknown>;
+  const slides = record.slides.map((slide, index) => {
     // Room for a note, which is a whole sentence rather than a headline.
     const title = limitedText(slide.title, `Slide ${index + 1} title`, 120);
     if (!title) throw new Error(`Slide ${index + 1} needs a title.`);
@@ -256,8 +250,10 @@ export function parseCarouselConfig(input: string): CarouselConfig {
       throw new Error(`Slide ${index + 1} diagram must be ${MAX_DIAGRAM_CHARS} characters or fewer.`);
     }
 
+    const id = cleanText(slide.id) || makeId(index);
+
     return {
-      id: cleanText(slide.id, makeId(index)),
+      id,
       layout: normalizeLayout(slide.layout, index === 0 ? "cover" : "content"),
       ...(normalizeVisual(slide.visual, slide.layout) ? { visual: normalizeVisual(slide.visual, slide.layout) } : {}),
       title,
@@ -276,6 +272,9 @@ export function parseCarouselConfig(input: string): CarouselConfig {
       ...(editorialTones.includes(slide.tone as EditorialTone) ? { tone: slide.tone as EditorialTone } : {}),
     } satisfies CarouselSlide;
   });
+
+  // Generated IDs must also remain distinct from the explicit IDs in the import.
+  validateCarouselSlides(slides);
 
   // Defaults to the brand rather than to nothing: everything is branded AI Engineer
   // unless a deck deliberately says otherwise. Case is kept as written: the reference

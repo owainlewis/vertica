@@ -144,7 +144,10 @@ test("real upload, trim, overlay, MP4 encoding, still frame, ranges, and persist
   assert.ok(await bucket.head(`videos/${video.key.slice(4)}.original`), "a referenced original cannot be deleted");
   assert.equal((await app.request(`/carousels/${carousel.id}`, { method: "DELETE" })).status, 200);
   assert.equal((await app.request(`/videos/${video.key}`, { method: "DELETE" })).status, 200);
-  assert.equal((await bucket.list("videos/")).length, 0, "deletion removes the original, preview, and poster");
+  assert.deepEqual((await (await app.request("/videos")).json()).videos, [], "removal hides the library entry");
+  assert.equal((await app.request(`/videos/${video.key}`)).status, 200);
+  assert.equal((await app.request(`/videos/${video.key}/poster`)).status, 200);
+  assert.ok(await bucket.head(`videos/${video.key.slice(4)}.original`), "the export original survives removal");
 });
 
 test("compatible previews preserve every decoded frame and the source frame rate", { skip: !encoderAvailable && "Install FFmpeg for video integration checks" }, async (t) => {
@@ -319,4 +322,29 @@ test("rotated originals export upright pixels without rotating the completed sli
   const decoded = inspect(displayed).streams[0];
   assert.equal(decoded.width, 1080);
   assert.equal(decoded.height, 1350);
+});
+
+
+test("video removal retains every rendition when a deck saves after the reference check", async (t) => {
+  const { bucket, app } = await fixture(t);
+  const path = `videos/${KEY.slice(4)}`;
+  for (const extension of ["mp4", "jpg", "original"]) {
+    await bucket.put(`${path}.${extension}`, new Uint8Array([1, 2, 3]), { contentType: extension === "jpg" ? "image/jpeg" : "video/mp4" });
+  }
+  const list = bucket.list.bind(bucket);
+  bucket.list = async (prefix) => {
+    const beforeSave = await list(prefix);
+    if (prefix === "carousels/") {
+      await app.request(json("/carousels", { id: "concurrent", config: JSON.stringify({ slides: [{ title: "Moving", video: clip }] }) }));
+    }
+    return beforeSave;
+  };
+  assert.equal((await app.request(`/videos/${KEY}`, { method: "DELETE" })).status, 200);
+  assert.deepEqual((await (await app.request("/videos")).json()).videos, []);
+  for (const extension of ["mp4", "jpg", "original"]) {
+    assert.deepEqual((await bucket.get(`${path}.${extension}`)).bytes, new Uint8Array([1, 2, 3]));
+  }
+  assert.equal((await app.request(`/videos/${KEY}`)).status, 200);
+  assert.equal((await app.request(`/videos/${KEY}/poster`)).status, 200);
+  assert.equal((await app.request("/carousels/concurrent")).status, 200);
 });

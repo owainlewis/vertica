@@ -100,7 +100,7 @@ export default function MediaGallery() {
       await deleteMedia(asset.key);
       setMedia((current) => (current ?? []).filter((item) => item.key !== asset.key));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not delete that image.");
+      setError(cause instanceof Error ? cause.message : "Could not remove that image.");
     } finally {
       setBusyKey(null);
       setConfirmKey(null);
@@ -150,6 +150,7 @@ export default function MediaGallery() {
 
         {media === null && !error && <div className="library-loading" role="status"><LoaderCircle className="spin" size={20} /> Loading images…</div>}
 
+        <p>Removing an image hides it from the library. Its file is retained to protect saved carousels.</p>
         <ul className="media-grid">
           {(media ?? []).map((asset) => (
             <li className="media-card" key={asset.key}>
@@ -163,12 +164,12 @@ export default function MediaGallery() {
                 {confirmKey === asset.key ? (
                   <span className="media-confirm">
                     <button type="button" className="danger-action" onClick={() => { void remove(asset); }} disabled={busyKey === asset.key} aria-busy={busyKey === asset.key}>
-                      <BusyLabel busy={busyKey === asset.key} idle="Delete" pending="Deleting…" />
+                      <BusyLabel busy={busyKey === asset.key} idle="Remove" pending="Removing…" />
                     </button>
                     <button type="button" onClick={() => setConfirmKey(null)}>Keep</button>
                   </span>
                 ) : (
-                  <button type="button" className="media-delete" onClick={() => setConfirmKey(asset.key)} aria-label={`Delete ${asset.name}`}><Trash2 size={14} /></button>
+                  <button type="button" className="media-delete" onClick={() => setConfirmKey(asset.key)} aria-label={`Remove ${asset.name} from library`}><Trash2 size={14} /></button>
                 )}
               </div>
             </li>

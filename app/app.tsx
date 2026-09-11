@@ -99,6 +99,8 @@ export default function App() {
   const mainRef = useRef<HTMLDivElement>(null);
   // Every navigation invalidates earlier loads, including their media and errors.
   const navigation = useRef(0);
+  const historyIndex = useRef(0);
+  const deferredSavedUrl = useRef<string | null>(null);
   const [view, setView] = useState<View>({ kind: "gallery" });
   const [reloadToken, setReloadToken] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +115,18 @@ export default function App() {
     mainRef.current?.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [view.kind]);
 
+  // Index only this app's entries so a blocked traversal can be reversed without
+  // pushState, which would discard the browser's forward entries.
+  useEffect(() => {
+    historyIndex.current = window.history.state?.verticaIndex ?? 0;
+    window.history.replaceState({ ...window.history.state, verticaIndex: historyIndex.current }, "");
+  }, []);
+
+  const pushHistory = useCallback((url: string) => {
+    historyIndex.current += 1;
+    window.history.pushState({ verticaIndex: historyIndex.current }, "", url);
+  }, []);
+
   const openCarousel = useCallback(async (id: string, push = true) => {
     const request = ++navigation.current;
     try {
@@ -124,11 +138,11 @@ export default function App() {
       setView({ kind: "editor", key: id, id, config: painted, version: summary.version });
       // Arriving here from popstate means the entry is already the current one.
       // Pushing again appended a duplicate, so Back could never reach the gallery.
-      if (push) window.history.pushState({ id }, "", `/?id=${id}`);
+      if (push) pushHistory(`/?id=${id}`);
     } catch (cause) {
       if (request === navigation.current) setError(cause instanceof Error ? cause.message : "Could not open that carousel.");
     }
-  }, []);
+  }, [pushHistory]);
 
   // A deep link opens straight into the editor. Cancelled if the view moves on
   // before the fetch lands, so a slow load cannot overwrite a later choice.
@@ -145,9 +159,37 @@ export default function App() {
     return () => { navigation.current += 1; };
   }, [authorised, openCarousel]);
 
-  // The back button returns to whatever the URL says.
+  // Return to the editor's existing entry before flushing. onSaved can then
+  // update its URL safely, and replaying go(delta) preserves Back and Forward.
   useEffect(() => {
+    let pending: { target: number; request: number; saving: boolean } | null = null;
     const onPop = () => {
+      const index = window.history.state?.verticaIndex ?? 0;
+      if (!pending && editorRef.current?.isDirty() && index !== historyIndex.current) {
+        pending = { target: index, request: ++navigation.current, saving: false };
+      }
+      if (pending) {
+        if (index !== historyIndex.current) {
+          window.history.go(historyIndex.current - index);
+          return;
+        }
+        if (deferredSavedUrl.current) {
+          window.history.replaceState(window.history.state, "", deferredSavedUrl.current);
+          deferredSavedUrl.current = null;
+        }
+        if (!pending.saving) {
+          const traversal = pending;
+          traversal.saving = true;
+          void editorRef.current?.flush().then((saved) => {
+            pending = null;
+            if (saved && traversal.request === navigation.current) {
+              window.history.go(traversal.target - historyIndex.current);
+            }
+          });
+        }
+        return;
+      }
+      historyIndex.current = index;
       navigation.current += 1;
       setError(null);
       const params = new URLSearchParams(window.location.search);
@@ -163,7 +205,7 @@ export default function App() {
     navigation.current += 1;
     setError(null);
     setView({ kind: "editor", key: `new-${Date.now().toString(36)}`, id: null, config: emptyConfig(), version: null });
-    window.history.pushState({}, "", "/");
+    pushHistory("/");
   }
 
   function exitToGallery() {
@@ -171,7 +213,7 @@ export default function App() {
     setError(null);
     setView({ kind: "gallery" });
     setReloadToken((token) => token + 1);
-    window.history.pushState({}, "", "/");
+    pushHistory("/");
   }
 
   function showLibrary(kind: "gallery" | "media") {
@@ -179,7 +221,7 @@ export default function App() {
     setError(null);
     setView({ kind });
     if (kind === "gallery") setReloadToken((token) => token + 1);
-    window.history.pushState({}, "", kind === "media" ? "/?view=media" : "/");
+    pushHistory(kind === "media" ? "/?view=media" : "/");
   }
 
   // Leaving an open deck through the rail flushes its queued edits first, the same
@@ -197,7 +239,12 @@ export default function App() {
     // Only the id is adopted here. The editor owns the live version, and writing a
     // stale one back into view state would make its next save look out of date.
     setView((current) => (current.kind === "editor" && !current.id ? { ...current, id: summary.id } : current));
-    window.history.replaceState({ id: summary.id }, "", `/?id=${summary.id}`);
+    const url = `/?id=${summary.id}`;
+    if (window.history.state?.verticaIndex !== historyIndex.current) {
+      deferredSavedUrl.current = url;
+    } else {
+      window.history.replaceState({ ...window.history.state, id: summary.id }, "", url);
+    }
   }
 
   if (authorised === null) {

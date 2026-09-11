@@ -62,7 +62,7 @@ Browser and server communicate through HTTP. Storage operations depend on the bu
 
 ## Persistence and saving
 
-Decks are stored as `carousels/<id>.json`. Object metadata holds gallery summaries, a compact cover description, timestamps and media references. Listing the gallery reads object metadata rather than downloading every deck. The list is sorted by update time and limited to 200 entries.
+Decks are stored as `carousels/<id>.json`. Object metadata holds gallery summaries, a compact cover description, timestamps and media references. Listing the gallery reads object metadata rather than downloading every deck. The list includes all deck summaries, sorted by update time. The gallery renders 24 cards at a time with a Load more action; search and sorting cover the entire library.
 
 Saving follows this order:
 
@@ -75,7 +75,7 @@ Saving follows this order:
 
 Images live at `media/<hash>` under content-derived keys. IndexedDB caches image bytes; durable persistence remains in the bucket. Loading resolves keys into renderable image data. Unresolved keys remain in the document so a later save does not erase missing references.
 
-Media deletion checks deck metadata for references and refuses to delete an asset still in use. This check and deletion are separate operations, not a transaction spanning decks and media.
+Removing media checks deck metadata and refuses an asset already in use. Otherwise it hides the library entry while retaining bytes, protecting references saved concurrently after that check. Images use a library metadata flag; videos use a small `.removed` marker. Image reuploads restore library visibility; video reuploads create a new asset. Retained media has no automatic purge and still incurs storage costs.
 
 ## Export and video processing
 
