@@ -1,7 +1,7 @@
 import { ChevronDown, Download, Film, Images, LoaderCircle } from "lucide-react";
 import { useEffect, useRef } from "react";
 
-export type ExportKind = "pdf" | "zip" | "mp4" | "video-zip";
+export type ExportKind = "pdf" | "zip" | "mp4" | "video-zip" | "reel";
 
 export default function ExportMenu({ busy, video = false, videoCarousel = false, onExport }: {
   busy: boolean;
@@ -44,6 +44,7 @@ export default function ExportMenu({ busy, video = false, videoCarousel = false,
     </summary>
     <div className="export-options" aria-label="Export format">
       {videoCarousel && <button type="button" disabled={busy} onClick={() => choose("video-zip")}><Film size={16} /><span>Video carousel<small>All slides · Numbered MP4s in a ZIP · Silent</small></span></button>}
+      {videoCarousel && <button type="button" disabled={busy} onClick={() => choose("reel")}><Film size={16} /><span>Reel<small>All slides · One MP4 · Uses slide durations</small></span></button>}
       <button type="button" disabled={busy || !video} onClick={() => choose("mp4")}><Film size={16} /><span>Video slide<small>{video ? "Selected slide · MP4 · Silent" : "Choose a slide with a video background"}</small></span></button>
       <button type="button" disabled={busy} onClick={() => choose("zip")}><Images size={16} /><span>JPEG images<small>Numbered files in a ZIP · Instagram</small></span></button>
       <button type="button" disabled={busy} onClick={() => choose("pdf")}><Download size={16} /><span>PDF document<small>One slide per page · LinkedIn</small></span></button>

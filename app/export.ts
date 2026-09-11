@@ -3,7 +3,7 @@ import { createZip } from "./zip";
 import { videoFrame, videoRequest } from "./video-client";
 import type { VideoBackground } from "./video-formats";
 import type { CarouselConfig } from "./carousel";
-import { renderVideoCarousel } from "./video-carousel-export";
+import { renderVideoCarousel, videoCarouselClips } from "./video-carousel-export";
 
 /** LinkedIn's portrait page box, in points. Instagram takes the same 4:5 frame. */
 export const SLIDE_WIDTH = 1080;
@@ -90,7 +90,7 @@ async function rasteriseStage(expectedPages: number) {
 }
 
 /** Capture the existing artwork with alpha, then composite it onto the clip. */
-async function renderStageVideo(expectedPages: number, index: number, video: VideoBackground) {
+async function renderStageOverlay(expectedPages: number, index: number) {
   const node = stageNodes(expectedPages)[index];
   if (!node) throw new Error("Select a video slide to export.");
   await document.fonts.ready;
@@ -101,6 +101,11 @@ async function renderStageVideo(expectedPages: number, index: number, video: Vid
     style: { background: "transparent" },
     filter: (element) => !(element instanceof Element && element.classList.contains("slide-image")),
   }), "The text overlay timed out. Keep this tab in front and try again.");
+  return overlay;
+}
+
+async function renderStageVideo(expectedPages: number, index: number, video: VideoBackground) {
+  const overlay = await renderStageOverlay(expectedPages, index);
   const response = await videoRequest("/video-exports", {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ video, overlay }),
@@ -117,6 +122,26 @@ export async function exportStageToVideoZip(fileName: string, config: CarouselCo
   const zip = await renderVideoCarousel(fileName.replace(/\.zip$/, ""), config.slides,
     (index, video) => renderStageVideo(config.slides.length, index, video), onProgress);
   downloadBlob(zip, fileName);
+}
+
+/** Straight cuts preserve each slide's saved duration and the existing 4:5 artwork. */
+export async function exportStageToReel(fileName: string, config: CarouselConfig, onProgress: (message: string) => void) {
+  const clips = videoCarouselClips(config.slides);
+  const slides = [];
+  let overlayBytes = 0;
+  for (let index = 0; index < clips.length; index++) {
+    onProgress(`Preparing slide ${index + 1} of ${clips.length}…`);
+    const overlay = await renderStageOverlay(clips.length, index);
+    overlayBytes += overlay.length;
+    if (overlayBytes > 32 * 1024 * 1024) throw new Error("The reel artwork is too large. Split it into shorter carousels.");
+    slides.push({ video: clips[index], overlay });
+  }
+  onProgress("Rendering and joining slides into one MP4…");
+  const response = await videoRequest("/reel-exports", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ slides }), signal: AbortSignal.timeout((clips.length + 1) * 200_000),
+  });
+  downloadBlob(await response.blob(), fileName);
 }
 
 export async function exportStageToPdf(fileName: string, expectedPages: number) {

@@ -32,13 +32,21 @@ Choose **New image carousel** or **New video carousel** in the library. Both
 start with the Cinematic theme. **Content** puts the background picker beside
 the slide copy; **Design → Carousel format** changes the output intent while
 keeping the existing media and text. Older decks remain image carousels unless
-you change their format. Reels are edited outside Vertica.
+you change their format.
 
 Image carousels export through **Export → JPEG images** as ordered files in a
 ZIP. Video carousels export through **Export → Video carousel** as one numbered,
 silent MP4 per slide in a ZIP. Attach a video to every slide first. Reuse a
 library clip on several slides or choose different footage for each, then set
 each clip's start and duration in Design.
+
+Choose **Export → Reel** to join those slides into one silent MP4. Each slide
+plays for its saved duration, followed by a straight cut to the next slide.
+There is no added transition time. The export keeps the existing 4:5 framing,
+text and footage; it does not crop the artwork to 9:16. Every slide needs a video.
+The server renders slides sequentially, then joins them with FFmpeg without a
+second lossy encode. Reel artwork is limited to 32 MB and encoded clips to
+256 MB. Keep the tab open until the single-file download finishes.
 
 Video carousel export checks every slide before starting, renders one clip at a
 time, and reports progress. A missing clip or failed render stops the export

@@ -96,11 +96,11 @@ export function Slide({
   const copy = (
     <>
       {slide.label && <span className="slide-label">{slide.label}</span>}
-      <h2 className={`${lines.length > 1 ? "title-broken" : ""} ${hangs ? "title-hang" : ""}`}>
+      {slide.title.trim() && <h2 className={`${lines.length > 1 ? "title-broken" : ""} ${hangs ? "title-hang" : ""}`}>
         {lines.map((line, lineIndex) => (
           <span className="title-line" key={lineIndex}><Marked text={line} /></span>
         ))}
-      </h2>
+      </h2>}
       {paragraphs.map((paragraph, paragraphIndex) => (
         <p key={paragraphIndex}><Marked text={paragraph} /></p>
       ))}
@@ -123,6 +123,7 @@ export function Slide({
     `tone-${slideTone(slide, theme)}`,
     background || slide.video ? "has-background" : "",
     config.mark ? "has-mark" : "",
+    slide.showHeader !== false ? "has-header" : "",
     pictures.length ? `has-pictures pictures-${pictures.length} photos-${photoArrangement(pictures.length)}` : "",
     diagram ? "has-diagram" : "",
     exportMode ? "export-slide" : "",

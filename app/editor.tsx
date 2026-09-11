@@ -28,7 +28,7 @@ import {
   titleLines,
 } from "./carousel";
 import Composer, { type ComposerMode } from "./composer";
-import { downloadBlob, exportStageToMp4, exportStageToPdf, exportStageToZip, exportStageToVideoZip, fileNameFor } from "./export";
+import { downloadBlob, exportStageToMp4, exportStageToPdf, exportStageToZip, exportStageToVideoZip, exportStageToReel, fileNameFor } from "./export";
 import ExportMenu, { type ExportKind } from "./export-menu";
 import { loadImages } from "./image-store";
 import Inspector, { layoutNames } from "./inspector";
@@ -84,7 +84,7 @@ function useSignifierCheck() {
 }
 
 function plainTitle(slide: CarouselSlide) {
-  return titleLines(slide.title).join(" ").replace(/\*/g, "");
+  return titleLines(slide.title.trim() || slide.body.trim().split("\n")[0] || slide.label || "Untitled slide").join(" ").replace(/\*/g, "");
 }
 
 export default function Editor({
@@ -371,6 +371,9 @@ export default function Editor({
       } else if (kind === "video-zip") {
         await exportStageToVideoZip(fileNameFor(config.title, "zip"), config, setExportProgress);
         showNotice({ kind: "success", message: `Exported ${config.slides.length} numbered MP4s for Instagram.` });
+      } else if (kind === "reel") {
+        await exportStageToReel(fileNameFor(config.title, "mp4"), config, setExportProgress);
+        showNotice({ kind: "success", message: "Exported all slides as one MP4." });
       } else if (kind === "pdf") {
         await exportStageToPdf(exportFileName, config.slides.length);
         showNotice({ kind: "success", message: `Exported ${config.slides.length} PDF pages for LinkedIn.` });

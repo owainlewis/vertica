@@ -95,3 +95,13 @@ test("Legacy layouts inherit the new scale without changing saved typography def
     }
   }
 });
+
+
+test("a body-only slide has no empty headline consuming title spacing", () => {
+  const source = {...config.slides[1], title: "   ", label: "Step 1", body: "Choose one task.\n\nTry it on real notes."};
+  const dom = new JSDOM(renderToStaticMarkup(createElement(Slide, {config, slide: source, index: 1})));
+  assert.equal(dom.window.document.querySelector("h2"), null);
+  assert.equal(dom.window.document.querySelector(".slide-label + p").textContent, "Choose one task.");
+  assert.equal(dom.window.document.querySelectorAll(".slide-content p").length, 2);
+  dom.window.close();
+});
