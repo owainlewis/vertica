@@ -105,13 +105,13 @@ function LayoutPanel({ config, slide, theme, updateSlide, commit }: PanelProps) 
       </div>
 
       <span className="field-label">Text position</span>
-      <Segmented options={positions} value={position} onChange={(next) => updateSlide({ position: next })} label={(option) => positionLabels[option]} />
+      {slide.video?.framing === "horizontal" ? <p className="field-hint">Text stays above the footage in Horizontal framing.</p> : <Segmented options={positions} value={position} onChange={(next) => updateSlide({ position: next })} label={(option) => positionLabels[option]} />}
 
       <span className="field-label">Alignment</span>
       <Segmented options={["left", "center"] as SlideAlign[]} value={align} onChange={(next) => updateSlide({ align: next })} label={(option) => alignLabels[option]} />
 
-      <button type="button" className="text-button subtle" onClick={() => commit({ ...config, slides: config.slides.map((each) => ({ ...each, position, align })) })}>
-        Apply position and alignment to all slides
+      <button type="button" className="text-button subtle" onClick={() => commit({ ...config, slides: config.slides.map((each) => ({ ...each, ...(slide.video?.framing === "horizontal" ? {} : { position }), align })) })}>
+        {slide.video?.framing === "horizontal" ? "Apply alignment to all slides" : "Apply position and alignment to all slides"}
       </button>
 
       <p className="field-hint">{layoutHints[slide.layout]}</p>
@@ -271,8 +271,15 @@ function DesignPanel({ config, slide, theme, updateSlide, commit, onChooseImage,
       <button className="wide-upload" type="button" onClick={onChooseVideo}><Film size={15} /> {slide.video ? "Change video" : "Choose a video"}</button>
       {slide.video && (
         <>
+          <span className="field-label">Video framing</span>
+          <Segmented options={["fill", "horizontal"] as const} value={slide.video.framing ?? "fill"} onChange={(framing) => updateSlide({ video: { ...slide.video!, framing } })} label={(value) => value === "fill" ? "Fill slide" : "Horizontal"} />
+          {slide.video.framing === "horizontal" && <>
+            <label className="field-label range-label" htmlFor="video-zoom">Zoom <span>{(slide.video.zoom ?? 1).toFixed(2)}×</span></label>
+            <input id="video-zoom" className="range" type="range" min={1} max={1.3} step={0.01} value={slide.video.zoom ?? 1} onChange={(event) => updateSlide({ video: { ...slide.video!, zoom: Number(event.target.value) } }, "video-zoom")} />
+            <p className="field-hint">Text above landscape footage on a black canvas. At 1× the whole clip fits; zoom crops the edges. Keep the copy short.</p>
+          </>}
           <VideoClipFields video={slide.video} onChange={(video, key) => updateSlide({ video }, key)} />
-          <p className="field-hint">{slide.video.sourceDuration ? `Source: ${slide.video.sourceDuration.toFixed(1)}s. ` : "Loading source duration… "}Silent, centred crop. Export → Video carousel creates numbered MP4s when every slide has video. Video slide exports just this clip.</p>
+          <p className="field-hint">{slide.video.sourceDuration ? `Source: ${slide.video.sourceDuration.toFixed(1)}s. ` : "Loading source duration… "}Silent. Export → Video carousel creates numbered MP4s when every slide has video. Video slide exports just this clip.</p>
           <button type="button" className="text-button" onClick={() => updateSlide({ video: undefined, veil: undefined })}>Remove video</button>
         </>
       )}
@@ -282,7 +289,7 @@ function DesignPanel({ config, slide, theme, updateSlide, commit, onChooseImage,
           It is kept in the saved carousel. If it predates media persistence, add it to Media again or choose a replacement from your library.
         </p>
       )}
-      {(slide.background || slide.video) && (
+      {(slide.background || slide.video) && slide.video?.framing !== "horizontal" && (
         <>
           <label className="field-label range-label" htmlFor="veil">
             <span>Background veil</span>

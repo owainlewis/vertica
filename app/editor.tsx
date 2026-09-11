@@ -477,7 +477,7 @@ export default function Editor({
 
       {mediaOpen && <MediaPicker onChoose={chooseMedia} onClose={() => setMediaOpen(null)} />}
       {videoOpen && <VideoPicker onChoose={(video) => {
-        updateSlide({ background: undefined, video: { key: video.key, start: 0, duration: Math.min(10, Math.floor(video.duration * 10) / 10), sourceDuration: video.duration } });
+        updateSlide({ background: undefined, video: { key: video.key, start: 0, duration: Math.min(10, Math.floor(video.duration * 10) / 10), sourceDuration: video.duration, framing: selectedSlide.video?.framing ?? (video.width > video.height ? "horizontal" : "fill"), zoom: selectedSlide.video?.zoom ?? 1 } });
         setVideoPlaying(true);
       }} onClose={() => setVideoOpen(false)} />}
 

@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import VideoBackground from "./video-background";
-import { videoUrl } from "./video-formats";
+import { HORIZONTAL_VIDEO_FRAME, videoUrl } from "./video-formats";
 import {
   bodyParagraphs,
   carouselFormat,
@@ -78,6 +78,9 @@ export function Slide({
     "--title-size": `${TYPE_SCALE.heading}cqw`,
     "--reading-size": `${TYPE_SCALE.reading}cqw`,
     "--metadata-size": `${theme === "cinematic" ? 2.4 : TYPE_SCALE.metadata}cqw`,
+    "--video-top": `${HORIZONTAL_VIDEO_FRAME.y / HORIZONTAL_VIDEO_FRAME.canvasHeight * 100}%`,
+    "--video-height": `${HORIZONTAL_VIDEO_FRAME.height / HORIZONTAL_VIDEO_FRAME.canvasHeight * 100}%`,
+    "--video-zoom": String(slide.video?.zoom ?? 1),
     "--veil": String(slide.veil ?? DEFAULT_VEIL),
   } as CSSProperties;
 
@@ -104,6 +107,7 @@ export function Slide({
 
   const classes = [
     "carousel-slide",
+    slide.video?.framing === "horizontal" ? "video-horizontal" : "",
     `template-${theme}`,
     `format-${carouselFormat(config.format)}`,
     `layout-${slide.layout}`,
@@ -123,11 +127,11 @@ export function Slide({
     <article className={classes} style={style} data-export-slide={exportMode ? "true" : undefined}>
       {/* Pictures are <img> elements, not CSS backgrounds. Chrome silently drops a
           style value past a few megabytes, and a data URL of a photograph is one. */}
-      {slide.video
+      <div className="slide-media">{slide.video
         ? videoPreview
           ? <VideoBackground key={slide.video.key} clip={slide.video} playing={playing} onDuration={onVideoDuration} />
           : <img key={`${slide.video.key}:${slide.video.start}`} className="slide-image" src={videoUrl(slide.video.key, "/poster")} data-video-key={slide.video.key} data-video-start={slide.video.start} alt="" />
-        : background && <img className="slide-image" src={background} alt="" />}
+        : background && <img className="slide-image" src={background} alt="" />}</div>
       <div className="slide-overlay" />
       {slide.showHeader !== false && (
         <header className="slide-head">

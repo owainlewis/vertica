@@ -348,3 +348,37 @@ test("video removal retains every rendition when a deck saves after the referenc
   assert.equal((await app.request(`/videos/${KEY}/poster`)).status, 200);
   assert.equal((await app.request("/carousels/concurrent")).status, 200);
 });
+
+
+test("horizontal framing and zoom persist and reject unsupported geometry", () => {
+  const video = { ...clip, framing: "horizontal", zoom: 1.12 };
+  const config = parseCarouselConfig(JSON.stringify({ slides: [{ title: "Landscape", video }] }));
+  assert.deepEqual(config.slides[0].video, video);
+  assert.deepEqual(boundVideoBackground(video, 10), { ...video, sourceDuration: 10 });
+  for (const invalid of [{ ...video, framing: "stretch" }, { ...video, zoom: 0.9 }, { ...video, zoom: 1.31 }, { ...video, zoom: NaN }, { ...video, zoom: "1.1" }]) assert.throws(() => parseVideoBackground(invalid));
+});
+
+test("horizontal exports keep black text space, contain footage and crop only when zoomed", { skip: !encoderAvailable && "Install FFmpeg for video integration checks" }, async (t) => {
+  const { app, directory } = await fixture(t);
+  const overlayPath = join(directory, "overlay.png");
+  ffmpeg("-f", "lavfi", "-i", "color=c=black@0:s=1080x1350,format=rgba,drawbox=x=100:y=100:w=100:h=100:color=lime:t=fill:replace=1", "-frames:v", "1", overlayPath);
+  const overlay = `data:image/png;base64,${(await readFile(overlayPath)).toString("base64")}`;
+  for (const [size, zoom, edgeBlue] of [["640x360", 1, true], ["640x360", 1.3, false], ["640x480", 1, false], ["360x640", 1, false]]) {
+    const source = join(directory, `source-${size}-${zoom}.mp4`);
+    ffmpeg("-f", "lavfi", "-i", `color=c=red:s=${size}:r=30:d=1,drawbox=x=0:y=0:w=50:h=ih:color=blue:t=fill`, "-c:v", "libx264", "-pix_fmt", "yuv420p", source);
+    const asset = await upload(app, await readFile(source));
+    const response = await app.request(json("/video-exports", { video: { key: asset.key, start: 0, duration: 1, framing: "horizontal", zoom }, overlay }));
+    assert.equal(response.status, 200, response.status === 200 ? undefined : await response.text());
+    const output = join(directory, `out-${size}-${zoom}.mp4`);
+    await writeFile(output, Buffer.from(await response.arrayBuffer()));
+    const pixels = execFileSync("ffmpeg", ["-v", "error", "-i", output, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1"], { maxBuffer: 8 * 1024 * 1024 });
+    const pixel = (x, y) => [...pixels.subarray((y * 1080 + x) * 3, (y * 1080 + x) * 3 + 3)];
+    assert.ok(pixel(540, 400).every(v => v < 10), "top text band stays black");
+    assert.ok(pixel(540, 1250).every(v => v < 10), "footer stays black");
+    assert.ok(pixel(150, 150)[1] > 220, "text overlay remains visible");
+    assert.ok(pixel(540, 800)[0] > 220, "footage stays visible in its window");
+    if (edgeBlue) assert.ok(pixel(30, 800)[2] > 220, "1x preserves the source edge");
+    else if (size === "640x360") assert.ok(pixel(30, 800)[0] > 220, "zoom crops the source edge");
+    else assert.ok(pixel(30, 800).every(v => v < 10), "non-wide inputs are contained without stretching");
+  }
+});

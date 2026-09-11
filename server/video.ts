@@ -8,7 +8,7 @@ import { Hono } from "hono";
 import type { Bucket, ObjectMeta } from "./bucket.ts";
 import { PreconditionError } from "./bucket.ts";
 import { mediaInUse } from "./store.ts";
-import { isVideoKey, MAX_VIDEO_BYTES, MAX_VIDEO_SECONDS, parseVideoBackground, VIDEO_CHUNK_BYTES, VIDEO_KEY_PREFIX, type VideoAsset } from "../app/video-formats.ts";
+import { HORIZONTAL_VIDEO_FRAME, isVideoKey, MAX_VIDEO_BYTES, MAX_VIDEO_SECONDS, parseVideoBackground, VIDEO_CHUNK_BYTES, VIDEO_KEY_PREFIX, type VideoAsset } from "../app/video-formats.ts";
 
 const run = promisify(execFile);
 const VIDEOS = "videos/";
@@ -299,8 +299,13 @@ export function videoRoutes(bucket: Bucket) {
     const output = join(dir, "slide.mp4");
     await writeFile(source, object.bytes);
     await writeFile(overlay, png);
+    const frame = HORIZONTAL_VIDEO_FRAME;
+    const zoom = clip.zoom ?? 1;
+    // Contain at 1x, then zoom and clip within the fixed landscape window.
+    const landscape = `[0:v]scale=w='max(2,round(min(${frame.width},${frame.height}*dar)*${zoom}/2)*2)':h='max(2,round(min(${frame.height},${frame.width}/dar)*${zoom}/2)*2)':flags=lanczos,setsar=1,pad=w='max(iw,${frame.width})':h='max(ih,${frame.height})':x=(ow-iw)/2:y=(oh-ih)/2:color=black,crop=${frame.width}:${frame.height},pad=${frame.canvasWidth}:${frame.canvasHeight}:${frame.x}:${frame.y}:black[bg]`;
+    const fill = "[0:v]scale=w='ceil(max(1080,1350*dar)/2)*2':h='ceil(max(1350,1080/dar)/2)*2':flags=lanczos,crop=1080:1350,setsar=1[bg]";
     await command("ffmpeg", ["-v", "error", "-nostdin", "-y", "-threads", "2", "-protocol_whitelist", "file,pipe", "-f", "mov", "-ss", String(clip.start), "-i", source, "-i", overlay,
-      "-filter_complex_threads", "1", "-filter_complex", "[0:v]scale=w='ceil(max(1080,1350*dar)/2)*2':h='ceil(max(1350,1080/dar)/2)*2':flags=lanczos,crop=1080:1350,setsar=1[bg];[bg][1:v]overlay=0:0:format=auto,format=yuv420p,sidedata=mode=delete:type=DISPLAYMATRIX[out]",
+      "-filter_complex_threads", "1", "-filter_complex", `${clip.framing === "horizontal" ? landscape : fill};[bg][1:v]overlay=0:0:format=auto,format=yuv420p,sidedata=mode=delete:type=DISPLAYMATRIX[out]`,
       "-map", "[out]", "-an", "-t", String(clip.duration), "-r", "30", "-c:v", "libx264", "-threads", "2", "-preset", "medium", "-crf", "16", "-movflags", "+faststart", output]);
     return new Response(await readFile(output), { headers: { "content-type": "video/mp4", "content-disposition": 'attachment; filename="slide.mp4"', "cache-control": "no-store" } });
   })));

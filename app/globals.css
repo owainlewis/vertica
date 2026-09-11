@@ -386,7 +386,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .carousel-slide.template-cinematic .slide-content h2 { font-family: var(--font-sans); font-weight: 650; line-height: 1.08; letter-spacing: -.03em; }
 .template-cinematic .slide-content p { line-height: 1.4; margin-top: 1em; }
 .template-cinematic.layout-cover .slide-content { padding-inline: var(--margin); }
-.template-cinematic.pos-top:not(.has-visual) .slide-content { padding-top: 23%; }
+.template-cinematic.pos-top:not(.has-visual):not(.video-horizontal) .slide-content { padding-top: 23%; }
 .template-cinematic .slide-label { align-self: flex-start; max-width: 100%; margin-bottom: 1.4em; color: var(--ink); font-size: 2.8cqw; font-weight: 500; line-height: 1.3; letter-spacing: .04em; text-transform: uppercase; overflow-wrap: anywhere; }
 .template-cinematic.align-center .slide-label { align-self: center; }
 .template-cinematic .mark-accent { color: inherit; font-weight: 750; }
@@ -621,3 +621,15 @@ input, textarea { caret-color: var(--accent); }
   .topbar-actions .icon-button, .topbar-actions .generate-button { width: var(--control-size); padding-inline: 0; flex: 0 0 var(--control-size); }
   .export-control > summary { padding-inline: 6px; gap: 5px; }
 }
+
+/* Landscape footage retains its composition beneath a separate text band. */
+.slide-media { position: absolute; inset: 0; overflow: hidden; }
+.carousel-slide.video-horizontal { --ink: #fff; --paper: #000; background: #000; }
+.video-horizontal .slide-media { top: var(--video-top); bottom: auto; height: var(--video-height); }
+.video-horizontal .slide-media .slide-image { object-fit: contain; transform: scale(var(--video-zoom, 1)); transform-origin: center; }
+.carousel-slide.video-horizontal .slide-overlay { display: none; }
+.carousel-slide.video-horizontal .slide-content { flex: 0 0 auto; height: var(--video-top); justify-content: center; padding: 13% var(--margin) 4%; }
+.carousel-slide.video-horizontal .slide-content h2 { line-height: 1.2; }
+.video-horizontal .slide-label { margin-bottom: .8em; }
+.video-horizontal .slide-content p { margin-top: .7em; }
+.video-horizontal .mark-accent, .video-horizontal .mark-italic { color: inherit; }

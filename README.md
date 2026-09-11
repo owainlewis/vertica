@@ -329,3 +329,15 @@ in.
 ## Licence
 
 MIT.
+
+
+### Horizontal video carousels
+
+Landscape footage defaults to **Horizontal** when selected. In **Design → Video
+framing**, choose Horizontal or Fill slide. Horizontal uses a black 4:5 canvas,
+a 16:9 footage window below the text, and a separate footer. At 1× zoom the whole
+source fits; **Zoom** can crop up to 1.3× without changing the text size. Keep the
+copy short enough to fit the upper band. Framing and zoom are saved per slide and
+used in the gallery, editor, reader, JPEG/PDF and MP4 exports. Existing clips keep
+Fill slide until you choose otherwise. Horizontal framing ignores the background
+veil so the footage stays clear; Fill slide restores the saved veil and position.
