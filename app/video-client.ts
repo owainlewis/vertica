@@ -1,4 +1,5 @@
-import { MAX_VIDEO_BYTES, type VideoAsset, type VideoBackground, videoUrl } from "./video-formats";
+import { blobToDataUrl } from "./data-url";
+import { MAX_VIDEO_BYTES, type VideoAsset, type VideoBackground, videoPath } from "./video-formats";
 
 export async function videoRequest(path: string, init?: RequestInit) {
   const response = await fetch(`/api${path}`, { ...init, signal: init?.signal ?? AbortSignal.timeout(200_000) });
@@ -27,13 +28,8 @@ export async function uploadVideo(file: File, onProgress: (message: string) => v
   }
 }
 
+/** The clip's first frame as a data URL, for still exports of a video slide. */
 export async function videoFrame(clip: VideoBackground) {
-  const response = await videoRequest(`${videoUrl(clip.key, "/frame").slice(4)}?start=${clip.start}`);
-  const blob = await response.blob();
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error("Could not read the video frame."));
-    reader.readAsDataURL(blob);
-  });
+  const response = await videoRequest(`${videoPath(clip.key, "/frame")}?start=${clip.start}`);
+  return blobToDataUrl(await response.blob(), "Could not read the video frame.");
 }

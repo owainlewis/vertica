@@ -1,5 +1,5 @@
 import { validateCarouselSlides } from "./carousel-validation.ts";
-import { isSupportedImageDataUrl } from "./image-formats.ts";
+import { isImageKey, isSupportedImageDataUrl } from "./image-formats.ts";
 import { parseVideoBackground, type VideoBackground } from "./video-formats.ts";
 
 export { MAX_SLIDES } from "./carousel-validation.ts";
@@ -7,9 +7,24 @@ export { MAX_SLIDES } from "./carousel-validation.ts";
 /** Four authoring layouts; older documents are mapped without dropping their content. */
 export type SlideLayout = "cover" | "content" | "note" | "closing";
 export type SlideVisual = "photos" | "diagram";
-
+/** Where the text block sits in the frame, independent of colour. */
+export type SlidePosition = "top" | "middle" | "bottom";
+export type SlideAlign = "left" | "center";
 export type EditorialTone = "paper" | "sage" | "black";
 export type CarouselTheme = "editorial" | "ai-engineer";
+
+const layouts: SlideLayout[] = ["cover", "content", "note", "closing"];
+const positions: SlidePosition[] = ["top", "middle", "bottom"];
+const aligns: SlideAlign[] = ["left", "center"];
+const editorialTones: EditorialTone[] = ["paper", "sage", "black"];
+
+/** The offer every deck promotes. The mark is the series, the footer is where to go. */
+export const BRAND_MARK = "AI Engineer";
+export const BRAND_FOOTER = "aiengineer.co";
+
+/** Body 2 can hold this many pictures; the grid is designed around it. */
+const MAX_IMAGES = 9;
+const MAX_DIAGRAM_CHARS = 60_000;
 
 /** Unknown themes use the original artwork, including documents written before themes. */
 export function carouselTheme(value: unknown): CarouselTheme {
@@ -24,9 +39,6 @@ export function slideTone(slide: CarouselSlide, theme?: CarouselTheme): Editoria
   if (slide.tone) return slide.tone;
   return theme === "ai-engineer" && slide.layout === "cover" ? "black" : "paper";
 }
-/** Where the text block sits in the frame, independent of colour. */
-export type SlidePosition = "top" | "middle" | "bottom";
-export type SlideAlign = "left" | "center";
 
 export type CarouselSlide = {
   id: string;
@@ -71,7 +83,7 @@ export function usesImages(slide: Pick<CarouselSlide, "layout" | "visual">) {
 }
 
 export function imageCapacity(slide: Pick<CarouselSlide, "layout" | "visual">) {
-  return usesImages(slide) ? 9 : 0;
+  return usesImages(slide) ? MAX_IMAGES : 0;
 }
 
 export function photoArrangement(count: number): "figure" | "grid" {
@@ -150,7 +162,7 @@ export function slideImageRefs(slide: CarouselSlide) {
 /** Stops an export that would silently paint an unresolved local image as blank. */
 export function assertBackgroundsAvailableForExport(config: CarouselConfig) {
   const missing = config.slides
-    .map((slide, index) => (slideImageRefs(slide).some((ref) => ref.startsWith("img:")) ? index + 1 : null))
+    .map((slide, index) => (slideImageRefs(slide).some(isImageKey) ? index + 1 : null))
     .filter((index): index is number => index !== null);
 
   if (!missing.length) return;
@@ -160,16 +172,9 @@ export function assertBackgroundsAvailableForExport(config: CarouselConfig) {
   );
 }
 
-/** The offer every deck promotes. The mark is the series, the footer is where to go. */
-export const BRAND_MARK = "AI Engineer";
-export const BRAND_FOOTER = "aiengineer.co";
-
-const layouts: SlideLayout[] = ["cover", "content", "note", "closing"];
-const MAX_DIAGRAM_CHARS = 60_000;
-const positions: SlidePosition[] = ["top", "middle", "bottom"];
-const aligns: SlideAlign[] = ["left", "center"];
-const editorialTones: EditorialTone[] = ["paper", "sage", "black"];
-const MAX_IMAGES = 9;
+function clamp(value: number, low: number, high: number) {
+  return Math.min(high, Math.max(low, value));
+}
 
 function cleanText(value: unknown, fallback = "") {
   return typeof value === "string" ? value.trim() : fallback;
@@ -181,8 +186,9 @@ function limitedText(value: unknown, label: string, limit: number, fallback = ""
   return text;
 }
 
-function makeId(index: number) {
-  return `slide-${Date.now().toString(36)}-${index}`;
+/** New slides get a random ID so imports, duplicates and edits can never collide. */
+export function newSlideId() {
+  return `slide-${crypto.randomUUID()}`;
 }
 
 /**
@@ -190,7 +196,7 @@ function makeId(index: number) {
  * URLs stay rejected so export never depends on a third-party fetch.
  */
 function isImageRef(value: string) {
-  return isSupportedImageDataUrl(value) || value.startsWith("img:");
+  return isSupportedImageDataUrl(value) || isImageKey(value);
 }
 
 /**
@@ -250,12 +256,12 @@ export function parseCarouselConfig(input: string): CarouselConfig {
       throw new Error(`Slide ${index + 1} diagram must be ${MAX_DIAGRAM_CHARS} characters or fewer.`);
     }
 
-    const id = cleanText(slide.id) || makeId(index);
+    const visual = normalizeVisual(slide.visual, slide.layout);
 
     return {
-      id,
+      id: cleanText(slide.id) || newSlideId(),
       layout: normalizeLayout(slide.layout, index === 0 ? "cover" : "content"),
-      ...(normalizeVisual(slide.visual, slide.layout) ? { visual: normalizeVisual(slide.visual, slide.layout) } : {}),
+      ...(visual ? { visual } : {}),
       title,
       body: limitedText(slide.body, `Slide ${index + 1} body`, 280),
       ...(background ? { background } : {}),
@@ -273,7 +279,7 @@ export function parseCarouselConfig(input: string): CarouselConfig {
     } satisfies CarouselSlide;
   });
 
-  // Generated IDs must also remain distinct from the explicit IDs in the import.
+  // Generated IDs are random, but an explicit ID could still repeat one of them.
   validateCarouselSlides(slides);
 
   // Defaults to the brand rather than to nothing: everything is branded AI Engineer
@@ -545,13 +551,13 @@ export function generateCarouselFromText(source: string, author = BRAND_FOOTER, 
 
   const slides: CarouselSlide[] = parsed.map((chunk, index) => {
     const title = chunk.title;
-    if (index === 0) return { id: makeId(index), layout: "cover", title, body: chunk.body };
-    if (index === last && parsed.length > 1) return { id: makeId(index), layout: "closing", title, body: chunk.body };
+    if (index === 0) return { id: newSlideId(), layout: "cover", title, body: chunk.body };
+    if (index === last && parsed.length > 1) return { id: newSlideId(), layout: "closing", title, body: chunk.body };
 
     const statement = !chunk.body && wordCount(chunk.title) <= STATEMENT_MAX_WORDS;
-    if (!statement) return { id: makeId(index), layout: "content", title, body: chunk.body };
+    if (!statement) return { id: newSlideId(), layout: "content", title, body: chunk.body };
 
-    return { id: makeId(index), layout: "note", title, body: "" };
+    return { id: newSlideId(), layout: "note", title, body: "" };
   });
 
   return {
@@ -613,10 +619,6 @@ export function parseInlineMarks(text: string): MarkedRun[] {
 /** Blank lines become separate paragraphs, the way the reference slides breathe. */
 export function bodyParagraphs(body: string) {
   return body.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
-}
-
-function clamp(value: number, low: number, high: number) {
-  return Math.min(high, Math.max(low, value));
 }
 
 /** Fixed sizes for repeated roles preserve hierarchy while previews and exports scale together. */
@@ -684,6 +686,6 @@ SOURCE TEXT:
 export function duplicateCarouselConfig(config: CarouselConfig): CarouselConfig {
   const copy = structuredClone(config);
   copy.title = `${config.title.slice(0, 93)} (copy)`;
-  copy.slides = copy.slides.map((slide) => ({ ...slide, id: `slide-${crypto.randomUUID()}` }));
+  copy.slides = copy.slides.map((slide) => ({ ...slide, id: newSlideId() }));
   return copy;
 }

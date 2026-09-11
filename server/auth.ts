@@ -1,5 +1,5 @@
 /**
- * Shared-secret gate. One password, held in the APP_SECRET binding, exchanged for
+ * Shared-secret gate. One password, read from APP_SECRET, exchanged for
  * an HMAC-signed cookie so the secret itself is never stored in the browser.
  */
 

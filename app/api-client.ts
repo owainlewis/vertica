@@ -1,5 +1,6 @@
 import { normalizeSlideLayout, slideImageRefs, type CarouselConfig } from "./carousel";
-import { isImageKey, loadImages, putImage } from "./image-store";
+import { isImageKey } from "./image-formats";
+import { loadImages, putImage } from "./image-store";
 import type { CarouselSummary, MediaAsset } from "../server/store.ts";
 
 export type { CarouselSummary, MediaAsset } from "../server/store.ts";
@@ -39,9 +40,8 @@ export async function listCarousels() {
   return (await call<{ carousels: CarouselSummary[] }>("/carousels")).carousels;
 }
 
-export function listMedia(cursor?: string | null) {
-  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
-  return call<{ media: MediaAsset[]; nextCursor: string | null }>(`/media${query}`);
+export async function listMedia() {
+  return (await call<{ media: MediaAsset[] }>("/media")).media;
 }
 
 export function deleteMedia(key: string) {
@@ -54,7 +54,7 @@ export function deleteCarousel(id: string) {
 
 /**
  * Moves any freshly uploaded image bytes into the durable media store, so what
- * reaches the database is keys. Slides that already carry a key are left alone.
+ * reaches the bucket is keys. Slides that already carry a key are left alone.
  */
 async function externalise(ref: string | undefined) {
   if (!ref || isImageKey(ref)) return ref;
@@ -83,7 +83,7 @@ async function storeMedia(config: CarouselConfig): Promise<CarouselConfig> {
  * cannot reach the durable store. The key is kept exactly as it was. Replacing it
  * with undefined is what used to destroy data: the editor would hold the stripped
  * config, autosave on the next keystroke, and write a deck with no image references
- * at all over the one in the database. The renderer paints data URLs only, so an
+ * at all over the one in the bucket. The renderer paints data URLs only, so an
  * unresolved key shows nothing and saves back unharmed.
  */
 export async function resolveMedia(config: CarouselConfig): Promise<CarouselConfig> {
@@ -99,7 +99,6 @@ export async function resolveMedia(config: CarouselConfig): Promise<CarouselConf
     })),
   };
 }
-
 
 export async function saveCarousel(id: string | null, config: CarouselConfig, version: number | null) {
   const stored = await storeMedia(config);

@@ -2,6 +2,7 @@
 export type VideoBackground = { key: string; start: number; duration: number; sourceDuration?: number };
 export type VideoAsset = { key: string; name: string; duration: number; width: number; height: number };
 
+export const VIDEO_KEY_PREFIX = "vid:";
 export const VIDEO_CHUNK_BYTES = 8 * 1024 * 1024;
 export const MAX_VIDEO_BYTES = 512 * 1024 * 1024;
 export const MAX_VIDEO_SECONDS = 120;
@@ -37,6 +38,12 @@ export function boundVideoBackground(clip: VideoBackground, sourceDuration: numb
   return { ...clip, sourceDuration, duration, start: Math.max(0, Math.min(clip.start, sourceDuration - duration)) };
 }
 
+/** The API route for a video, relative to `/api`. */
+export function videoPath(key: string, part = "") {
+  return `/videos/${encodeURIComponent(key)}${part}`;
+}
+
+/** The same route as a URL the browser can load directly. */
 export function videoUrl(key: string, part = "") {
-  return `/api/videos/${encodeURIComponent(key)}${part}`;
+  return `/api${videoPath(key, part)}`;
 }

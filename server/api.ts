@@ -2,7 +2,7 @@
 import { Hono } from "hono";
 import { validateCarouselSlides } from "../app/carousel-validation.ts";
 import { videoRoutes } from "./video.ts";
-import { SUPPORTED_IMAGE_MIME_TYPES } from "../app/image-formats.ts";
+import { matchImageDataUrl } from "../app/image-formats.ts";
 import { clearSessionCookie, createSessionCookie, isAuthorised, isSecureRequest, passwordMatches } from "./auth.ts";
 import type { Bucket } from "./bucket.ts";
 import {
@@ -25,10 +25,6 @@ class InvalidInput extends Error {}
 const MAX_CONFIG_BYTES = 400_000;
 const MAX_MEDIA_BYTES = 12 * 1024 * 1024;
 const CAROUSEL_ID = /^[\w-]{1,200}$/;
-const DATA_URL = new RegExp(
-  `^data:(${SUPPORTED_IMAGE_MIME_TYPES.map((type) => type.replace("/", "\\/")).join("|")});base64,([a-z0-9+/=\\s]+)$`,
-  "i",
-);
 
 /** Mirrors the client's parser closely enough to keep junk out of the bucket. */
 function readInput(body: unknown) {
@@ -86,16 +82,16 @@ function readInput(body: unknown) {
 
 /** Decodes an image data URL without trusting its declared size. */
 function readDataUrl(text: string) {
-  const match = text.match(DATA_URL);
+  const match = matchImageDataUrl(text);
   if (!match) throw new InvalidInput("Only PNG, JPEG, GIF, AVIF, and WebP images can be stored.");
   let binary: string;
   try {
-    binary = atob(match[2].replace(/\s/g, ""));
+    binary = atob(match.base64.replace(/\s/g, ""));
   } catch {
     throw new InvalidInput("That image data is not valid base64.");
   }
   if (binary.length > MAX_MEDIA_BYTES) throw new InvalidInput("That image is too large. Keep images under 12MB.");
-  return { mimeType: match[1].toLowerCase(), bytes: Uint8Array.from(binary, (character) => character.charCodeAt(0)) };
+  return { mimeType: match.mimeType, bytes: Uint8Array.from(binary, (character) => character.charCodeAt(0)) };
 }
 
 function header(request: Request, name: string, maxLength: number) {
@@ -138,7 +134,7 @@ export function createApi({ bucket, secret }: ApiOptions) {
     await next();
   });
 
-  api.get("/media", async (c) => c.json({ media: await listMediaAssets(bucket), nextCursor: null }));
+  api.get("/media", async (c) => c.json({ media: await listMediaAssets(bucket) }));
 
   api.route("/", videoRoutes(bucket));
 

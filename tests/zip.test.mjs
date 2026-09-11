@@ -4,7 +4,8 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createZip, dataUrlToBytes } from "../app/zip.ts";
+import { dataUrlToBytes } from "../app/data-url.ts";
+import { createZip } from "../app/zip.ts";
 
 async function zipBytes(files) {
   return Buffer.from(await createZip(files).arrayBuffer());

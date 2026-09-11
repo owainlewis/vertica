@@ -52,7 +52,7 @@ flowchart TD
     Bucket --> Implementations["LocalBucket or GcsBucket"]
 ```
 
-Browser and server communicate through HTTP. Storage operations depend on the bucket interface, which has local-filesystem and Google Cloud Storage implementations. The server also imports shared media-format helpers from `app/`; browser API clients import server record types as type-only dependencies.
+Browser and server communicate through HTTP. Storage operations depend on the bucket interface, which has local-filesystem and Google Cloud Storage implementations. The server also imports shared validation and media-format helpers from `app/` (`carousel-validation.ts`, `image-formats.ts`, `video-formats.ts`); the Docker image copies every plain `.ts` module under `app/` for that reason. Browser API clients import server record types as type-only dependencies.
 
 ## Document and rendering model
 
@@ -99,8 +99,8 @@ In development, Vite serves the frontend and proxies `/api` to the Node service 
 
 | Concept | Authoritative files |
 | --- | --- |
-| Application navigation and editor state | [app.tsx](app/app.tsx), [editor.tsx](app/editor.tsx) |
-| Document model and rendering | [carousel.ts](app/carousel.ts), [slide.tsx](app/slide.tsx) |
+| Application navigation and editor state | [app.tsx](app/app.tsx), [editor.tsx](app/editor.tsx), [inspector.tsx](app/inspector.tsx), [use-history.ts](app/use-history.ts) |
+| Document model and rendering | [carousel.ts](app/carousel.ts), [slide.tsx](app/slide.tsx), [composer.tsx](app/composer.tsx) |
 | Autosave and HTTP persistence | [save-queue.ts](app/save-queue.ts), [api-client.ts](app/api-client.ts) |
 | Browser image cache | [image-store.ts](app/image-store.ts) |
 | Export assembly | [export.ts](app/export.ts), [zip.ts](app/zip.ts) |

@@ -1,12 +1,12 @@
-import { CSSProperties } from "react";
+import type { CSSProperties } from "react";
 import VideoBackground from "./video-background";
 import { videoUrl } from "./video-formats";
 import {
   bodyParagraphs,
   AI_ENGINEER_TYPE_SCALE,
   carouselTheme,
-  CarouselConfig,
-  CarouselSlide,
+  type CarouselConfig,
+  type CarouselSlide,
   imageCapacity,
   normalizeSlideLayout,
   parseInlineMarks,

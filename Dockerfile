@@ -13,6 +13,8 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
 COPY server ./server
-COPY app/carousel.ts app/image-formats.ts app/video-formats.ts ./app/
+# The API shares its validation and media rules with the browser. Copy every
+# plain .ts module rather than a hand-kept list, which has drifted before.
+COPY app/*.ts ./app/
 EXPOSE 8080
 CMD ["node", "--experimental-strip-types", "server/index.ts"]
