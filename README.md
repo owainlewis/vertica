@@ -7,7 +7,7 @@ Every deck is a small JSON document. You can write it by hand, paste it from Cla
 or generate it from plain text, and the app renders it the same way in the editor,
 in the gallery, and in the export.
 
-![Vertica editor](docs/editor.jpg)
+![Vertica demo](docs/demo.gif)
 
 ## Run it
 
