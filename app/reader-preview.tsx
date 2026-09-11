@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowRight, Pause, Play, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { CarouselConfig } from "./carousel";
 import Dialog from "./dialog";
 import { Slide } from "./slide";
@@ -12,18 +12,20 @@ export default function ReaderPreview({ config, initialIndex, onClose }: {
   const [index, setIndex] = useState(initialIndex);
   const [profile, setProfile] = useState(false);
   const [playing, setPlaying] = useState(true);
-  const move = (direction: number) => setIndex((current) => Math.max(0, Math.min(config.slides.length - 1, current + direction)));
+  const last = config.slides.length - 1;
+  const move = useCallback((direction: number) => {
+    setIndex((current) => Math.max(0, Math.min(last, current + direction)));
+  }, [last]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
       event.preventDefault();
-      const direction = event.key === "ArrowLeft" ? -1 : 1;
-      setIndex((current) => Math.max(0, Math.min(config.slides.length - 1, current + direction)));
+      move(event.key === "ArrowLeft" ? -1 : 1);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [config.slides.length]);
+  }, [move]);
 
   return <Dialog labelId="reader-title" onDismiss={onClose}>
     <section className="reader-dialog">
@@ -41,7 +43,7 @@ export default function ReaderPreview({ config, initialIndex, onClose }: {
         {config.slides[index].video && <button type="button" className="secondary-button icon-button" aria-label={playing ? "Pause video" : "Play video"} onClick={() => setPlaying(!playing)}>{playing ? <Pause size={16} /> : <Play size={16} />}</button>}
         <button type="button" className="secondary-button icon-button" aria-label="Previous slide" disabled={index === 0} onClick={() => move(-1)}><ArrowLeft size={18} /></button>
         <span role="status" aria-live="polite">{index + 1} of {config.slides.length}</span>
-        <button type="button" className="secondary-button icon-button" aria-label="Next slide" disabled={index === config.slides.length - 1} onClick={() => move(1)}><ArrowRight size={18} /></button>
+        <button type="button" className="secondary-button icon-button" aria-label="Next slide" disabled={index === last} onClick={() => move(1)}><ArrowRight size={18} /></button>
       </div>
     </section>
   </Dialog>;

@@ -6,6 +6,7 @@
  */
 import type { Bucket, ObjectMeta } from "./bucket.ts";
 import { PreconditionError } from "./bucket.ts";
+import { IMAGE_KEY_PREFIX } from "../app/image-formats.ts";
 import { isVideoKey } from "../app/video-formats.ts";
 
 export type CarouselSummary = {
@@ -64,8 +65,13 @@ function carouselKey(id: string) {
   return `${CAROUSELS}${id}.json`;
 }
 
+/** `img:<hash>` lives at `media/<hash>`. */
 function mediaObjectKey(key: string) {
-  return `${MEDIA}${key.slice(4)}`;
+  return `${MEDIA}${key.slice(IMAGE_KEY_PREFIX.length)}`;
+}
+
+function mediaKeyOf(objectKey: string) {
+  return `${IMAGE_KEY_PREFIX}${objectKey.slice(MEDIA.length)}`;
 }
 
 /** Every media key a slide refers to: backgrounds, pictures and videos. */
@@ -195,7 +201,7 @@ export async function listMediaAssets(bucket: Bucket): Promise<MediaAsset[]> {
   const objects = await bucket.list(MEDIA);
   return objects
     .filter(({ meta }) => meta.custom.library === "1")
-    .map(({ key, meta }) => assetOf(`img:${key.slice(MEDIA.length)}`, meta))
+    .map(({ key, meta }) => assetOf(mediaKeyOf(key), meta))
     .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
 }
 

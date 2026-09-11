@@ -8,9 +8,11 @@ import { Hono } from "hono";
 import type { Bucket, ObjectMeta } from "./bucket.ts";
 import { PreconditionError } from "./bucket.ts";
 import { mediaInUse } from "./store.ts";
-import { isVideoKey, MAX_VIDEO_BYTES, MAX_VIDEO_SECONDS, parseVideoBackground, VIDEO_CHUNK_BYTES, type VideoAsset } from "../app/video-formats.ts";
+import { isVideoKey, MAX_VIDEO_BYTES, MAX_VIDEO_SECONDS, parseVideoBackground, VIDEO_CHUNK_BYTES, VIDEO_KEY_PREFIX, type VideoAsset } from "../app/video-formats.ts";
 
 const run = promisify(execFile);
+const VIDEOS = "videos/";
+const UPLOADS = "video-uploads/";
 const UPLOAD_TTL = 60 * 60 * 1000;
 const MAX_OVERLAY_BYTES = 8 * 1024 * 1024;
 const MAX_OUTPUT_BYTES = 96 * 1024 * 1024;
@@ -89,9 +91,14 @@ async function jsonBody(request: Request, limit = 4096): Promise<Record<string, 
   } catch { throw new VideoError("The request must be a JSON object."); }
 }
 
+/** `vid:<id>` renditions live at `videos/<id>.{mp4,jpg,original,removed}`. */
 function videoPath(key: string) {
   if (!isVideoKey(key)) throw new VideoError("That video key is invalid.");
-  return `videos/${key.slice(4)}`;
+  return `${VIDEOS}${key.slice(VIDEO_KEY_PREFIX.length)}`;
+}
+
+function videoKeyOf(objectKey: string, extension: string) {
+  return `${VIDEO_KEY_PREFIX}${objectKey.slice(VIDEOS.length, -extension.length)}`;
 }
 
 function assetOf(key: string, meta: ObjectMeta): VideoAsset {
@@ -101,7 +108,7 @@ function assetOf(key: string, meta: ObjectMeta): VideoAsset {
 type Upload = { name: string; size: number; expires: number };
 function uploadPath(id: string) {
   if (!/^[a-f0-9-]{36}$/.test(id)) throw new VideoError("That upload is invalid.");
-  return `video-uploads/${id}/`;
+  return `${UPLOADS}${id}/`;
 }
 
 export function videoRoutes(bucket: Bucket) {
@@ -143,7 +150,7 @@ export function videoRoutes(bucket: Bucket) {
       throw new VideoError("Choose an MP4 or MOV under 512 MB.");
     }
     // Abandoned chunks expire even when the browser never gets to send Cancel.
-    for (const { key, meta } of await bucket.list("video-uploads/")) {
+    for (const { key, meta } of await bucket.list(UPLOADS)) {
       if (Number(meta.custom.expires) < Date.now()) await bucket.delete(key);
     }
     const id = randomUUID();
@@ -204,7 +211,7 @@ export function videoRoutes(bucket: Bucket) {
         const { duration, width, height } = await probe(output);
         // Each attempt owns its objects. Rollback must never remove a successful
         // concurrent upload, even when its original bytes happen to be identical.
-        const key = `vid:${randomUUID().replaceAll("-", "")}`;
+        const key = `${VIDEO_KEY_PREFIX}${randomUUID().replaceAll("-", "")}`;
         await command("ffmpeg", ["-v", "error", "-nostdin", "-y", "-threads", "2", "-i", output, "-frames:v", "1", "-vf", "scale=540:-2", poster]);
         const path = videoPath(key);
         try {
@@ -222,10 +229,15 @@ export function videoRoutes(bucket: Bucket) {
   }));
 
   api.get("/videos", async (c) => {
-    const objects = await bucket.list("videos/");
-    const removed = new Set(objects.filter(({ key }) => key.endsWith(".removed")).map(({ key }) => key.slice(0, -8)));
-    return c.json({ videos: objects.filter(({ key }) => key.endsWith(".mp4") && !removed.has(key.slice(0, -4)))
-      .sort((a, b) => b.meta.updated.localeCompare(a.meta.updated)).map(({ key, meta }) => assetOf(`vid:${key.slice(7, -4)}`, meta)) });
+    const objects = await bucket.list(VIDEOS);
+    const removed = new Set(objects.filter(({ key }) => key.endsWith(".removed")).map(({ key }) => videoKeyOf(key, ".removed")));
+    const videos = objects
+      .filter(({ key }) => key.endsWith(".mp4"))
+      .map(({ key, meta }) => ({ key: videoKeyOf(key, ".mp4"), meta }))
+      .filter(({ key }) => !removed.has(key))
+      .sort((a, b) => b.meta.updated.localeCompare(a.meta.updated))
+      .map(({ key, meta }) => assetOf(key, meta));
+    return c.json({ videos });
   });
 
   api.get("/videos/:key/poster", async (c) => {

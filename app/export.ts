@@ -1,4 +1,5 @@
-import { createZip, dataUrlToBytes } from "./zip";
+import { dataUrlToBytes } from "./data-url";
+import { createZip } from "./zip";
 import { videoFrame, videoRequest } from "./video-client";
 import type { VideoBackground } from "./video-formats";
 

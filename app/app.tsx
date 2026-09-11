@@ -1,7 +1,7 @@
 import { Images, LayoutGrid, LoaderCircle, Lock } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { getSession, loadCarousel, resolveMedia, signIn, type CarouselSummary } from "./api-client";
-import { BRAND_FOOTER, BRAND_MARK, CarouselConfig } from "./carousel";
+import { BRAND_FOOTER, BRAND_MARK, newSlideId, type CarouselConfig } from "./carousel";
 import Dashboard from "./dashboard";
 import Editor, { type EditorHandle } from "./editor";
 import MediaGallery from "./media-gallery";
@@ -27,7 +27,7 @@ function emptyConfig(): CarouselConfig {
     author: BRAND_FOOTER,
     mark: BRAND_MARK,
     slides: [
-      { id: `slide-${Date.now().toString(36)}`, layout: "cover", title: "Your headline here", body: "" },
+      { id: newSlideId(), layout: "cover", title: "Your headline here", body: "" },
     ],
   };
 }

@@ -86,17 +86,22 @@ One Node process, one bucket, one container.
 app/            the React app (Vite)
   carousel.ts     the document model, parser, generator, AI prompt
   slide.tsx       the one renderer, used for the editor, the gallery and the export
-  editor.tsx      the editor screen
+  editor.tsx      the editor screen: rail, canvas, autosave and export
+  inspector.tsx   the editor's Content, Layout and Design panels
+  composer.tsx    the "create from text or JSON" dialog
+  use-history.ts  undo and redo over whole decks
   dashboard.tsx   the gallery
   media-*.tsx     the media library and the picker
   export.ts       PDF and ZIP export, rasterised from the DOM at 2x
   image-store.ts  content-addressed media keys, IndexedDB cache in front of the API
+  *-formats.ts    image and video rules shared with the server
   save-queue.ts   ordered, coalesced autosave
   globals.css     the design system and the app chrome
 server/         the API and static host (Hono)
   bucket.ts       the storage interface: Google Cloud Storage, or a folder on disk
   store.ts        decks and media as objects
   api.ts          routes and validation
+  video.ts        video upload, processing and export routes
   auth.ts         the optional shared-password gate
 tests/          node:test suites, run against the on-disk bucket
 ```

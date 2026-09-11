@@ -8,7 +8,7 @@ import {
   loadCarousel,
   type CarouselSummary,
 } from "./api-client";
-import { assertBackgroundsAvailableForExport, carouselTheme, CarouselConfig, CarouselSlide, duplicateCarouselConfig, normalizeSlideLayout } from "./carousel";
+import { assertBackgroundsAvailableForExport, carouselTheme, duplicateCarouselConfig, normalizeSlideLayout, type CarouselConfig, type CarouselSlide } from "./carousel";
 import { exportStageToPdf, exportStageToZip, fileNameFor } from "./export";
 import { loadImages } from "./image-store";
 import { ExportStage, Slide } from "./slide";
@@ -246,26 +246,26 @@ export default function Dashboard({
                   <small>{carousel.slideCount} slide{carousel.slideCount === 1 ? "" : "s"} · edited {relativeDate(carousel.updatedAt)}</small>
                 </span>
                 <div className="card-actions">
-                <button type="button" onClick={() => download(carousel, "pdf")} disabled={busyId !== null} aria-label={`Download ${carousel.title} as PDF`}>
-                  {busyId === carousel.id && pending?.kind === "pdf" ? <LoaderCircle className="spin" size={14} /> : <Download size={14} />}
-                  PDF
-                </button>
-                <button type="button" onClick={() => download(carousel, "zip")} disabled={busyId !== null} aria-label={`Download ${carousel.title} as JPEGs`} title="Numbered JPEGs, zipped, for Instagram">
-                  {busyId === carousel.id && pending?.kind === "zip" ? <LoaderCircle className="spin" size={14} /> : <Images size={14} />}
-                  JPEGs
-                </button>
-                <button type="button" disabled={busyId !== null} aria-busy={duplicatingId === carousel.id} onClick={() => { void duplicate(carousel); }} aria-label={`Duplicate ${carousel.title}`} title="Duplicate carousel">
-                  {duplicatingId === carousel.id ? <LoaderCircle className="spin" size={14} /> : <Copy size={14} />}
-                </button>
-                <button className="danger-action" type="button" disabled={busyId !== null} onClick={() => setConfirmId(carousel.id)} aria-label={`Delete ${carousel.title}`}>
-                  <Trash2 size={14} />
-                </button>
-                {confirmId === carousel.id && (
-                  <span className="confirm-delete">
-                    <button className="danger-action" type="button" disabled={busyId !== null} onClick={() => remove(carousel.id)}>Delete</button>
-                    <button type="button" onClick={() => setConfirmId(null)}>Keep</button>
-                  </span>
-                )}
+                  <button type="button" onClick={() => download(carousel, "pdf")} disabled={busyId !== null} aria-label={`Download ${carousel.title} as PDF`}>
+                    {busyId === carousel.id && pending?.kind === "pdf" ? <LoaderCircle className="spin" size={14} /> : <Download size={14} />}
+                    PDF
+                  </button>
+                  <button type="button" onClick={() => download(carousel, "zip")} disabled={busyId !== null} aria-label={`Download ${carousel.title} as JPEGs`} title="Numbered JPEGs, zipped, for Instagram">
+                    {busyId === carousel.id && pending?.kind === "zip" ? <LoaderCircle className="spin" size={14} /> : <Images size={14} />}
+                    JPEGs
+                  </button>
+                  <button type="button" disabled={busyId !== null} aria-busy={duplicatingId === carousel.id} onClick={() => { void duplicate(carousel); }} aria-label={`Duplicate ${carousel.title}`} title="Duplicate carousel">
+                    {duplicatingId === carousel.id ? <LoaderCircle className="spin" size={14} /> : <Copy size={14} />}
+                  </button>
+                  <button className="danger-action" type="button" disabled={busyId !== null} onClick={() => setConfirmId(carousel.id)} aria-label={`Delete ${carousel.title}`}>
+                    <Trash2 size={14} />
+                  </button>
+                  {confirmId === carousel.id && (
+                    <span className="confirm-delete">
+                      <button className="danger-action" type="button" disabled={busyId !== null} onClick={() => remove(carousel.id)}>Delete</button>
+                      <button type="button" onClick={() => setConfirmId(null)}>Keep</button>
+                    </span>
+                  )}
                 </div>
               </div>
             </li>
