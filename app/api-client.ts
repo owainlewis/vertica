@@ -113,5 +113,20 @@ export async function saveCarousel(id: string | null, config: CarouselConfig, ve
 export async function loadCarousel(id: string) {
   const { carousel } = await call<{ carousel: CarouselSummary & { config: string } }>(`/carousels/${id}`);
   const config = JSON.parse(carousel.config) as CarouselConfig;
-  return { summary: carousel, config: { ...config, slides: config.slides.map((slide) => normalizeSlideLayout(slide)) } };
+  // Legacy API documents can omit IDs or repeat them. Reserve all explicit IDs
+  // before assigning stable fallbacks so loading never creates React key clashes.
+  const explicitIds = new Set(config.slides.map((slide) => typeof slide.id === "string" ? slide.id.trim() : "").filter(Boolean));
+  const usedIds = new Set<string>();
+  const slides = config.slides.map((slide, index) => {
+    let slideId = typeof slide.id === "string" ? slide.id.trim() : "";
+    if (!slideId || usedIds.has(slideId)) {
+      const base = `legacy-slide-${index + 1}`;
+      slideId = base;
+      let suffix = 1;
+      while (explicitIds.has(slideId) || usedIds.has(slideId)) slideId = `${base}-${suffix++}`;
+    }
+    usedIds.add(slideId);
+    return normalizeSlideLayout({ ...slide, id: slideId });
+  });
+  return { summary: carousel, config: { ...config, slides } };
 }
