@@ -1,6 +1,8 @@
 /** Video backgrounds are silent clips; the source stays outside the carousel JSON. */
-export type VideoBackground = { key: string; start: number; duration: number; sourceDuration?: number };
+export type VideoBackground = { key: string; start: number; duration: number; sourceDuration?: number; framing?: "fill" | "horizontal"; zoom?: number };
 export type VideoAsset = { key: string; name: string; duration: number; width: number; height: number };
+
+export const HORIZONTAL_VIDEO_FRAME = { x: 0, y: 540, width: 1080, height: 608, canvasWidth: 1080, canvasHeight: 1350 } as const;
 
 export const VIDEO_KEY_PREFIX = "vid:";
 export const VIDEO_CHUNK_BYTES = 8 * 1024 * 1024;
@@ -29,7 +31,9 @@ export function parseVideoBackground(value: unknown): VideoBackground {
     }
     if (video.start + video.duration > sourceDuration + 0.000001) throw new Error("The clip must fit within the source video.");
   }
-  return { key: video.key, start: video.start, duration: video.duration, ...(sourceDuration !== undefined ? { sourceDuration: sourceDuration as number } : {}) };
+  if (video.framing !== undefined && video.framing !== "fill" && video.framing !== "horizontal") throw new Error("Choose fill or horizontal video framing.");
+  if (video.zoom !== undefined && (typeof video.zoom !== "number" || !Number.isFinite(video.zoom) || video.zoom < 1 || video.zoom > 1.3)) throw new Error("Video zoom must be between 1 and 1.3.");
+  return { ...(video.framing !== undefined ? { framing: video.framing } : {}), ...(video.zoom !== undefined ? { zoom: video.zoom as number } : {}), key: video.key, start: video.start, duration: video.duration, ...(sourceDuration !== undefined ? { sourceDuration: sourceDuration as number } : {}) };
 }
 
 /** Also upgrades older decks once the browser has read the source metadata. */

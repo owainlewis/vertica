@@ -52,7 +52,7 @@ test("video configuration round-trips and joins the deck's protected media refer
 
 test("video routes require the same session as the rest of the app", async (t) => {
   const { app } = await fixture(t, { secret: "test-secret" });
-  for (const request of [json("/video-uploads", { size: 1 }), json("/video-exports", {}), new Request(`http://localhost/videos/${KEY}`)]) {
+  for (const request of [json("/video-uploads", { size: 1 }), json("/video-exports", {}), json("/reel-exports", {}), new Request(`http://localhost/videos/${KEY}`)]) {
     assert.equal((await app.request(request)).status, 401);
   }
 });
@@ -79,7 +79,7 @@ test("upload bounds, incomplete chunks, expiry, and cleanup are enforced", async
   await app.request(json("/video-uploads", { size: 1 }));
   assert.equal(await bucket.head("video-uploads/expired/part-0"), null);
   assert.equal((await app.request(`/videos/${KEY}`)).status, 404);
-  assert.equal((await app.request(json("/video-exports", { video: clip, overlay: "bad" }))).status, 404);
+  assert.equal((await app.request(json("/video-exports", { video: clip, overlay: "bad" }))).status, 400);
 });
 
 test("real upload, trim, overlay, MP4 encoding, still frame, ranges, and persistence", { skip: !encoderAvailable && "Install FFmpeg for video integration checks" }, async (t) => {
@@ -347,4 +347,74 @@ test("video removal retains every rendition when a deck saves after the referenc
   assert.equal((await app.request(`/videos/${KEY}`)).status, 200);
   assert.equal((await app.request(`/videos/${KEY}/poster`)).status, 200);
   assert.equal((await app.request("/carousels/concurrent")).status, 200);
+});
+
+
+test("horizontal framing and zoom persist and reject unsupported geometry", () => {
+  const video = { ...clip, framing: "horizontal", zoom: 1.12 };
+  const config = parseCarouselConfig(JSON.stringify({ slides: [{ title: "Landscape", video }] }));
+  assert.deepEqual(config.slides[0].video, video);
+  assert.deepEqual(boundVideoBackground(video, 10), { ...video, sourceDuration: 10 });
+  for (const invalid of [{ ...video, framing: "stretch" }, { ...video, zoom: 0.9 }, { ...video, zoom: 1.31 }, { ...video, zoom: NaN }, { ...video, zoom: "1.1" }]) assert.throws(() => parseVideoBackground(invalid));
+});
+
+test("horizontal exports keep black text space, contain footage and crop only when zoomed", { skip: !encoderAvailable && "Install FFmpeg for video integration checks" }, async (t) => {
+  const { app, directory } = await fixture(t);
+  const overlayPath = join(directory, "overlay.png");
+  ffmpeg("-f", "lavfi", "-i", "color=c=black@0:s=1080x1350,format=rgba,drawbox=x=100:y=100:w=100:h=100:color=lime:t=fill:replace=1", "-frames:v", "1", overlayPath);
+  const overlay = `data:image/png;base64,${(await readFile(overlayPath)).toString("base64")}`;
+  for (const [size, zoom, edgeBlue] of [["640x360", 1, true], ["640x360", 1.3, false], ["640x480", 1, false], ["360x640", 1, false]]) {
+    const source = join(directory, `source-${size}-${zoom}.mp4`);
+    ffmpeg("-f", "lavfi", "-i", `color=c=red:s=${size}:r=30:d=1,drawbox=x=0:y=0:w=50:h=ih:color=blue:t=fill`, "-c:v", "libx264", "-pix_fmt", "yuv420p", source);
+    const asset = await upload(app, await readFile(source));
+    const response = await app.request(json("/video-exports", { video: { key: asset.key, start: 0, duration: 1, framing: "horizontal", zoom }, overlay }));
+    assert.equal(response.status, 200, response.status === 200 ? undefined : await response.text());
+    const output = join(directory, `out-${size}-${zoom}.mp4`);
+    await writeFile(output, Buffer.from(await response.arrayBuffer()));
+    const pixels = execFileSync("ffmpeg", ["-v", "error", "-i", output, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1"], { maxBuffer: 8 * 1024 * 1024 });
+    const pixel = (x, y) => [...pixels.subarray((y * 1080 + x) * 3, (y * 1080 + x) * 3 + 3)];
+    assert.ok(pixel(540, 400).every(v => v < 10), "top text band stays black");
+    assert.ok(pixel(540, 1250).every(v => v < 10), "footer stays black");
+    assert.ok(pixel(150, 150)[1] > 220, "text overlay remains visible");
+    assert.ok(pixel(540, 800)[0] > 220, "footage stays visible in its window");
+    if (edgeBlue) assert.ok(pixel(30, 800)[2] > 220, "1x preserves the source edge");
+    else if (size === "640x360") assert.ok(pixel(30, 800)[0] > 220, "zoom crops the source edge");
+    else assert.ok(pixel(30, 800).every(v => v < 10), "non-wide inputs are contained without stretching");
+  }
+});
+
+
+test("reel export joins trimmed slides in order with exact durations and overlays", { skip: !encoderAvailable }, async (t) => {
+  const { app, directory } = await fixture(t);
+  const source = join(directory, "source.mp4");
+  ffmpeg("-f", "lavfi", "-i", "color=red:s=320x180:r=30:d=1", "-f", "lavfi", "-i", "color=blue:s=320x180:r=30:d=2", "-filter_complex", "[0:v][1:v]concat=n=2:v=1:a=0", "-c:v", "libx264", source);
+  const video = await upload(app, await readFile(source));
+  const png = join(directory, "overlay.png");
+  ffmpeg("-f", "lavfi", "-i", "color=c=black@0:s=1080x1350,format=rgba,drawbox=x=100:y=100:w=100:h=100:color=lime:t=fill:replace=1", "-frames:v", "1", png);
+  const overlay = `data:image/png;base64,${(await readFile(png)).toString("base64")}`;
+  const slides = [{ video: {key: video.key, start: 0, duration: 1}, overlay }, { video: {key: video.key, start: 1, duration: 1.7}, overlay }];
+  const response = await app.request(json("/reel-exports", {slides}));
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("content-type"), "video/mp4");
+  const output = join(directory, "reel.mp4");
+  await writeFile(output, Buffer.from(await response.arrayBuffer()));
+  const info = inspect(output);
+  assert.deepEqual(info.streams.map(s => s.codec_type), ["video"]);
+  assert.equal(info.streams[0].codec_name, "h264");
+  assert.equal(info.streams[0].width, 1080);
+  assert.equal(info.streams[0].height, 1350);
+  assert.equal(Number(info.streams[0].nb_frames), 81);
+  assert.ok(Math.abs(Number(info.format.duration) - 2.7) < 0.034, info.format.duration);
+  const pixel = (time, x = 800, y = 800) => [...execFileSync("ffmpeg", ["-v", "error", "-ss", String(time), "-i", output, "-vf", `crop=2:2:${x}:${y}`, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1"]).subarray(0, 3)];
+  for (const time of [0, 0.95]) { const [r,g,b] = pixel(time); assert.ok(r > 220 && g < 30 && b < 30); }
+  for (const time of [1.05, 2.65]) { const [r,g,b] = pixel(time); assert.ok(b > 220 && g < 30 && r < 30); }
+  for (const time of [0.5, 1.5]) { const [r,g,b] = pixel(time, 150, 150); assert.ok(g > 220 && r < 30 && b < 30); }
+  for (const bad of [[], Array(21).fill(slides[0]), [slides[0], {...slides[1], overlay: "bad"}], [slides[0], {...slides[1], video: {...slides[1].video, start: 2}}]]) {
+    const rejected = await app.request(json("/reel-exports", {slides: bad}));
+    assert.equal(rejected.status, 400);
+    if (bad.length === 2) assert.match((await rejected.json()).error, /Slide 2:/);
+  }
+  assert.equal((await app.request(json("/reel-exports", {slides: [{...slides[0], video: {...slides[0].video, key: KEY}}]}))).status, 404);
+  const single = await app.request(json("/reel-exports", {slides: [slides[0]]}));
+  assert.equal(single.status, 200, "a one-slide reel also works after a rejected export");
 });

@@ -1,7 +1,7 @@
 # Vertica
 
-A studio for LinkedIn and Instagram carousels. Two themes, four
-slide layouts, a media library, and one-click export to PDF or numbered JPEGs.
+A studio for image and video carousels. Three themes, four slide layouts,
+a media library, and exports to PDF, numbered JPEGs, or numbered MP4s.
 
 Every deck is a small JSON document. You can write it by hand, paste it from Claude,
 or generate it from plain text, and the app renders it the same way in the editor,
@@ -26,7 +26,36 @@ nothing leaves your machine.
 
 `npm test` typechecks, builds, and runs the tests. `npm run lint` runs ESLint.
 
-## Experimental video backgrounds
+## Image and video carousels
+
+Choose **New image carousel** or **New video carousel** in the library. Both
+start with the Cinematic theme. **Content** puts the background picker beside
+the slide copy; **Design → Carousel format** changes the output intent while
+keeping the existing media and text. Older decks remain image carousels unless
+you change their format.
+
+Image carousels export through **Export → JPEG images** as ordered files in a
+ZIP. Video carousels export through **Export → Video carousel** as one numbered,
+silent MP4 per slide in a ZIP. Attach a video to every slide first. Reuse a
+library clip on several slides or choose different footage for each, then set
+each clip's start and duration in Design.
+
+Choose **Export → Reel** to join those slides into one silent MP4. Each slide
+plays for its saved duration, followed by a straight cut to the next slide.
+There is no added transition time. The export keeps the existing 4:5 framing,
+text and footage; it does not crop the artwork to 9:16. Every slide needs a video.
+The server renders slides sequentially, then joins them with FFmpeg without a
+second lossy encode. Reel artwork is limited to 32 MB and encoded clips to
+256 MB. Keep the tab open until the single-file download finishes.
+
+Video carousel export checks every slide before starting, renders one clip at a
+time, and reports progress. A missing clip or failed render stops the export
+with a slide number; it never downloads an incomplete archive. ZIPs are limited
+to 256 MB of encoded video; ZIP assembly avoids an extra copy of those buffers,
+but the browser also needs memory for rendering and the final Blob. For larger decks, shorten the clips or export
+the video slides individually. Keep the tab open until the download finishes.
+
+## Video backgrounds
 
 Install `ffmpeg` and `ffprobe` on the server's PATH (`brew install ffmpeg` on
 macOS). The Docker image includes them. In the editor, open **Design → Choose a
@@ -40,8 +69,8 @@ branding, and veil. New uploads retain their exact original file; MP4 export
 encodes directly from that original at CRF 16 with the medium preset and Lanczos
 scaling. PDF and JPEG exports also read their selected first frame from the
 original. The final resize and H.264 encode are not mathematically lossless.
-MP4 export currently produces one slide at a time; there is no audio, animated
-text, timeline, or combined deck video.
+The video carousel ZIP contains separate clips in slide order. There is no
+audio, animated text, timeline, or combined deck video.
 
 Sources can be 1–120 seconds, up to 512 MB and 4096 pixels on either side. Clips
 can be 1–30 seconds. The editor reads and stores the source duration and constrains
@@ -126,41 +155,31 @@ on any machine. Deleting a library image is refused while a deck still uses it.
 
 ## The design system
 
-Choose **Editorial** or **AI Engineer** in the editor's **Design → Carousel theme**.
-The theme applies to the whole deck and is saved, duplicated, imported and exported
-with it. Existing decks default to Editorial. Both themes use the same Forest
-background (`#0c110f`). The saved tone value remains `"black"`, so existing dark
-slides adopt Forest without a document migration.
+Cinematic is the shared theme for image and video carousels. Choose **Layout →
+Typography → Sans · Geist** or **Serif · Signifier** for a slide, or apply that
+choice to every slide. All four layouts use the selected typeface at the same
+size, including covers, inner slides and visual captions.
 
-AI Engineer pairs bundled Geist regular and italic fonts with a forest cover
-(`#0c110f`) and soft-grey slides (`#efeeea`, the same paper as Editorial). Unset
-backgrounds use forest for covers and soft grey for every other layout, including
-Body 2 and CTA slides. Choose Soft grey (`paper`) or Forest (`black`) for an
-explicit background. Older AI Engineer decks with `sage` tones also render soft
-grey; their stored choices are kept so switching to Editorial restores sage.
-Alignment choices survive switching themes. Automatic alignment is left. Forest
-slides keep cream text and sand emphasis; light slides use dark ink and muted
-green emphasis.
-AI Engineer diagrams inherit the theme font unless their markup sets a font explicitly;
-use `font-family="inherit"` for labels that should follow the deck.
+The rounded golden-ratio scale at a 390px slide width is **16px body → 26px
+sans titles → 42px serif titles**, with 10px metadata. Body copy always uses
+Geist, with 1.618 line height and a 1.618em gap below the title. All sizes scale
+with the slide. Gallery thumbnails, the editor, reader and JPEG/PDF/video exports
+share the same renderer. Signifier uses the existing locally installed font;
+the editor warns when it is unavailable and Georgia is used as a fallback.
 
-Set `"theme": "ai-engineer"` in a JSON config to use it; omit the field or use
-`"editorial"` for the original theme. Both themes use the same four layouts and
-renderer in the gallery, editor, reader preview and PDF/JPEG export.
+Use full-bleed photos, video or a quiet solid ground: Paper, Sage or Black.
+Image slides default to text near the top; video slides default to the middle.
+Explicit alignment and position choices win. Horizontal footage uses a separate
+text band above the video. The background veil controls readability over
+full-bleed footage. Use **Content → Slide label** for a short tag such as
+“Rule 01”, and `**phrase**` or `*phrase*` for emphasis. There are no coloured
+highlights or badges.
 
-The type scale is consistent by role. Covers keep their expressive display
-headlines: about 50px for Editorial and 41px for AI Engineer at a 390px feed width.
-CTA headlines are 31px; standalone Body 2 statements are 23px. Paragraphs, Body 1
-leads and visual captions share the agreed 18px reading size, with 1.4 line height.
-All sizes scale with the slide for export. Editorial keeps Signifier on covers,
-CTAs and visual captions, paired with plain sans teaching copy. AI Engineer uses
-Geist. Body 1 leads use weight to separate them from paragraphs.
-
-Editorial covers and CTAs centre by default; teaching copy aligns left. AI
-Engineer keeps its left alignment. Explicit alignment always wins. Body layouts
-share 9.5% side margins; centred Editorial covers use a wider 6% margin for the
-display title. Text slides centre their copy block vertically. Supporting
-paragraphs follow the heading in normal flow, including on covers.
+JSON uses `"theme": "cinematic"`, `"format": "image"` or `"video"`, and optional
+per-slide `"typeface": "sans"` or `"serif"`. Older Editorial and AI Engineer theme
+values remain readable and retain their saved positions and tone choices.
+Editorial defaults to Serif; AI Engineer defaults to Sans. Both render through
+Cinematic, and an explicit per-slide typeface takes precedence.
 
 Pictures and diagrams share a contained figure area, with a caption below by
 default; choose Top to put the caption above. Visual slides offer Top and Bottom
@@ -296,3 +315,15 @@ in.
 ## Licence
 
 MIT.
+
+
+### Horizontal video carousels
+
+Landscape footage defaults to **Horizontal** when selected. In **Design → Video
+framing**, choose Horizontal or Fill slide. Horizontal uses a black 4:5 canvas,
+a 16:9 footage window below the text, and a separate footer. At 1× zoom the whole
+source fits; **Zoom** can crop up to 1.3× without changing the text size. Keep the
+copy short enough to fit the upper band. Framing and zoom are saved per slide and
+used in the gallery, editor, reader, JPEG/PDF and MP4 exports. Existing clips keep
+Fill slide until you choose otherwise. Horizontal framing ignores the background
+veil so the footage stays clear; Fill slide restores the saved veil and position.

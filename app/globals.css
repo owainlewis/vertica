@@ -287,6 +287,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 
 /* The copy. Vertical rhythm is in em against each element's own size. */
 .slide-content { position: relative; z-index: 1; min-height: 0; display: flex; flex: 1; flex-direction: column; align-items: flex-start; justify-content: flex-start; padding: 19% var(--margin) 15%; }
+.slide-content > * { flex-shrink: 0; }
 .slide-content h2 { max-width: 100%; margin: 0; font-size: var(--title-size); font-weight: 400; line-height: 1.12; letter-spacing: -.02em; word-spacing: 0; font-kerning: normal; font-variant-ligatures: common-ligatures contextual; overflow-wrap: anywhere; }
 .title-line { display: block; text-wrap: balance; }
 .title-broken .title-line, .layout-content .title-line { text-wrap: wrap; }
@@ -336,43 +337,36 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .slide-diagram { display: flex; align-items: center; justify-content: center; color: var(--ink); }
 .slide-diagram-svg { width: 100%; max-height: 100%; aspect-ratio: 16 / 10; font-family: var(--font-sans); }
 .slide-diagram-svg svg { display: block; width: 100%; height: 100%; overflow: visible; }
-/* Keep the original font cascade for existing Editorial artwork. */
-.template-editorial .slide-diagram-svg svg { font-family: var(--font-sans); }
 .slide-diagram-empty { display: grid; place-items: center; width: 100%; aspect-ratio: 16 / 10; border: 1px dashed rgb(26 26 23 / .25); color: rgb(26 26 23 / .5); font-family: var(--font-sans); font-size: 2cqw; }
 .tone-sage .slide-diagram-empty, .tone-black .slide-diagram-empty { border-color: rgb(244 242 234 / .3); color: rgb(244 242 234 / .6); }
 .export-slide .slide-diagram-empty { display: none; }
 
-/* AI Engineer shares the slide geometry. Its fonts and palette stay inside the
-   artwork so the editor, thumbnails, reader and export use the same drawing. */
-.carousel-slide.template-ai-engineer {
-  --font-sans: "Geist", "Helvetica Neue", Arial, sans-serif;
-  --ink: #0c110f;
-  --paper: #efeeea;
-  --rule: rgb(12 17 15 / .18);
-  --phrase: #424940;
-  --veil-rgb: 239 238 234;
-  font-family: var(--font-sans);
-}
-.template-ai-engineer.tone-black {
-  --ink: #f2eee4;
-  --paper: var(--forest);
-  --rule: #29332f;
-  --phrase: #cfad82;
-  --veil-rgb: 12 17 15;
-}
-.template-ai-engineer.layout-cover .slide-content { padding-inline: var(--margin); }
-.template-ai-engineer.layout-cover .slide-content h2 { font-weight: 600; line-height: 1.06; letter-spacing: -.025em; }
-.template-ai-engineer.layout-closing .slide-content h2 { font-weight: 600; letter-spacing: -.025em; }
-.template-ai-engineer.has-visual .slide-content h2 { font-weight: 500; }
-.template-ai-engineer .mark-italic, .template-ai-engineer .mark-accent { color: var(--phrase); }
 .slide-overflow-warning { max-width: 520px; margin: 12px 0 0; color: var(--danger); font-size: 13px; line-height: 1.5; }
 
-.template-ai-engineer .slide-diagram-empty { border-color: var(--rule); color: var(--ink); }
-.template-ai-engineer.has-background.pos-top .slide-overlay { background: linear-gradient(180deg, rgb(var(--veil-rgb) / .94) 0%, rgb(var(--veil-rgb) / .86) 36%, rgb(var(--veil-rgb) / .2) 58%, rgb(var(--veil-rgb) / 0) 72%); }
-.template-ai-engineer.has-background.pos-middle .slide-overlay { background: linear-gradient(180deg, rgb(var(--veil-rgb) / 0) 8%, rgb(var(--veil-rgb) / .9) 34%, rgb(var(--veil-rgb) / .9) 66%, rgb(var(--veil-rgb) / 0) 92%); }
-.template-ai-engineer.has-background.pos-bottom .slide-overlay { background: linear-gradient(180deg, rgb(var(--veil-rgb) / 0) 28%, rgb(var(--veil-rgb) / .2) 42%, rgb(var(--veil-rgb) / .86) 64%, rgb(var(--veil-rgb) / .94) 100%); }
-.template-ai-engineer.has-background .slide-head,
-.template-ai-engineer.has-background .slide-meta { text-shadow: 0 0 1.2cqw rgb(var(--veil-rgb) / .9); }
+/* Cinematic artwork follows the supplied photo and b-roll references. The app
+   chrome retains its existing design; every preview and export shares this CSS. */
+.carousel-slide.template-cinematic {
+  --font-sans: "Geist", "Helvetica Neue", Arial, sans-serif;
+  --ink: #ffffff;
+  --paper: #121715;
+  --margin: 11%;
+  font-family: var(--font-sans);
+}
+.carousel-slide.template-cinematic .slide-content h2 { font-family: var(--font-sans); font-weight: 650; line-height: 1.08; letter-spacing: -.03em; }
+.template-cinematic .slide-content p { line-height: 1.618; margin-top: 1em; }
+.template-cinematic .slide-content h2 + p { margin-top: 1.618em; }
+.template-cinematic .slide-content > p:first-child, .template-cinematic .slide-label + p { margin-top: 0; }
+.template-cinematic.layout-cover .slide-content { padding-inline: var(--margin); }
+.template-cinematic.pos-top:not(.has-visual):not(.video-horizontal) .slide-content { padding-top: 23%; }
+.template-cinematic .slide-label { align-self: flex-start; max-width: 100%; margin-bottom: 1.4em; color: var(--ink); font-size: 2.8cqw; font-weight: 500; line-height: 1.3; letter-spacing: .04em; text-transform: uppercase; overflow-wrap: anywhere; }
+.template-cinematic.align-center .slide-label { align-self: center; }
+.template-cinematic .mark-accent { color: inherit; font-weight: 750; }
+.template-cinematic .slide-head { top: 7%; }
+.template-cinematic .slide-meta { bottom: 7%; }
+.template-cinematic .slide-mark { max-width: 82%; }
+.carousel-slide.template-cinematic.has-background .slide-overlay { background: linear-gradient(180deg, rgb(0 0 0 / .85), rgb(0 0 0 / .45) 55%, rgb(0 0 0 / .65)); }
+.template-cinematic.has-background .slide-head, .template-cinematic.has-background .slide-meta { text-shadow: 0 1px 3px rgb(0 0 0 / .7); }
+.new-carousel-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .font-warning { width: min(52vh, 520px, 100%); margin: 0 0 12px; padding: 9px 12px; border: 1px solid #ddc9a2; border-radius: var(--radius); background: #fbf5e8; color: #6d5a2c; font-size: 11px; line-height: 1.5; }
 .picture-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }
@@ -598,3 +592,21 @@ input, textarea { caret-color: var(--accent); }
   .topbar-actions .icon-button, .topbar-actions .generate-button { width: var(--control-size); padding-inline: 0; flex: 0 0 var(--control-size); }
   .export-control > summary { padding-inline: 6px; gap: 5px; }
 }
+
+/* Landscape footage retains its composition beneath a separate text band. */
+.slide-media { position: absolute; inset: 0; overflow: hidden; }
+.carousel-slide.video-horizontal { --ink: #fff; --paper: #000; background: #000; }
+.video-horizontal .slide-media { top: var(--video-top); bottom: auto; height: var(--video-height); }
+.video-horizontal .slide-media .slide-image { object-fit: contain; transform: scale(var(--video-zoom, 1)); transform-origin: center; }
+.carousel-slide.video-horizontal .slide-overlay { display: none; }
+.carousel-slide.video-horizontal .slide-content { flex: 0 0 auto; height: var(--video-top); justify-content: center; padding: 4% var(--margin); }
+.carousel-slide.video-horizontal.has-header .slide-content { padding-top: calc(8.75cqw + var(--metadata-size) + var(--reading-size)); }
+.carousel-slide.video-horizontal .slide-content h2 { line-height: 1.2; }
+.video-horizontal .slide-label { margin-bottom: .8em; }
+.video-horizontal .mark-accent, .video-horizontal .mark-italic { color: inherit; }
+
+/* One Cinematic system, with typography chosen per layout. */
+.carousel-slide.type-serif .slide-content h2 { font-family: Signifier, Georgia, serif; font-weight: 400; line-height: 1.08; letter-spacing: -.025em; }
+.type-serif .slide-content h2 .mark-accent { font-weight: 400; font-style: italic; }
+.carousel-slide.template-cinematic.tone-paper:not(.has-background) { --ink: #121715; --paper: #efeeea; }
+.carousel-slide.template-cinematic.tone-sage:not(.has-background) { --ink: #fff; --paper: #536b58; }

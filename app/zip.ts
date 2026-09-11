@@ -22,9 +22,12 @@ function crc32(bytes: Uint8Array) {
 
 type Entry = { name: string; bytes: Uint8Array };
 
-/** A view can be a window onto a larger buffer, so copy exactly the bytes it covers. */
-function exact(view: Uint8Array): ArrayBuffer {
-  return view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength) as ArrayBuffer;
+/** Blob accepts a view's exact window. Avoid a second archive-sized copy before
+ * Blob snapshots its inputs, especially when the entries are large MP4 files. */
+function exact(view: Uint8Array): BlobPart {
+  return view.buffer instanceof ArrayBuffer
+    ? new Uint8Array(view.buffer, view.byteOffset, view.byteLength)
+    : new Uint8Array(view);
 }
 
 export function createZip(files: Entry[]): Blob {

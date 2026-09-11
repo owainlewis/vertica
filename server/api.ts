@@ -37,7 +37,7 @@ function readInput(body: unknown) {
     throw new InvalidInput("This carousel is too large to save. Images belong in the media library, not the config.");
   }
 
-  let parsed: { title?: unknown; author?: unknown; mark?: unknown; theme?: unknown; slides?: unknown };
+  let parsed: { title?: unknown; author?: unknown; mark?: unknown; theme?: unknown; format?: unknown; slides?: unknown };
   try {
     parsed = JSON.parse(config);
   } catch {
@@ -73,7 +73,8 @@ function readInput(body: unknown) {
       cover: JSON.stringify({
         slide: cover ?? {},
         mark: typeof parsed.mark === "string" ? parsed.mark.slice(0, 30) : "",
-        ...(parsed.theme === "ai-engineer" ? { theme: "ai-engineer" } : {}),
+        ...(parsed.theme === "ai-engineer" || parsed.theme === "cinematic" ? { theme: parsed.theme } : {}),
+        ...(parsed.format === "video" ? { format: "video" } : {}),
       }),
       config,
     },

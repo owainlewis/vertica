@@ -1,9 +1,9 @@
 import type { CSSProperties } from "react";
 import VideoBackground from "./video-background";
-import { videoUrl } from "./video-formats";
+import { HORIZONTAL_VIDEO_FRAME, videoUrl } from "./video-formats";
 import {
   bodyParagraphs,
-  AI_ENGINEER_TYPE_SCALE,
+  carouselFormat,
   carouselTheme,
   type CarouselConfig,
   type CarouselSlide,
@@ -16,6 +16,8 @@ import {
   slideAlign,
   slidePosition,
   slideTone,
+  slideTypeface,
+  SERIF_TYPE_SCALE,
   smartQuotes,
   titleLines,
   TYPE_SCALE,
@@ -61,9 +63,10 @@ export function Slide({
 }) {
   const slide = normalizeSlideLayout(sourceSlide);
   const theme = carouselTheme(config.theme);
-  const scale = theme === "ai-engineer" ? AI_ENGINEER_TYPE_SCALE : TYPE_SCALE;
+  const typeface = slideTypeface(slide, config.theme);
+  const scale = typeface === "serif" ? SERIF_TYPE_SCALE : TYPE_SCALE;
   const visual = slide.layout === "note" ? slide.visual : undefined;
-  const position = slidePosition(slide);
+  const position = slidePosition(slide, theme, carouselFormat(config.format));
   const lines = titleLines(slide.title);
   // Title-only layouts keep their body in the document but never draw it.
   const paragraphs = showsBody(slide.layout) ? bodyParagraphs(slide.body) : [];
@@ -75,13 +78,13 @@ export function Slide({
   const isLast = index === config.slides.length - 1;
   const showArrow = config.arrow !== false && !isLast;
 
-  const titleSize = slide.layout === "cover" ? scale.cover
-    : slide.layout === "closing" ? scale.cta
-      : slide.layout === "note" && !visual ? scale.statement : scale.reading;
   const style = {
-    "--title-size": `${titleSize}cqw`,
-    "--reading-size": `${TYPE_SCALE.reading}cqw`,
+    "--title-size": `${scale.heading}cqw`,
+    "--reading-size": `${scale.reading}cqw`,
     "--metadata-size": `${TYPE_SCALE.metadata}cqw`,
+    "--video-top": `${HORIZONTAL_VIDEO_FRAME.y / HORIZONTAL_VIDEO_FRAME.canvasHeight * 100}%`,
+    "--video-height": `${HORIZONTAL_VIDEO_FRAME.height / HORIZONTAL_VIDEO_FRAME.canvasHeight * 100}%`,
+    "--video-zoom": String(slide.video?.zoom ?? 1),
     "--veil": String(slide.veil ?? DEFAULT_VEIL),
   } as CSSProperties;
 
@@ -92,11 +95,12 @@ export function Slide({
 
   const copy = (
     <>
-      <h2 className={`${lines.length > 1 ? "title-broken" : ""} ${hangs ? "title-hang" : ""}`}>
+      {slide.label && <span className="slide-label">{slide.label}</span>}
+      {slide.title.trim() && <h2 className={`${lines.length > 1 ? "title-broken" : ""} ${hangs ? "title-hang" : ""}`}>
         {lines.map((line, lineIndex) => (
           <span className="title-line" key={lineIndex}><Marked text={line} /></span>
         ))}
-      </h2>
+      </h2>}
       {paragraphs.map((paragraph, paragraphIndex) => (
         <p key={paragraphIndex}><Marked text={paragraph} /></p>
       ))}
@@ -107,7 +111,10 @@ export function Slide({
 
   const classes = [
     "carousel-slide",
-    `template-${theme}`,
+    slide.video?.framing === "horizontal" ? "video-horizontal" : "",
+    "template-cinematic",
+    `type-${typeface}`,
+    `format-${carouselFormat(config.format)}`,
     `layout-${slide.layout}`,
     visual ? `visual-${visual}` : "",
     visual === "diagram" || pictures.length > 0 ? "has-visual" : "",
@@ -116,6 +123,7 @@ export function Slide({
     `tone-${slideTone(slide, theme)}`,
     background || slide.video ? "has-background" : "",
     config.mark ? "has-mark" : "",
+    slide.showHeader !== false ? "has-header" : "",
     pictures.length ? `has-pictures pictures-${pictures.length} photos-${photoArrangement(pictures.length)}` : "",
     diagram ? "has-diagram" : "",
     exportMode ? "export-slide" : "",
@@ -125,11 +133,11 @@ export function Slide({
     <article className={classes} style={style} data-export-slide={exportMode ? "true" : undefined}>
       {/* Pictures are <img> elements, not CSS backgrounds. Chrome silently drops a
           style value past a few megabytes, and a data URL of a photograph is one. */}
-      {slide.video
+      <div className="slide-media">{slide.video
         ? videoPreview
           ? <VideoBackground key={slide.video.key} clip={slide.video} playing={playing} onDuration={onVideoDuration} />
           : <img key={`${slide.video.key}:${slide.video.start}`} className="slide-image" src={videoUrl(slide.video.key, "/poster")} data-video-key={slide.video.key} data-video-start={slide.video.start} alt="" />
-        : background && <img className="slide-image" src={background} alt="" />}
+        : background && <img className="slide-image" src={background} alt="" />}</div>
       <div className="slide-overlay" />
       {slide.showHeader !== false && (
         <header className="slide-head">
