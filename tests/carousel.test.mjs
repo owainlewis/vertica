@@ -65,8 +65,8 @@ test("generating slides and copying the AI prompt preserve the chosen theme", ()
   for (const theme of ["editorial", "ai-engineer"]) {
     const instructions = aiPrompt({ ...deck, theme });
     assert.match(instructions, /Four layouts/);
-    assert.match(instructions, /18px at a 390px phone width/);
-    assert.match(instructions, /large display headlines on covers/);
+    assert.match(instructions, /22px titles and 18px body copy at a 390px phone width/);
+    assert.match(instructions, /closing slides use the same title size/);
     assert.doesNotMatch(instructions, /share one reading size/);
     assert.match(instructions, /Bodies: 30 words or fewer/);
     assert.match(instructions, /labels and notes 48px, one text size/);

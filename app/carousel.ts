@@ -634,20 +634,12 @@ export function bodyParagraphs(body: string) {
   return body.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
 }
 
-/** Fixed sizes for repeated roles preserve hierarchy while previews and exports scale together. */
+/** Shared by every layout, theme, preview and export; values scale with slide width. */
 export const TYPE_SCALE = {
-  cover: 12.8,
-  cta: 8,
-  statement: 6,
-  reading: (18 / 390) * 100, // 18px at phone width, about 50px in a 1080px export.
+  heading: (22 / 390) * 100,
+  reading: (18 / 390) * 100,
   metadata: 2.7,
 } as const;
-
-/** Geist's heavier shapes need a smaller display size than the Editorial serif. */
-export const AI_ENGINEER_TYPE_SCALE = { ...TYPE_SCALE, cover: 10.6 } as const;
-
-/** One scale for both image and video: 32px cover, 22px headings, 18px copy at 390px. */
-export const CINEMATIC_TYPE_SCALE = { cover: (32 / 390) * 100, heading: (22 / 390) * 100, reading: TYPE_SCALE.reading, metadata: 2.4 } as const;
 
 export function aiPrompt(config: CarouselConfig) {
   const branded = config.theme === "ai-engineer";
@@ -663,7 +655,7 @@ Rules:
 - Bodies: 30 words or fewer. Separate paragraphs with a blank line. The cover body is its subtitle: one short line.
 - Emphasis is optional: *italic* or **bold** on a short phrase. Do not add emphasis or decoration to meet a quota.
 - Four layouts: "cover" (Cover), "content" (Body 1), "note" (Body 2), "closing" (CTA). Start with a cover and finish with one useful action.
-- Keep a consistent hierarchy. ${cinematic ? "Use the same type scale for image and video carousels: 32px covers, 22px headings on all other layouts, and 18px body copy at a 390px phone width." : "Use large display headlines on covers, a smaller CTA headline, and a modest step up for standalone statements. Paragraphs, Body 1 leads and visual captions stay at 18px at a 390px phone width."} Do not shrink text to fit.
+- Keep one minimal type scale across every theme, image and video format, and layout: 22px titles and 18px body copy at a 390px phone width. Covers, teaching slides, visual captions and closing slides use the same title size. Do not enlarge titles or shrink text to fit.
 - Body 1 is a bold sans lead followed by short paragraphs, separated by space. Use it for most teaching slides. No introduction or agenda slide: begin delivering the cover's promise on slide two.
 - Body 2 holds one short statement or a visual example with its title as the caption. It draws the title only; omit body. Use it when the idea benefits, not to meet a layout quota.
 - For pictures on Body 2, set "visual": "photos" and add image references to "images". For an SVG, set "visual": "diagram" and put the drawing in "diagram". Images and diagrams are optional.

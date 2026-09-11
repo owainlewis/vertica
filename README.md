@@ -158,8 +158,8 @@ full-bleed photos or video. Image slides start with their text near the top;
 video slides start in the middle. Explicit alignment and position choices win.
 Use **Content → Slide label** for a short tag such as “Rule 01”, and `**phrase**`
 for bold emphasis. There are no coloured highlights or badges. Both formats use
-the same scale at a 390px phone width: 32px cover titles, 22px headings on every
-other layout, and 18px body copy. The background veil controls readability over footage.
+the same scale as every other theme at a 390px phone width: 22px titles on
+all layouts, including covers, and 18px body copy. The background veil controls readability over footage.
 The theme always renders a dark ground while preserving saved tone choices for
 switching back to another theme. The gallery, editor, reader and exports all use
 the same renderer. Set `"theme": "cinematic"` and `"format": "image"` or
@@ -182,10 +182,9 @@ Set `"theme": "ai-engineer"` in a JSON config to use it; omit the field or use
 `"editorial"` for the original theme. All three themes use the same four layouts and
 renderer in the gallery, editor, reader preview and PDF/JPEG export.
 
-The type scale is consistent by role. Covers keep their expressive display
-headlines: about 50px for Editorial and 41px for AI Engineer at a 390px feed width.
-CTA headlines are 31px; standalone Body 2 statements are 23px. Paragraphs, Body 1
-leads and visual captions share the agreed 18px reading size, with 1.4 line height.
+Every layout and theme uses the same minimal scale: 22px titles and 18px body
+copy at a 390px slide width. Covers, inner slides, standalone statements and
+visual captions keep the same title size. Body copy uses 1.4 line height.
 All sizes scale with the slide for export. Editorial keeps Signifier on covers,
 CTAs and visual captions, paired with plain sans teaching copy. AI Engineer uses
 Geist. Body 1 leads use weight to separate them from paragraphs.

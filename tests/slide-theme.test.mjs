@@ -53,15 +53,15 @@ test("Cinematic photo and video defaults differ while explicit positions and sav
   }
 });
 
-test("Cinematic uses a fixed cover, heading and body scale across image and video carousels", () => {
-  for (const format of ["image", "video"]) {
+test("Every theme uses the same minimal title size across image and video layouts", () => {
+  for (const theme of ["editorial", "ai-engineer", "cinematic"]) for (const format of ["image", "video"]) {
     for (const layout of ["cover", "content", "note", "closing"]) {
-      const themed = { ...config, theme: "cinematic", format };
+      const themed = { ...config, theme, format };
       const source = { ...config.slides[0], layout };
       const dom = new JSDOM(renderToStaticMarkup(createElement(Slide, { config: themed, slide: source, index: 0 })));
       const style = dom.window.document.querySelector("article").style;
       const phonePixels = (property) => parseFloat(style.getPropertyValue(property)) * 390 / 100;
-      assert.ok(Math.abs(phonePixels("--title-size") - (layout === "cover" ? 32 : 22)) < 0.001);
+      assert.ok(Math.abs(phonePixels("--title-size") - 22) < 0.001);
       assert.ok(Math.abs(phonePixels("--reading-size") - 18) < 0.001);
       dom.window.close();
     }
@@ -82,18 +82,14 @@ test("a deck without a theme still renders an Editorial cover", () => {
 });
 
 
-test("display titles keep their hierarchy while reading copy stays at 18px", () => {
+test("Legacy layouts retain the shared 22px title and 18px reading scale", () => {
   for (const theme of ["editorial", "ai-engineer"]) {
     for (const source of config.slides) {
       const dom = new JSDOM(renderToStaticMarkup(createElement(Slide, { config: { ...config, theme }, slide: source, index: 0 })));
       const slide = dom.window.document.querySelector("article");
       assert.ok(Math.abs(parseFloat(slide.style.getPropertyValue("--reading-size")) * 390 / 100 - 18) < 0.001);
       const title = parseFloat(slide.style.getPropertyValue("--title-size"));
-      const layout = normalizeSlideLayout(source);
-      if (layout.layout === "cover") assert.equal(title, theme === "editorial" ? 12.8 : 10.6);
-      else if (layout.layout === "closing") assert.equal(title, 8);
-      else if (layout.layout === "note" && !layout.visual) assert.equal(title, 6);
-      else assert.ok(Math.abs(title * 390 / 100 - 18) < 0.001);
+      assert.ok(Math.abs(title * 390 / 100 - 22) < 0.001);
       assert.equal(slide.querySelector(".slide-rules"), null);
       dom.window.close();
     }

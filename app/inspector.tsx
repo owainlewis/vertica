@@ -255,7 +255,7 @@ function DesignPanel({ config, slide, theme, updateSlide, commit, onChooseImage,
         </select>
         <ChevronDown size={14} />
       </div>
-      <p className="field-hint">{theme === "cinematic" ? "White Geist type over photos or video, with plain bold and italic emphasis. Both formats share one type scale: covers, headings and body copy. Use Layout to position the text." : theme === "ai-engineer" ? "Geist type with a dark cover and soft-grey slides. Display covers and consistent reading text." : "Signifier headlines and plain supporting copy. Display covers and consistent reading text."}</p>
+      <p className="field-hint">{theme === "cinematic" ? "White Geist type over photos or video, with plain bold and italic emphasis. Every slide shares the same title size. Use Layout to position the text." : theme === "ai-engineer" ? "Geist type with a dark cover and soft-grey slides. Consistent title and body sizes on every slide." : "Signifier headlines and plain supporting copy. Consistent title and body sizes on every slide."}</p>
 
       <h3 className="settings-heading settings-divider">This slide</h3>
       {theme !== "cinematic" && <>

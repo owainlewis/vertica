@@ -3,8 +3,6 @@ import VideoBackground from "./video-background";
 import { videoUrl } from "./video-formats";
 import {
   bodyParagraphs,
-  AI_ENGINEER_TYPE_SCALE,
-  CINEMATIC_TYPE_SCALE,
   carouselFormat,
   carouselTheme,
   type CarouselConfig,
@@ -63,7 +61,6 @@ export function Slide({
 }) {
   const slide = normalizeSlideLayout(sourceSlide);
   const theme = carouselTheme(config.theme);
-  const scale = theme === "ai-engineer" ? AI_ENGINEER_TYPE_SCALE : TYPE_SCALE;
   const visual = slide.layout === "note" ? slide.visual : undefined;
   const position = slidePosition(slide, theme, carouselFormat(config.format));
   const lines = titleLines(slide.title);
@@ -77,14 +74,10 @@ export function Slide({
   const isLast = index === config.slides.length - 1;
   const showArrow = config.arrow !== false && !isLast;
 
-  const titleSize = theme === "cinematic" ? (slide.layout === "cover" ? CINEMATIC_TYPE_SCALE.cover : CINEMATIC_TYPE_SCALE.heading)
-    : slide.layout === "cover" ? scale.cover
-    : slide.layout === "closing" ? scale.cta
-      : slide.layout === "note" && !visual ? scale.statement : scale.reading;
   const style = {
-    "--title-size": `${titleSize}cqw`,
-    "--reading-size": `${scale.reading}cqw`,
-    "--metadata-size": `${theme === "cinematic" ? CINEMATIC_TYPE_SCALE.metadata : scale.metadata}cqw`,
+    "--title-size": `${TYPE_SCALE.heading}cqw`,
+    "--reading-size": `${TYPE_SCALE.reading}cqw`,
+    "--metadata-size": `${theme === "cinematic" ? 2.4 : TYPE_SCALE.metadata}cqw`,
     "--veil": String(slide.veil ?? DEFAULT_VEIL),
   } as CSSProperties;
 
