@@ -1,6 +1,6 @@
 import { Copy, Sparkles, X } from "lucide-react";
 import { useRef, useState } from "react";
-import { aiPrompt, type CarouselConfig, generateCarouselFromText, parseCarouselConfig } from "./carousel";
+import { aiPrompt, type CarouselConfig, generateCarouselFromText, parseCarouselConfig, slideTypeface } from "./carousel";
 import Dialog from "./dialog";
 
 export type ComposerMode = "text" | "json";
@@ -27,7 +27,7 @@ export default function Composer({ config, initialMode, sourceText, onSourceText
   function apply() {
     try {
       onApply(mode === "json" ? parseCarouselConfig(jsonText) : {
-        ...generateCarouselFromText(sourceText, config.author, config.theme),
+        ...generateCarouselFromText(sourceText, config.author, config.theme, slideTypeface(config.slides[0] ?? {}, config.theme)),
         format: config.format,
         mark: config.mark,
         arrow: config.arrow,

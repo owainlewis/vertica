@@ -12,7 +12,13 @@ export type SlidePosition = "top" | "middle" | "bottom";
 export type SlideAlign = "left" | "center";
 export type EditorialTone = "paper" | "sage" | "black";
 export type CarouselTheme = "editorial" | "ai-engineer" | "cinematic";
+export type SlideTypeface = "sans" | "serif";
 export type CarouselFormat = "image" | "video";
+
+/** Legacy theme names are read for compatibility, never offered as separate designs. */
+export function slideTypeface(slide: Pick<CarouselSlide, "typeface">, theme?: CarouselTheme): SlideTypeface {
+  return slide.typeface ?? (carouselTheme(theme) === "editorial" ? "serif" : "sans");
+}
 
 /** Missing formats are still-image decks, preserving older exports. */
 export function carouselFormat(value: unknown): CarouselFormat {
@@ -39,10 +45,7 @@ export function carouselTheme(value: unknown): CarouselTheme {
 
 /** Stored tones stay intact when switching themes. Only an unset tone is automatic. */
 export function slideTone(slide: CarouselSlide, theme?: CarouselTheme): EditorialTone {
-  if (theme === "cinematic") return "black";
-  // Older AI Engineer decks used the sage slot for sand. Keep the stored choice
-  // for Editorial, but render it as the same soft grey as other light slides.
-  if (theme === "ai-engineer" && slide.tone === "sage") return "paper";
+  if (theme === "cinematic") return slide.tone ?? "black";
   if (slide.tone) return slide.tone;
   return theme === "ai-engineer" && slide.layout === "cover" ? "black" : "paper";
 }
@@ -50,6 +53,8 @@ export function slideTone(slide: CarouselSlide, theme?: CarouselTheme): Editoria
 export type CarouselSlide = {
   id: string;
   layout: SlideLayout;
+  /** Typography belongs to the layout; old Editorial decks default to serif. */
+  typeface?: SlideTypeface;
   /** Body 2 can hold a statement, photographs, or an SVG example. */
   visual?: SlideVisual;
   title: string;
@@ -277,6 +282,7 @@ export function parseCarouselConfig(input: string): CarouselConfig {
       body: limitedText(slide.body, `Slide ${index + 1} body`, 280),
       ...(cleanText(slide.label) ? { label: limitedText(slide.label, `Slide ${index + 1} label`, 30) } : {}),
       ...(background ? { background } : {}),
+      ...(slide.typeface === "serif" || slide.typeface === "sans" ? { typeface: slide.typeface } : {}),
       ...(video ? { video } : {}),
       ...(images.length ? { images } : {}),
       ...(diagram ? { diagram } : {}),
@@ -552,7 +558,7 @@ const STATEMENT_MAX_WORDS = 8;
  * Keeps one visual rhythm: a cover, teaching slides, concise statements and a close.
  * Copy wraps naturally; generated decks never add decorative colour changes.
  */
-export function generateCarouselFromText(source: string, author = BRAND_FOOTER, theme?: CarouselTheme): CarouselConfig {
+export function generateCarouselFromText(source: string, author = BRAND_FOOTER, theme?: CarouselTheme, typeface?: SlideTypeface): CarouselConfig {
   const chunks = sentenceChunks(source);
   if (!chunks.length) throw new Error("Paste some source text first.");
   if (chunks.length > 10) {
@@ -579,7 +585,7 @@ export function generateCarouselFromText(source: string, author = BRAND_FOOTER, 
     author: author.trim() || BRAND_FOOTER,
     mark: BRAND_MARK,
     ...(theme ? { theme } : {}),
-    slides,
+    slides: typeface ? slides.map((slide) => ({ ...slide, typeface })) : slides,
   };
 }
 
@@ -634,20 +640,25 @@ export function bodyParagraphs(body: string) {
   return body.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
 }
 
-/** Shared by every layout, theme, preview and export; values scale with slide width. */
+/** A rounded golden-ratio scale at 390px, shared by every layout and export. */
+const GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2;
+const BODY_SIZE = 16;
 export const TYPE_SCALE = {
-  heading: (22 / 390) * 100,
-  reading: (18 / 390) * 100,
-  metadata: 2.7,
+  heading: (Math.round(BODY_SIZE * GOLDEN_RATIO) / 390) * 100,
+  reading: (BODY_SIZE / 390) * 100,
+  metadata: (Math.round(BODY_SIZE / GOLDEN_RATIO) / 390) * 100,
+} as const;
+
+export const SERIF_TYPE_SCALE = {
+  ...TYPE_SCALE,
+  heading: (Math.round(BODY_SIZE * GOLDEN_RATIO ** 2) / 390) * 100,
 } as const;
 
 export function aiPrompt(config: CarouselConfig) {
-  const branded = config.theme === "ai-engineer";
-  const cinematic = config.theme === "cinematic";
   return `Create a minimal social carousel from the source text below. Return JSON only, with no markdown fences.
 
 Rules:
-- ${cinematic ? 'Use the "cinematic" theme: white Geist text over photos or b-roll, plain bold or italic emphasis, and optional short "label" tags (30 characters maximum). No coloured highlights or badges. Omit tone; this theme uses a dark ground.' : 'Keep the selected theme.'}
+- Use the "cinematic" theme: plain bold or italic emphasis and optional short "label" tags (30 characters maximum). No coloured highlights or badges.
 - Output format: ${carouselFormat(config.format)} carousel. ${config.format === "video" ? "The author will attach an uploaded MP4 to every slide after importing. Do not invent video keys." : "The author can attach background photographs after importing."}
 - 5 to 8 slides. One idea per slide.
 - Titles: 10 words or fewer. Plain, concrete language. Sentence case, never capitals. No colons, no hype.
@@ -655,12 +666,12 @@ Rules:
 - Bodies: 30 words or fewer. Separate paragraphs with a blank line. The cover body is its subtitle: one short line.
 - Emphasis is optional: *italic* or **bold** on a short phrase. Do not add emphasis or decoration to meet a quota.
 - Four layouts: "cover" (Cover), "content" (Body 1), "note" (Body 2), "closing" (CTA). Start with a cover and finish with one useful action.
-- Keep one minimal type scale across every theme, image and video format, and layout: 22px titles and 18px body copy at a 390px phone width. Covers, teaching slides, visual captions and closing slides use the same title size. Do not enlarge titles or shrink text to fit.
-- Body 1 is a bold sans lead followed by short paragraphs, separated by space. Use it for most teaching slides. No introduction or agenda slide: begin delivering the cover's promise on slide two.
+- Use per-slide "typeface": "sans" or "serif". The rounded golden-ratio scale is 16px body, 26px Geist sans titles and 42px Signifier serif titles at a 390px phone width. Body copy always uses Geist. Cover, content, note and closing slides use the same title size within each typeface. Do not shrink text to fit.
+- Body 1 is a title in the selected typeface followed by short paragraphs, separated by space. Use it for most teaching slides. No introduction or agenda slide: begin delivering the cover's promise on slide two.
 - Body 2 holds one short statement or a visual example with its title as the caption. It draws the title only; omit body. Use it when the idea benefits, not to meet a layout quota.
 - For pictures on Body 2, set "visual": "photos" and add image references to "images". For an SVG, set "visual": "diagram" and put the drawing in "diagram". Images and diagrams are optional.
-- SVG rules: viewBox="0 0 800 500", no width or height attributes, stroke="currentColor" and fill="none" for shapes, fill="currentColor" for text, stroke-width 2, rx 8 on boxes, font-family="${branded || cinematic ? "inherit" : "Helvetica Neue, Helvetica, Arial, sans-serif"}", labels and notes 48px, one text size, nothing smaller, at most six boxes, arrows drawn with a line plus a small polygon head, generous space, no colour, no gradients, no scripts.
-- ${cinematic ? 'Keep the Cinematic dark ground and white text. The author chooses photos or video in the editor.' : branded ? 'The theme is "ai-engineer": Geist type, a forest cover and soft-grey slides. Keep body copy to 30 words or fewer. Omit "tone" for an automatic forest cover and soft grey on every other layout. Explicit tones: "paper" is soft grey and "black" is forest. Do not use "sage" in this theme. Italic and bold phrases use a contrasting accent.' : 'Omit "tone" for a consistent paper ground. Use a different tone only when the source asks for one; "black" is the forest ground. Every text element on a page uses the same ink colour.'}
+- SVG rules: viewBox="0 0 800 500", no width or height attributes, stroke="currentColor" and fill="none" for shapes, fill="currentColor" for text, stroke-width 2, rx 8 on boxes, font-family="inherit", labels and notes 48px, one text size, nothing smaller, at most six boxes, arrows drawn with a line plus a small polygon head, generous space, no colour, no gradients, no scripts.
+- Omit "tone" for a dark ground. Optional solid grounds: "paper", "sage", "black". The author chooses photos or video in the editor.
 - "mark" is the series label at the top of every slide. Keep it short and in sentence case.
 - Per slide, "showHeader": false hides the series label and page number; "showFooter": false hides the author and swipe arrow. Both default to visible. Set both to false for main text only.
 
@@ -671,13 +682,15 @@ ${JSON.stringify(
       title: "Carousel title",
       author: config.author,
       mark: config.mark ?? BRAND_MARK,
-      theme: carouselTheme(config.theme),
+      theme: "cinematic",
       format: carouselFormat(config.format),
       slides: [
         {
           layout: "cover | content | note | closing",
           visual: "photos | diagram (optional, Body 2 only)",
-          ...(cinematic ? { label: "Optional short tag" } : { tone: branded ? "paper | black" : "paper | sage | black" }),
+          typeface: slideTypeface(config.slides[0] ?? {}, config.theme),
+          label: "Optional short tag",
+          tone: "paper | sage | black (optional)",
           title: "Slide headline",
           body: "Optional supporting copy",
           showHeader: true,

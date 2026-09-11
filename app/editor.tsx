@@ -18,6 +18,7 @@ import { type Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef,
 import { saveCarousel, StaleSaveError, type CarouselSummary, type MediaAsset } from "./api-client";
 import {
   assertBackgroundsAvailableForExport,
+  slideTypeface,
   type CarouselConfig,
   type CarouselSlide,
   carouselTheme,
@@ -259,6 +260,7 @@ export default function Editor({
     const slide: CarouselSlide = {
       id: newSlideId(),
       layout: "content",
+      typeface: slideTypeface(selectedSlide, config.theme),
       title: "Add a clear headline",
       body: "Use one thought per slide. Keep the supporting copy short.",
     };
@@ -427,7 +429,7 @@ export default function Editor({
         </aside>
 
         <section className="canvas-area" aria-label="Slide preview">
-          {signifierMissing && theme === "editorial" && (
+          {signifierMissing && slideTypeface(selectedSlide, config.theme) === "serif" && (
             <p className="font-warning" role="status">
               Signifier is not installed on this machine, so slides are showing Georgia. Exports from here will ship Georgia too. Install Signifier or export from a machine that has it.
             </p>

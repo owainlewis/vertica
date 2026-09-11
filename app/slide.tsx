@@ -16,6 +16,8 @@ import {
   slideAlign,
   slidePosition,
   slideTone,
+  slideTypeface,
+  SERIF_TYPE_SCALE,
   smartQuotes,
   titleLines,
   TYPE_SCALE,
@@ -61,6 +63,8 @@ export function Slide({
 }) {
   const slide = normalizeSlideLayout(sourceSlide);
   const theme = carouselTheme(config.theme);
+  const typeface = slideTypeface(slide, config.theme);
+  const scale = typeface === "serif" ? SERIF_TYPE_SCALE : TYPE_SCALE;
   const visual = slide.layout === "note" ? slide.visual : undefined;
   const position = slidePosition(slide, theme, carouselFormat(config.format));
   const lines = titleLines(slide.title);
@@ -75,9 +79,9 @@ export function Slide({
   const showArrow = config.arrow !== false && !isLast;
 
   const style = {
-    "--title-size": `${TYPE_SCALE.heading}cqw`,
-    "--reading-size": `${TYPE_SCALE.reading}cqw`,
-    "--metadata-size": `${theme === "cinematic" ? 2.4 : TYPE_SCALE.metadata}cqw`,
+    "--title-size": `${scale.heading}cqw`,
+    "--reading-size": `${scale.reading}cqw`,
+    "--metadata-size": `${TYPE_SCALE.metadata}cqw`,
     "--video-top": `${HORIZONTAL_VIDEO_FRAME.y / HORIZONTAL_VIDEO_FRAME.canvasHeight * 100}%`,
     "--video-height": `${HORIZONTAL_VIDEO_FRAME.height / HORIZONTAL_VIDEO_FRAME.canvasHeight * 100}%`,
     "--video-zoom": String(slide.video?.zoom ?? 1),
@@ -91,7 +95,7 @@ export function Slide({
 
   const copy = (
     <>
-      {theme === "cinematic" && slide.label && <span className="slide-label">{slide.label}</span>}
+      {slide.label && <span className="slide-label">{slide.label}</span>}
       <h2 className={`${lines.length > 1 ? "title-broken" : ""} ${hangs ? "title-hang" : ""}`}>
         {lines.map((line, lineIndex) => (
           <span className="title-line" key={lineIndex}><Marked text={line} /></span>
@@ -108,7 +112,8 @@ export function Slide({
   const classes = [
     "carousel-slide",
     slide.video?.framing === "horizontal" ? "video-horizontal" : "",
-    `template-${theme}`,
+    "template-cinematic",
+    `type-${typeface}`,
     `format-${carouselFormat(config.format)}`,
     `layout-${slide.layout}`,
     visual ? `visual-${visual}` : "",

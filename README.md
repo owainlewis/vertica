@@ -147,53 +147,31 @@ on any machine. Deleting a library image is refused while a deck still uses it.
 
 ## The design system
 
-Choose **Cinematic**, **Editorial** or **AI Engineer** in **Design → Carousel theme**.
-The theme applies to the whole deck and is saved, duplicated, imported and exported
-with it. Existing decks default to Editorial. Editorial and AI Engineer use the same Forest
-background (`#0c110f`). The saved tone value remains `"black"`, so existing dark
-slides adopt Forest without a document migration.
+Cinematic is the shared theme for image and video carousels. Choose **Layout →
+Typography → Sans · Geist** or **Serif · Signifier** for a slide, or apply that
+choice to every slide. All four layouts use the selected typeface at the same
+size, including covers, inner slides and visual captions.
 
-Cinematic uses bundled Geist and white text with plain bold or italic emphasis over
-full-bleed photos or video. Image slides start with their text near the top;
-video slides start in the middle. Explicit alignment and position choices win.
-Use **Content → Slide label** for a short tag such as “Rule 01”, and `**phrase**`
-for bold emphasis. There are no coloured highlights or badges. Both formats use
-the same scale as every other theme at a 390px phone width: 22px titles on
-all layouts, including covers, and 18px body copy. The background veil controls readability over footage.
-The theme always renders a dark ground while preserving saved tone choices for
-switching back to another theme. The gallery, editor, reader and exports all use
-the same renderer. Set `"theme": "cinematic"` and `"format": "image"` or
-`"format": "video"` in JSON; each slide can carry an optional `label` of up to
-30 characters.
+The rounded golden-ratio scale at a 390px slide width is **16px body → 26px
+sans titles → 42px serif titles**, with 10px metadata. Body copy always uses
+Geist, with 1.618 line height and a 1.618em gap below the title. All sizes scale
+with the slide. Gallery thumbnails, the editor, reader and JPEG/PDF/video exports
+share the same renderer. Signifier uses the existing locally installed font;
+the editor warns when it is unavailable and Georgia is used as a fallback.
 
-AI Engineer pairs bundled Geist regular and italic fonts with a forest cover
-(`#0c110f`) and soft-grey slides (`#efeeea`, the same paper as Editorial). Unset
-backgrounds use forest for covers and soft grey for every other layout, including
-Body 2 and CTA slides. Choose Soft grey (`paper`) or Forest (`black`) for an
-explicit background. Older AI Engineer decks with `sage` tones also render soft
-grey; their stored choices are kept so switching to Editorial restores sage.
-Alignment choices survive switching themes. Automatic alignment is left. Forest
-slides keep cream text and sand emphasis; light slides use dark ink and muted
-green emphasis.
-AI Engineer diagrams inherit the theme font unless their markup sets a font explicitly;
-use `font-family="inherit"` for labels that should follow the deck.
+Use full-bleed photos, video or a quiet solid ground: Paper, Sage or Black.
+Image slides default to text near the top; video slides default to the middle.
+Explicit alignment and position choices win. Horizontal footage uses a separate
+text band above the video. The background veil controls readability over
+full-bleed footage. Use **Content → Slide label** for a short tag such as
+“Rule 01”, and `**phrase**` or `*phrase*` for emphasis. There are no coloured
+highlights or badges.
 
-Set `"theme": "ai-engineer"` in a JSON config to use it; omit the field or use
-`"editorial"` for the original theme. All three themes use the same four layouts and
-renderer in the gallery, editor, reader preview and PDF/JPEG export.
-
-Every layout and theme uses the same minimal scale: 22px titles and 18px body
-copy at a 390px slide width. Covers, inner slides, standalone statements and
-visual captions keep the same title size. Body copy uses 1.4 line height.
-All sizes scale with the slide for export. Editorial keeps Signifier on covers,
-CTAs and visual captions, paired with plain sans teaching copy. AI Engineer uses
-Geist. Body 1 leads use weight to separate them from paragraphs.
-
-Editorial covers and CTAs centre by default; teaching copy aligns left. AI
-Engineer keeps its left alignment. Explicit alignment always wins. Body layouts
-share 9.5% side margins; centred Editorial covers use a wider 6% margin for the
-display title. Text slides centre their copy block vertically. Supporting
-paragraphs follow the heading in normal flow, including on covers.
+JSON uses `"theme": "cinematic"`, `"format": "image"` or `"video"`, and optional
+per-slide `"typeface": "sans"` or `"serif"`. Older Editorial and AI Engineer theme
+values remain readable and retain their saved positions and tone choices.
+Editorial defaults to Serif; AI Engineer defaults to Sans. Both render through
+Cinematic, and an explicit per-slide typeface takes precedence.
 
 Pictures and diagrams share a contained figure area, with a caption below by
 default; choose Top to put the caption above. Visual slides offer Top and Bottom

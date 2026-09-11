@@ -13,6 +13,7 @@ import {
   slidePosition,
   type SlidePosition,
   slideTone,
+  slideTypeface,
   type SlideVisual,
   showsBody,
   usesImages,
@@ -26,8 +27,8 @@ export const layoutNames: Record<SlideLayout, string> = {
 };
 
 const layoutHints: Record<SlideLayout, string> = {
-  cover: "A clear promise in a large headline, with one short supporting line.",
-  content: "A bold lead and short paragraphs at the same readable size. One idea per slide.",
+  cover: "A clear promise in the selected typeface, with one short supporting line.",
+  content: "A clear lead and short, readable paragraphs. One idea per slide.",
   note: "A short statement or visual example. Add pictures or a diagram under Content.",
   closing: "One useful next action, with a short supporting line.",
 };
@@ -96,6 +97,9 @@ function LayoutPanel({ config, slide, theme, updateSlide, commit }: PanelProps) 
 
   return (
     <div className="inspector-panel">
+      <span className="field-label">Typography</span>
+      <Segmented options={["sans", "serif"] as const} value={slideTypeface(slide, config.theme)} onChange={(typeface) => updateSlide({ typeface })} label={(value) => value === "sans" ? "Sans · Geist" : "Serif · Signifier"} />
+      <button type="button" className="text-button subtle" onClick={() => commit({ ...config, slides: config.slides.map((each) => ({ ...each, typeface: slideTypeface(slide, config.theme) })) })}>Apply typography to all slides</button>
       <label className="field-label" htmlFor="slide-layout">Slide type</label>
       <div className="select-wrap">
         <select id="slide-layout" value={slide.layout} onChange={(event) => updateSlide({ layout: event.target.value as SlideLayout })}>
@@ -124,7 +128,7 @@ function LayoutPanel({ config, slide, theme, updateSlide, commit }: PanelProps) 
   );
 }
 
-function ContentPanel({ config, slide, theme, updateSlide, onAddPicture, onChooseImage, onChooseVideo }: InspectorProps) {
+function ContentPanel({ config, slide, updateSlide, onAddPicture, onChooseImage, onChooseVideo }: InspectorProps) {
   const images = slide.images ?? [];
   const capacity = imageCapacity(slide);
   const isDiagram = slide.layout === "note" && slide.visual === "diagram";
@@ -141,10 +145,8 @@ function ContentPanel({ config, slide, theme, updateSlide, onAddPicture, onChoos
         {config.format === "video" ? (slide.video ? "Change video" : "Choose a video") : (slide.background ? "Change image" : "Choose an image")}
       </button>
       {config.format === "video" && !slide.video && <p className="field-hint">Add an MP4 to this slide. Reuse a clip across slides or choose different footage for each.</p>}
-      {theme === "cinematic" && <>
-        <label className="field-label" htmlFor="slide-label">Slide label</label>
-        <input id="slide-label" maxLength={30} value={slide.label ?? ""} placeholder="e.g. Rule 01" onChange={(event) => updateSlide({ label: event.target.value || undefined }, "label")} />
-      </>}
+      <label className="field-label" htmlFor="slide-label">Slide label</label>
+      <input id="slide-label" maxLength={30} value={slide.label ?? ""} placeholder="e.g. Rule 01" onChange={(event) => updateSlide({ label: event.target.value || undefined }, "label")} />
       <label className="field-label" htmlFor="headline">Headline</label>
       <textarea id="headline" maxLength={120} rows={5} value={slide.title} onChange={(event) => updateSlide({ title: event.target.value }, "title")} />
       <div className="character-count" style={{ visibility: slide.title.length >= 100 ? "visible" : "hidden" }}>{slide.title.length} / 120</div>
@@ -232,8 +234,8 @@ function VideoClipFields({ video, onChange }: { video: VideoBackground; onChange
 function DesignPanel({ config, slide, theme, updateSlide, commit, onChooseImage, onChooseVideo, onEditJson, onDownloadJson }: InspectorProps) {
   const tone = slideTone(slide, theme);
   const veil = Math.round((slide.veil ?? DEFAULT_VEIL) * 100);
-  const toneNames = { paper: theme === "ai-engineer" ? "Soft grey" : "Paper", sage: "Sage", black: "Forest" } as const;
-  const tones = theme === "editorial" ? (["paper", "sage", "black"] as const) : (["paper", "black"] as const);
+  const toneNames = { paper: "Paper", sage: "Sage", black: "Black" } as const;
+  const tones = ["paper", "sage", "black"] as const;
 
   return (
     <div className="inspector-panel">
@@ -246,23 +248,11 @@ function DesignPanel({ config, slide, theme, updateSlide, commit, onChooseImage,
         <ChevronDown size={14} />
       </div>
       <p className="field-hint">{config.format === "video" ? "One MP4 per slide, with your text over b-roll. Add a video to every slide before exporting." : "Numbered still images, ready to upload in order."}</p>
-      <label className="field-label" htmlFor="carousel-theme">Carousel theme</label>
-      <div className="select-wrap">
-        <select id="carousel-theme" value={theme} onChange={(event) => commit({ ...config, theme: event.target.value as CarouselTheme })}>
-          <option value="editorial">Editorial</option>
-          <option value="ai-engineer">AI Engineer</option>
-          <option value="cinematic">Cinematic</option>
-        </select>
-        <ChevronDown size={14} />
-      </div>
-      <p className="field-hint">{theme === "cinematic" ? "White Geist type over photos or video, with plain bold and italic emphasis. Every slide shares the same title size. Use Layout to position the text." : theme === "ai-engineer" ? "Geist type with a dark cover and soft-grey slides. Consistent title and body sizes on every slide." : "Signifier headlines and plain supporting copy. Consistent title and body sizes on every slide."}</p>
+      <p className="field-hint">Cinematic. Choose Sans or Serif typography under Layout. Use photos, video or a quiet solid background.</p>
 
       <h3 className="settings-heading settings-divider">This slide</h3>
-      {theme !== "cinematic" && <>
-        <span className="field-label">Background colour</span>
-        <Segmented options={[...tones]} value={tone} onChange={(next) => updateSlide({ tone: next })} label={(option) => toneNames[option]} />
-      </>}
-      {theme === "ai-engineer" && <button type="button" className="text-button subtle" disabled={!slide.tone} onClick={() => updateSlide({ tone: undefined })}>Use automatic background</button>}
+      <span className="field-label">Background colour</span>
+      <Segmented options={[...tones]} value={tone} onChange={(next) => updateSlide({ tone: next })} label={(option) => toneNames[option]} />
 
       <span className="field-label">Background photo</span>
       <button className="wide-upload" type="button" onClick={onChooseImage}><Images size={15} /> {slide.background ? "Choose another image" : "Choose from media"}</button>

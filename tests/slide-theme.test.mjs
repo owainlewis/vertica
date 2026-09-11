@@ -25,7 +25,7 @@ for (const theme of ["editorial", "ai-engineer", "cinematic"]) {
     config.slides.forEach((slide, index) => {
       const preview = new JSDOM(renderToStaticMarkup(createElement(Slide, { config: themed, slide, index })));
       const node = preview.window.document.querySelector("article");
-      assert.ok(node.classList.contains(`template-${theme}`));
+      assert.ok(node.classList.contains("template-cinematic"));
       assert.ok(node.classList.contains(`layout-${normalizeSlideLayout(slide).layout}`));
       assert.equal(nodes[index].getAttribute("style"), node.getAttribute("style"));
       assert.equal(nodes[index].innerHTML, node.innerHTML);
@@ -43,7 +43,7 @@ test("Cinematic photo and video defaults differ while explicit positions and sav
     const dom = new JSDOM(renderToStaticMarkup(createElement(Slide, { config: themed, slide: source, index: 0 })));
     const node = dom.window.document.querySelector("article");
     assert.ok(node.classList.contains(`pos-${expected}`));
-    assert.ok(node.classList.contains("tone-black"));
+    assert.ok(node.classList.contains("tone-paper"));
     assert.equal(node.querySelector(".slide-label").textContent, "Rule 01");
     assert.equal(source.tone, "paper");
     dom.window.close();
@@ -53,26 +53,26 @@ test("Cinematic photo and video defaults differ while explicit positions and sav
   }
 });
 
-test("Every theme uses the same minimal title size across image and video layouts", () => {
+test("Each typeface keeps its golden-ratio size across themes, formats and layouts", () => {
   for (const theme of ["editorial", "ai-engineer", "cinematic"]) for (const format of ["image", "video"]) {
-    for (const layout of ["cover", "content", "note", "closing"]) {
+    for (const typeface of ["sans", "serif"]) for (const layout of ["cover", "content", "note", "closing"]) {
       const themed = { ...config, theme, format };
-      const source = { ...config.slides[0], layout };
+      const source = { ...config.slides[0], layout, typeface };
       const dom = new JSDOM(renderToStaticMarkup(createElement(Slide, { config: themed, slide: source, index: 0 })));
       const style = dom.window.document.querySelector("article").style;
       const phonePixels = (property) => parseFloat(style.getPropertyValue(property)) * 390 / 100;
-      assert.ok(Math.abs(phonePixels("--title-size") - 22) < 0.001);
-      assert.ok(Math.abs(phonePixels("--reading-size") - 18) < 0.001);
+      assert.ok(Math.abs(phonePixels("--title-size") - (typeface === "serif" ? 42 : 26)) < 0.001);
+      assert.ok(Math.abs(phonePixels("--reading-size") - 16) < 0.001);
       dom.window.close();
     }
   }
 });
 
-test("a deck without a theme still renders an Editorial cover", () => {
+test("a deck without a theme uses Cinematic with legacy serif defaults", () => {
   const legacy = { ...config, theme: undefined };
   const dom = new JSDOM(renderToStaticMarkup(createElement(Slide, { config: legacy, slide: legacy.slides[0], index: 0 })));
   const node = dom.window.document.querySelector("article");
-  assert.ok(node.classList.contains("template-editorial"));
+  assert.ok(node.classList.contains("type-serif"));
   assert.ok(node.classList.contains("tone-paper"));
   assert.ok(node.classList.contains("align-center"));
   const explicit = new JSDOM(renderToStaticMarkup(createElement(Slide, { config: { ...legacy, theme: "editorial" }, slide: legacy.slides[0], index: 0 })));
@@ -82,14 +82,14 @@ test("a deck without a theme still renders an Editorial cover", () => {
 });
 
 
-test("Legacy layouts retain the shared 22px title and 18px reading scale", () => {
+test("Legacy layouts inherit the new scale without changing saved typography defaults", () => {
   for (const theme of ["editorial", "ai-engineer"]) {
     for (const source of config.slides) {
       const dom = new JSDOM(renderToStaticMarkup(createElement(Slide, { config: { ...config, theme }, slide: source, index: 0 })));
       const slide = dom.window.document.querySelector("article");
-      assert.ok(Math.abs(parseFloat(slide.style.getPropertyValue("--reading-size")) * 390 / 100 - 18) < 0.001);
+      assert.ok(Math.abs(parseFloat(slide.style.getPropertyValue("--reading-size")) * 390 / 100 - 16) < 0.001);
       const title = parseFloat(slide.style.getPropertyValue("--title-size"));
-      assert.ok(Math.abs(title * 390 / 100 - 22) < 0.001);
+      assert.ok(Math.abs(title * 390 / 100 - (theme === "editorial" ? 42 : 26)) < 0.001);
       assert.equal(slide.querySelector(".slide-rules"), null);
       dom.window.close();
     }

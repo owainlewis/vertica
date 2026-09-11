@@ -56,7 +56,7 @@ Browser and server communicate through HTTP. Storage operations depend on the bu
 
 ## Document and rendering model
 
-`app/carousel.ts` defines the deck model, import parser, layout normalization and SVG sanitization. A deck contains branding, an optional image/video format, a theme and slides using four layouts: cover, content, note and closing. Slides can reference images, videos or inline SVG diagrams. Missing formats retain the older image export behavior. The Cinematic theme shares one type scale across formats; only automatic text positioning differs.
+`app/carousel.ts` defines the deck model, import parser, layout normalization and SVG sanitization. A deck contains branding, an optional image/video format, a theme and slides using four layouts: cover, content, note and closing. Slides can reference images, videos or inline SVG diagrams. Missing formats retain the older image export behavior. Cinematic is the shared renderer across formats, with per-slide Sans or Serif typography on a rounded golden-ratio scale (16px body, 26px sans titles, 42px serif titles at 390px). Legacy theme values remain importable and provide typography, position and tone defaults.
 
 `Slide` is the shared renderer for the editor, gallery cards, reader preview and export stage. Layout and typography scale with the slide container. SVG diagrams are sanitized when imported and again when rendered. The API performs its own structural save validation; it does not invoke the full browser import parser.
 
