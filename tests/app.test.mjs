@@ -7,13 +7,14 @@ import { createRoot } from "react-dom/client";
 
 register("./component-loader.mjs", import.meta.url);
 const { default: App } = await import("../app/app.tsx");
+const { parseCarouselConfig } = await import("../app/carousel.ts");
 
 function record(id) {
   const config = { version: 1, title: `Deck ${id}`, author: "Reviewer", slides: [{ id: "one", layout: "cover", title: `Deck ${id}`, body: "" }] };
   return { id, title: config.title, author: config.author, slideCount: 1, coverTitle: config.title, cover: JSON.stringify({ slide: config.slides[0] }), config: JSON.stringify(config), version: 1, createdAt: "2026-09-07T12:00:00Z", updatedAt: "2026-09-07T12:00:00Z" };
 }
 
-async function app(t, path = "/?id=old", rows = [record("old"), record("newer")]) {
+async function app(t, path = "/?id=old", rows = [record("old"), record("newer")], saveStatus = 200) {
   const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: `http://localhost${path}` });
   const { window } = dom;
   const restore = [];
@@ -31,7 +32,7 @@ async function app(t, path = "/?id=old", rows = [record("old"), record("newer")]
     if (init?.method === "POST" || init?.method === "PUT") {
       const payload = JSON.parse(init.body);
       writes.push(JSON.parse(payload.config));
-      return Response.json({ carousel: { ...record("saved"), config: payload.config } });
+      return Response.json(saveStatus === 200 ? { carousel: { ...record(init.method === "PUT" ? url.split("/").at(-1) : "saved"), config: payload.config } } : { error: "Save failed" }, { status: saveStatus });
     }
     if (url === "/api/carousels") return Response.json({ carousels: rows });
     return new Promise((resolve) => pending.set(url, resolve));
@@ -44,7 +45,7 @@ async function app(t, path = "/?id=old", rows = [record("old"), record("newer")]
     async click(label) {
       const button = [...window.document.querySelectorAll("button")].find((node) => node.getAttribute("aria-label") === label || node.textContent.trim() === label);
       assert.ok(button, `Button ${label} exists`);
-      await act(() => button.click());
+      await act(async () => { button.click(); });
     },
     async finish(id, status = 200, config) {
       const resolve = pending.get(`/api/carousels/${id}`);
@@ -209,4 +210,126 @@ test("deck-wide footer edits recheck overflow without changing the selected slid
   await act(() => arrow.click());
   await measure();
   assert.ok(view.document.querySelector(".slide-overflow-warning"), "the warning returns when the footer overlaps again");
+});
+
+
+test("the editor cannot add or duplicate beyond the importable slide limit", async (t) => {
+  const view = await app(t);
+  await view.finish("old", 200, { version: 1, title: "Full deck", author: "Author", slides: Array.from({ length: 19 }, (_, i) => ({ id: `slide-${i}`, layout: "content", title: `Slide ${i}`, body: "" })) });
+  await view.click("Add slide");
+  await view.click("Add slide");
+  await view.click("Duplicate");
+  assert.equal(view.document.querySelectorAll(".slide-thumb").length, 20);
+  assert.ok(view.document.querySelector('[aria-label="Add slide"]').disabled);
+  assert.ok([...view.document.querySelectorAll("button")].find((button) => button.textContent.trim() === "Duplicate").disabled);
+  await view.click("Undo");
+  await view.click("Duplicate");
+  assert.equal(view.document.querySelectorAll(".slide-thumb").length, 20);
+  await view.click("Carousels");
+  assert.equal(parseCarouselConfig(JSON.stringify(view.writes.at(-1))).slides.length, 20);
+});
+
+async function traverse(view, delta) {
+  await act(async () => {
+    view.window.history.go(delta);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+  });
+}
+
+test("dirty Back saves the editor and preserves its Forward entry", async (t) => {
+  const view = await app(t, "/");
+  await view.click("Open Deck old");
+  await view.finish("old");
+  await view.click("Add slide");
+  const length = view.window.history.length;
+  await traverse(view, -1);
+  assert.equal(view.window.location.search, "");
+  assert.equal(view.document.querySelector("h1").textContent, "Your carousels");
+  assert.equal(view.writes.at(-1).slides.length, 2);
+  assert.equal(view.window.history.length, length);
+  await traverse(view, 1);
+  assert.equal(view.window.location.search, "?id=old");
+  await view.finish("old");
+  assert.ok(view.document.querySelector('[aria-label="Carousel title"]'));
+});
+
+test("dirty Forward and multi-entry Back keep their original destinations", async (t) => {
+  const view = await app(t, "/");
+  await view.click("Open Deck old");
+  await view.finish("old");
+  await view.click("Media");
+  await view.click("Carousels");
+  await traverse(view, -2);
+  await view.finish("old");
+  await view.click("Add slide");
+  const length = view.window.history.length;
+  await traverse(view, 2);
+  assert.equal(view.window.location.search, "");
+  assert.equal(view.document.querySelector("h1").textContent, "Your carousels");
+  assert.equal(view.window.history.length, length);
+  await traverse(view, -2);
+  await view.finish("old");
+  await view.click("Add slide");
+  await traverse(view, -1);
+  assert.equal(view.document.querySelector("h1").textContent, "Your carousels");
+  await traverse(view, 2);
+  assert.equal(view.document.querySelector("h1").textContent, "Media library");
+});
+
+test("a failed Back save stays in the editor without deleting forward history", async (t) => {
+  const view = await app(t, "/", [record("old")], 503);
+  await view.click("Open Deck old");
+  await view.finish("old");
+  await view.click("Media");
+  await traverse(view, -1);
+  await view.finish("old");
+  await view.click("Add slide");
+  const length = view.window.history.length;
+  await traverse(view, -1);
+  assert.equal(view.window.location.search, "?id=old");
+  assert.equal(view.document.querySelectorAll(".slide-thumb").length, 2);
+  assert.equal(view.window.history.length, length);
+  assert.match(view.document.body.textContent, /Save failed/);
+});
+
+test("dirty multi-entry Back replays the complete history distance", async (t) => {
+  const view = await app(t, "/");
+  await view.click("Open Deck old");
+  await view.finish("old");
+  await view.click("Media");
+  await view.click("Carousels");
+  await view.click("Open Deck newer");
+  await view.finish("newer");
+  await view.click("Add slide");
+  const length = view.window.history.length;
+  await traverse(view, -3);
+  assert.equal(view.window.location.search, "?id=old");
+  await view.finish("old");
+  assert.equal(view.document.querySelector('[aria-label="Carousel title"]').value, "Deck old");
+  await traverse(view, 3);
+  assert.equal(view.window.location.search, "?id=newer");
+  assert.equal(view.window.history.length, length);
+  await view.finish("newer");
+});
+
+test("an in-flight first save cannot replace the Back destination URL", async (t) => {
+  const view = await app(t, "/");
+  const fetch = globalThis.fetch;
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  t.mock.method(globalThis, "fetch", async (url, init) => {
+    if (init?.method === "POST") await gate;
+    return fetch(url, init);
+  });
+  await view.click("New carousel");
+  await view.click("Add slide");
+  await act(() => new Promise((resolve) => setTimeout(resolve, 1250)));
+  // Resolve the save after Back lands, before the scheduled restoration lands.
+  view.window.addEventListener("popstate", () => release(), { once: true });
+  await traverse(view, -1);
+  assert.equal(view.window.location.search, "");
+  assert.equal(view.document.querySelector("h1").textContent, "Your carousels");
+  await traverse(view, 1);
+  assert.equal(view.window.location.search, "?id=saved");
+  await view.finish("saved");
 });

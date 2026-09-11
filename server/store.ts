@@ -102,8 +102,7 @@ export async function listCarousels(bucket: Bucket): Promise<CarouselSummary[]> 
   return objects
     .filter(({ key }) => key.endsWith(".json"))
     .map(({ key, meta }) => summaryOf(key.slice(CAROUSELS.length, -".json".length), meta))
-    .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
-    .slice(0, 200);
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id));
 }
 
 export async function getCarousel(bucket: Bucket, id: string): Promise<CarouselRecord | null> {
@@ -234,12 +233,15 @@ export function getMedia(bucket: Bucket, key: string) {
   return bucket.get(mediaObjectKey(key));
 }
 
-/** Removes a library item unless a deck still uses it. */
+/** Hide the library entry, retaining bytes so a concurrent save cannot lose media. */
 export async function removeMediaAsset(bucket: Bucket, key: string) {
   const objectKey = mediaObjectKey(key);
-  const existing = await bucket.head(objectKey);
-  if (!existing || existing.custom.library !== "1") return "missing" as const;
+  const existing = await bucket.get(objectKey);
+  if (!existing || existing.meta.custom.library !== "1") return "missing" as const;
   if (await mediaInUse(bucket, key)) return "in-use" as const;
-  await bucket.delete(objectKey);
+  await bucket.put(objectKey, existing.bytes, {
+    contentType: existing.meta.contentType,
+    custom: { ...existing.meta.custom, library: "0" },
+  });
   return "deleted" as const;
 }

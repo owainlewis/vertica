@@ -114,7 +114,10 @@ test("stores media, serves it back, and protects images a deck still uses", asyn
   await app.request(new Request(`http://localhost/carousels/${carousel.id}`, { method: "DELETE" }));
   assert.equal((await remove()).status, 200);
   assert.equal((await remove()).status, 404);
-  assert.equal((await app.request(`/media/${encodeURIComponent(KEY)}`)).status, 404);
+  assert.equal((await app.request(`/media/${encodeURIComponent(KEY)}`)).status, 200, "removal retains bytes for concurrent saves");
+  assert.deepEqual((await (await app.request("/media")).json()).media, []);
+  await put({ "x-media-library": "1", "x-media-name": "Restored" });
+  assert.equal((await (await app.request("/media")).json()).media[0].name, "Restored");
 
   const bad = await app.request(new Request(`http://localhost/media/${encodeURIComponent(KEY)}`, { method: "PUT", body: "data:image/svg+xml;base64,PHN2Zz4=" }));
   assert.equal(bad.status, 400);
@@ -179,4 +182,37 @@ test("simultaneous local edits accept one writer and reject the stale writer", a
   const fetched = (await (await app.request(`/carousels/${carousel.id}`)).json()).carousel;
   assert.equal(fetched.config, winner.config);
   assert.equal(fetched.version, winner.version);
+});
+
+
+test("lists every deck beyond the former 200-deck limit with stable ordering", async () => {
+  const { app, bucket } = api();
+  // Identical timestamps exercise the ID tie-breaker too.
+  bucket.list = async () => Array.from({ length: 205 }, (_, i) => ({
+    key: `carousels/deck-${String(204 - i).padStart(3, "0")}.json`,
+    meta: { generation: 1, updated: "2026-09-10T12:00:00Z", custom: {} },
+  }));
+  const { carousels } = await (await app.request("/carousels")).json();
+  assert.equal(carousels.length, 205);
+  assert.equal(carousels[0].id, "deck-000");
+  assert.equal(carousels.at(-1).id, "deck-204");
+});
+
+test("an image referenced by a save after the removal check remains available", async () => {
+  const { app, bucket } = api();
+  await app.request(new Request(`http://localhost/media/${KEY}`, {
+    method: "PUT", body: PIXEL, headers: { "x-media-library": "1" },
+  }));
+  const list = bucket.list.bind(bucket);
+  bucket.list = async (prefix) => {
+    const beforeSave = await list(prefix);
+    if (prefix === "carousels/") {
+      await app.request(jsonRequest("/carousels", { id: "concurrent", config: JSON.stringify({ slides: [{ title: "Saved while removing", background: KEY }] }) }));
+    }
+    return beforeSave;
+  };
+  assert.equal((await app.request(`/media/${KEY}`, { method: "DELETE" })).status, 200);
+  assert.equal((await app.request(`/media/${KEY}`)).status, 200);
+  assert.equal((await app.request("/carousels/concurrent")).status, 200);
+  assert.deepEqual((await (await app.request("/media")).json()).media, []);
 });

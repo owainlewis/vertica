@@ -201,6 +201,8 @@ export function titleLines(title: string) {
   return lines.length ? lines : [title.trim()];
 }
 
+export const MAX_SLIDES = 20;
+
 export function parseCarouselConfig(input: string): CarouselConfig {
   let value: unknown;
   try {
@@ -217,10 +219,11 @@ export function parseCarouselConfig(input: string): CarouselConfig {
   if (!Array.isArray(record.slides) || record.slides.length === 0) {
     throw new Error("Add at least one slide.");
   }
-  if (record.slides.length > 20) {
-    throw new Error("Keep the carousel to 20 slides or fewer.");
+  if (record.slides.length > MAX_SLIDES) {
+    throw new Error(`Keep the carousel to ${MAX_SLIDES} slides or fewer.`);
   }
 
+  const ids = new Set<string>();
   const slides = record.slides.map((item, index) => {
     if (!item || typeof item !== "object" || Array.isArray(item)) {
       throw new Error(`Slide ${index + 1} must be an object.`);
@@ -256,8 +259,12 @@ export function parseCarouselConfig(input: string): CarouselConfig {
       throw new Error(`Slide ${index + 1} diagram must be ${MAX_DIAGRAM_CHARS} characters or fewer.`);
     }
 
+    const id = cleanText(slide.id, makeId(index));
+    if (ids.has(id)) throw new Error(`Slide ${index + 1} has a duplicate id: ${id}.`);
+    ids.add(id);
+
     return {
-      id: cleanText(slide.id, makeId(index)),
+      id,
       layout: normalizeLayout(slide.layout, index === 0 ? "cover" : "content"),
       ...(normalizeVisual(slide.visual, slide.layout) ? { visual: normalizeVisual(slide.visual, slide.layout) } : {}),
       title,

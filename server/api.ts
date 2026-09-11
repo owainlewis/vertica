@@ -168,7 +168,7 @@ export function createApi({ bucket, secret }: ApiOptions) {
     const result = await removeMediaAsset(bucket, key);
     if (result === "missing") return c.json({ error: "That image is not in your media library." }, 404);
     if (result === "in-use") {
-      return c.json({ error: "This image is used by a carousel. Remove it from every slide before deleting it." }, 409);
+      return c.json({ error: "This image is used by a carousel. Remove it from every slide before removing it from the library." }, 409);
     }
     return c.json({ ok: true });
   });

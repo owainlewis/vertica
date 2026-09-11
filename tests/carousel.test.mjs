@@ -505,3 +505,11 @@ test("retired layouts become Body 2 without losing visuals or hidden supporting 
   const plain = parseCarouselConfig(JSON.stringify({ slides: [{ layout: "note", title: "Text", visual: "unknown" }] }));
   assert.equal(plain.slides[0].visual, undefined);
 });
+
+test("slide IDs are unique after import normalization", () => {
+  assert.throws(() => parseCarouselConfig(JSON.stringify({ slides: [
+    { id: "same", title: "First" }, { id: " same ", title: "Second" },
+  ] })), /duplicate id/);
+  const missing = parseCarouselConfig(JSON.stringify({ slides: [{ title: "First" }, { title: "Second" }] }));
+  assert.equal(new Set(missing.slides.map(({ id }) => id)).size, 2);
+});

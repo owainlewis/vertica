@@ -221,8 +221,12 @@ export function videoRoutes(bucket: Bucket) {
     } finally { await clearUpload(id); }
   }));
 
-  api.get("/videos", async (c) => c.json({ videos: (await bucket.list("videos/")).filter(({ key }) => key.endsWith(".mp4"))
-    .sort((a, b) => b.meta.updated.localeCompare(a.meta.updated)).map(({ key, meta }) => assetOf(`vid:${key.slice(7, -4)}`, meta)) }));
+  api.get("/videos", async (c) => {
+    const objects = await bucket.list("videos/");
+    const removed = new Set(objects.filter(({ key }) => key.endsWith(".removed")).map(({ key }) => key.slice(0, -8)));
+    return c.json({ videos: objects.filter(({ key }) => key.endsWith(".mp4") && !removed.has(key.slice(0, -4)))
+      .sort((a, b) => b.meta.updated.localeCompare(a.meta.updated)).map(({ key, meta }) => assetOf(`vid:${key.slice(7, -4)}`, meta)) });
+  });
 
   api.get("/videos/:key/poster", async (c) => {
     const object = await bucket.get(`${videoPath(c.req.param("key"))}.jpg`);
@@ -250,9 +254,9 @@ export function videoRoutes(bucket: Bucket) {
     const key = c.req.param("key");
     const path = videoPath(key);
     if (await mediaInUse(bucket, key)) throw new VideoError("This video is used by a carousel. Remove it from the slides first.", 409);
-    await bucket.delete(`${path}.mp4`);
-    await bucket.delete(`${path}.jpg`);
-    await bucket.delete(`${path}.original`);
+    if (!(await bucket.head(`${path}.mp4`))) throw new VideoError("That video is gone.", 404);
+    // Retain every rendition: a different server can save a reference after the check.
+    await bucket.put(`${path}.removed`, new Uint8Array(), { contentType: "application/octet-stream" });
     return c.json({ ok: true });
   });
 
