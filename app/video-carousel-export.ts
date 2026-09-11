@@ -10,9 +10,9 @@ export function videoCarouselClips(slides: CarouselSlide[]): VideoBackground[] {
   return slides.map((slide, index) => {
     if (!slide.video) throw new Error(`Slide ${index + 1} needs a video. Choose one in Content before exporting the video carousel.`);
     try {
-      const clip = parseVideoBackground(slide.video);
-      if (!clip.sourceDuration) throw new Error("Open this slide and wait for the video to load before exporting.");
-      return clip;
+      // Older decks omit sourceDuration. The export endpoint always checks the
+      // interval against stored source metadata before invoking the encoder.
+      return parseVideoBackground(slide.video);
     } catch (error) {
       throw new Error(`Slide ${index + 1}: ${error instanceof Error ? error.message : "Check the video clip."}`);
     }

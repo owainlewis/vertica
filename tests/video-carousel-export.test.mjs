@@ -39,12 +39,22 @@ test("missing footage and invalid intervals fail before any rendering", async ()
   for (const [video, error] of [
     [undefined, /Slide 2 needs a video/],
     [{ ...slides[1].video, start: 9 }, /Slide 2: The clip must fit/],
-    [{ ...slides[1].video, sourceDuration: undefined }, /Slide 2: Open this slide/],
   ]) {
     let calls = 0;
     await assert.rejects(renderVideoCarousel("deck", [slides[0], { ...slides[1], video }], async () => { calls++; return new Blob(); }, () => {}), error);
     assert.equal(calls, 0);
   }
+});
+
+test("legacy clips can export without visiting every slide to populate sourceDuration", async () => {
+  const legacy = slides.map((slide) => ({ ...slide, video: { key: slide.video.key, start: slide.video.start, duration: slide.video.duration } }));
+  const rendered = [];
+  await renderVideoCarousel("legacy", legacy, async (index, video) => {
+    rendered.push(index);
+    assert.equal(video.sourceDuration, undefined);
+    return new Blob(["clip"]);
+  }, () => {});
+  assert.deepEqual(rendered, [0, 1, 2]);
 });
 
 test("a failed render stops the batch and names the slide instead of returning a partial ZIP", async () => {

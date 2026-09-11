@@ -43,7 +43,8 @@ each clip's start and duration in Design.
 Video carousel export checks every slide before starting, renders one clip at a
 time, and reports progress. A missing clip or failed render stops the export
 with a slide number; it never downloads an incomplete archive. ZIPs are limited
-to 256 MB to bound browser memory. For larger decks, shorten the clips or export
+to 256 MB of encoded video; ZIP assembly avoids an extra copy of those buffers,
+but the browser also needs memory for rendering and the final Blob. For larger decks, shorten the clips or export
 the video slides individually. Keep the tab open until the download finishes.
 
 ## Video backgrounds

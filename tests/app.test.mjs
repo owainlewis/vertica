@@ -254,6 +254,28 @@ async function traverse(view, delta) {
   });
 }
 
+test("a new unsaved draft stays mounted through Back and Media navigation during export", async (t) => {
+  const view = await app(t, "/");
+  await view.click("New image carousel");
+  // Hold a real export before rasterisation; both image and video exports share
+  // this navigation guard, including when no save or carousel ID exists yet.
+  view.document.fonts = { ready: new Promise(() => {}) };
+  await view.click("JPEG imagesNumbered files in a ZIP · Instagram");
+  assert.ok(view.document.querySelector(".video-export-status"));
+  const events = [];
+  view.window.addEventListener("popstate", () => events.push(view.window.history.state.verticaIndex));
+  await traverse(view, -1);
+  assert.deepEqual(events, [0, 1], "Back is reversed before the guard clears");
+  assert.equal(view.window.location.search, "");
+  assert.equal(view.writes.length, 0);
+  assert.ok(view.document.querySelector("[data-export-slide=true]"));
+  assert.ok(view.document.querySelector('[aria-label="Carousel title"]'));
+  await view.click("Media");
+  await traverse(view, -1);
+  assert.ok(view.document.querySelector(".video-export-status"));
+  assert.ok(view.document.querySelector("[data-export-slide=true]"));
+});
+
 test("dirty Back saves the editor and preserves its Forward entry", async (t) => {
   const view = await app(t, "/");
   await view.click("Open Deck old");
