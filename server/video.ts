@@ -5,10 +5,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { Hono } from "hono";
+import { MAX_SLIDES } from "../app/carousel-validation.ts";
 import type { Bucket, ObjectMeta } from "./bucket.ts";
 import { PreconditionError } from "./bucket.ts";
 import { mediaInUse } from "./store.ts";
-import { isVideoKey, MAX_VIDEO_BYTES, MAX_VIDEO_SECONDS, parseVideoBackground, VIDEO_CHUNK_BYTES, VIDEO_KEY_PREFIX, type VideoAsset } from "../app/video-formats.ts";
+import { HORIZONTAL_VIDEO_FRAME, isVideoKey, MAX_VIDEO_BYTES, MAX_VIDEO_SECONDS, parseVideoBackground, VIDEO_CHUNK_BYTES, VIDEO_KEY_PREFIX, type VideoAsset } from "../app/video-formats.ts";
 
 const run = promisify(execFile);
 const VIDEOS = "videos/";
@@ -283,26 +284,88 @@ export function videoRoutes(bucket: Bucket) {
     return new Response(await readFile(frame), { headers: { "content-type": "image/jpeg" } });
   })));
 
-  api.post("/video-exports", async (c) => job(() => temporary(async (dir) => {
-    const input = await jsonBody(c.req.raw, MAX_OVERLAY_BYTES * 1.4);
+  function parseExport(input: Record<string, unknown>) {
     let clip;
     try { clip = parseVideoBackground(input.video); } catch (error) { throw new VideoError((error as Error).message); }
-    const object = await exportSource(clip.key);
-    if (clip.start + clip.duration > Number(object.meta.custom.duration) + 0.01) throw new VideoError("The clip ends after the video. Reduce its start or duration.");
     if (typeof input.overlay !== "string" || !/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(input.overlay)) throw new VideoError("The text overlay must be a PNG.");
     const png = Buffer.from(input.overlay.slice("data:image/png;base64,".length), "base64");
     if (png.length > MAX_OVERLAY_BYTES || png.length < 33 || png.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a" || png.toString("ascii", 12, 16) !== "IHDR" || png.readUInt32BE(16) !== 1080 || png.readUInt32BE(20) !== 1350) {
       throw new VideoError("The text overlay must be a 1080 × 1350 PNG under 8 MB.");
     }
+    return { clip, png };
+  }
+
+  async function validateSource(clip: ReturnType<typeof parseVideoBackground>) {
+    const meta = await bucket.head(`${videoPath(clip.key)}.mp4`);
+    if (!meta) throw new VideoError("That video is gone. Choose another background.", 404);
+    if (clip.start + clip.duration > Number(meta.custom.duration) + 0.01) throw new VideoError("The clip ends after the video. Reduce its start or duration.");
+  }
+
+  async function renderSlide({ clip, png }: ReturnType<typeof parseExport>, dir: string, name = "slide.mp4") {
+    const object = await exportSource(clip.key);
     const source = join(dir, "source.mp4");
     const overlay = join(dir, "overlay.png");
-    const output = join(dir, "slide.mp4");
+    const output = join(dir, name);
     await writeFile(source, object.bytes);
     await writeFile(overlay, png);
+    const frame = HORIZONTAL_VIDEO_FRAME;
+    const zoom = clip.zoom ?? 1;
+    // Contain at 1x, then zoom and clip within the fixed landscape window.
+    const landscape = `[0:v]scale=w='max(2,round(min(${frame.width},${frame.height}*dar)*${zoom}/2)*2)':h='max(2,round(min(${frame.height},${frame.width}/dar)*${zoom}/2)*2)':flags=lanczos,setsar=1,pad=w='max(iw,${frame.width})':h='max(ih,${frame.height})':x=(ow-iw)/2:y=(oh-ih)/2:color=black,crop=${frame.width}:${frame.height},pad=${frame.canvasWidth}:${frame.canvasHeight}:${frame.x}:${frame.y}:black[bg]`;
+    const fill = "[0:v]scale=w='ceil(max(1080,1350*dar)/2)*2':h='ceil(max(1350,1080/dar)/2)*2':flags=lanczos,crop=1080:1350,setsar=1[bg]";
     await command("ffmpeg", ["-v", "error", "-nostdin", "-y", "-threads", "2", "-protocol_whitelist", "file,pipe", "-f", "mov", "-ss", String(clip.start), "-i", source, "-i", overlay,
-      "-filter_complex_threads", "1", "-filter_complex", "[0:v]scale=w='ceil(max(1080,1350*dar)/2)*2':h='ceil(max(1350,1080/dar)/2)*2':flags=lanczos,crop=1080:1350,setsar=1[bg];[bg][1:v]overlay=0:0:format=auto,format=yuv420p,sidedata=mode=delete:type=DISPLAYMATRIX[out]",
+      "-filter_complex_threads", "1", "-filter_complex", `${clip.framing === "horizontal" ? landscape : fill};[bg][1:v]overlay=0:0:format=auto,format=yuv420p,sidedata=mode=delete:type=DISPLAYMATRIX[out]`,
       "-map", "[out]", "-an", "-t", String(clip.duration), "-r", "30", "-c:v", "libx264", "-threads", "2", "-preset", "medium", "-crf", "16", "-movflags", "+faststart", output]);
-    return new Response(await readFile(output), { headers: { "content-type": "video/mp4", "content-disposition": 'attachment; filename="slide.mp4"', "cache-control": "no-store" } });
+    return output;
+  }
+
+  function mp4(bytes: Buffer<ArrayBuffer>, name: string) {
+    return new Response(bytes, { headers: { "content-type": "video/mp4", "content-disposition": `attachment; filename="${name}"`, "cache-control": "no-store" } });
+  }
+
+  api.post("/video-exports", async (c) => job(() => temporary(async (dir) => {
+    const input = parseExport(await jsonBody(c.req.raw, MAX_OVERLAY_BYTES * 1.4));
+    await validateSource(input.clip);
+    return mp4(await readFile(await renderSlide(input, dir)), "slide.mp4");
+  })));
+
+  api.post("/reel-exports", async (c) => job(() => temporary(async (dir) => {
+    const input = await jsonBody(c.req.raw, 33 * 1024 * 1024);
+    if (!Array.isArray(input.slides) || !input.slides.length || input.slides.length > MAX_SLIDES) {
+      throw new VideoError(`Choose from 1 to ${MAX_SLIDES} video slides for a reel.`);
+    }
+    const slides: ReturnType<typeof parseExport>[] = [];
+    // Validate the whole deck before spending time encoding its first slide.
+    for (const [index, slide] of input.slides.entries()) {
+      try {
+        if (!slide || typeof slide !== "object" || Array.isArray(slide)) throw new VideoError("Check the slide data.");
+        const parsed = parseExport(slide);
+        await validateSource(parsed.clip);
+        slides.push(parsed);
+      } catch (error) {
+        throw new VideoError(`Slide ${index + 1}: ${(error as Error).message}`, error instanceof VideoError ? error.status : 400);
+      }
+    }
+    const files: string[] = [];
+    let totalBytes = 0;
+    for (const [index, slide] of slides.entries()) {
+      try {
+        const name = `slide-${index}.mp4`;
+        const path = await renderSlide(slide, dir, name);
+        totalBytes += (await stat(path)).size;
+        if (totalBytes > 256 * 1024 * 1024) throw new VideoError("The reel exceeds 256 MB. Shorten the clips or export separate slides.", 413);
+        files.push(`file '${name}'`);
+      } catch (error) {
+        throw new VideoError(`Slide ${index + 1}: ${(error as Error).message}`, error instanceof VideoError ? error.status : 400);
+      }
+    }
+    const list = join(dir, "slides.txt");
+    const output = join(dir, "reel.mp4");
+    await writeFile(list, files.join("\n"));
+    // These files are all produced above by the same encoder settings. Stream
+    // copy joins their timelines without a second lossy encode or added frames.
+    await command("ffmpeg", ["-v", "error", "-nostdin", "-y", "-protocol_whitelist", "file,pipe", "-f", "concat", "-safe", "1", "-i", list, "-map", "0:v:0", "-an", "-c:v", "copy", "-movflags", "+faststart", output]);
+    return mp4(await readFile(output), "reel.mp4");
   })));
 
   api.onError((error, c) => {

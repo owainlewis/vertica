@@ -2,7 +2,7 @@
 
 ## Executive summary
 
-Vertica is a React application for creating carousel decks and exporting PDF, JPEG and single-slide MP4 files. One Node service hosts the built application and its HTTP API. An object bucket holds the durable source of truth: deck JSON, images and videos. There is no database.
+Vertica is a React application for creating image and video carousels and exporting PDF, JPEG, single-slide MP4 and numbered MP4 ZIP files. One Node service hosts the built application and its HTTP API. An object bucket holds the durable source of truth: deck JSON, images and videos. There is no database.
 
 The browser owns editing state and rendering. The server owns authenticated access, persistence and video processing. Every existing-deck save must carry the object generation last read by the client. Conditional writes prevent a stale editor from overwriting a newer save.
 
@@ -56,7 +56,7 @@ Browser and server communicate through HTTP. Storage operations depend on the bu
 
 ## Document and rendering model
 
-`app/carousel.ts` defines the deck model, import parser, layout normalization and SVG sanitization. A deck contains branding, a theme and slides using four layouts: cover, content, note and closing. Slides can reference images, videos or inline SVG diagrams.
+`app/carousel.ts` defines the deck model, import parser, layout normalization and SVG sanitization. A deck contains branding, an optional image/video format, a theme and slides using four layouts: cover, content, note and closing. Slides can reference images, videos or inline SVG diagrams. Missing formats retain the older image export behavior. Cinematic is the shared renderer across formats, with per-slide Sans or Serif typography on a rounded golden-ratio scale (16px body, 26px sans titles, 42px serif titles at 390px). Legacy theme values remain importable and provide typography, position and tone defaults.
 
 `Slide` is the shared renderer for the editor, gallery cards, reader preview and export stage. Layout and typography scale with the slide container. SVG diagrams are sanitized when imported and again when rendered. The API performs its own structural save validation; it does not invoke the full browser import parser.
 
@@ -83,6 +83,8 @@ PDF and JPEG exports rasterize the mounted export stage in the browser using `ht
 
 For video backgrounds, still exports request the selected clip's first frame from the server. MP4 export captures the slide artwork as a transparent PNG overlay and sends it with the clip settings to the server. FFmpeg composites the overlay over the source clip and returns a silent 1080 × 1350 H.264 file for one slide.
 
+Video carousel export validates every clip before starting and calls that same renderer sequentially. `app/video-carousel-export.ts` collects the results into a numbered ZIP, reports per-slide progress and stops on a failed render. A 256 MB limit bounds the collected video bytes. The editor blocks navigation during rendering so the export stage stays mounted. Reel export captures the same overlays and sends them with clip settings to `/reel-exports`. The server validates every slide, reuses the single-slide renderer sequentially, and concatenates the generated MP4s with stream copy. Saved durations and 4:5 framing remain unchanged; all temporary files are removed on success or failure.
+
 Video uploads use bucket-backed chunks and manifests, allowing requests to reach different service instances. Processing assembles the chunks on temporary disk, probes the source and creates a playback MP4 and poster. Compatible sources can be repackaged without re-encoding; other sources receive a smaller playback encode. The untouched original is retained for exports. Older assets without retained originals export from their playback copy.
 
 The server admits one video-processing job per instance and returns a retryable 503 when busy. Upload processing removes chunks afterward and rolls back objects owned by a failed upload. Expired upload sessions are cleaned up on a later upload. Temporary working directories are removed after processing.
@@ -103,7 +105,7 @@ In development, Vite serves the frontend and proxies `/api` to the Node service 
 | Document model and rendering | [carousel.ts](app/carousel.ts), [slide.tsx](app/slide.tsx), [composer.tsx](app/composer.tsx) |
 | Autosave and HTTP persistence | [save-queue.ts](app/save-queue.ts), [api-client.ts](app/api-client.ts) |
 | Browser image cache | [image-store.ts](app/image-store.ts) |
-| Export assembly | [export.ts](app/export.ts), [zip.ts](app/zip.ts) |
+| Export assembly | [export.ts](app/export.ts), [video-carousel-export.ts](app/video-carousel-export.ts), [zip.ts](app/zip.ts) |
 | HTTP host and authentication | [index.ts](server/index.ts), [api.ts](server/api.ts), [auth.ts](server/auth.ts) |
 | Durable storage | [store.ts](server/store.ts), [bucket.ts](server/bucket.ts) |
 | Video upload and processing | [video-client.ts](app/video-client.ts), [video.ts](server/video.ts) |

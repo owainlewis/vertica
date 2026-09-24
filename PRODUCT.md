@@ -1,6 +1,6 @@
 # Vertica
 
-Vertica is a private carousel studio for Instagram and LinkedIn. Creators bring their own writing and images, arrange up to ten slides using seven editorial layouts, and export JPEG images or a PDF.
+Vertica is a private carousel studio for Instagram and LinkedIn. Creators bring their own writing, images and video, arrange up to twenty slides using four layouts, and export JPEG images, a PDF, numbered MP4s or one joined reel.
 
 The public homepage explains the product as a starting point for a future SaaS. It does not offer registration, a waitlist, paid plans, or public studio access. Existing access uses the studio's shared-password gate when configured. Do not imply that public accounts or AI generation exist.
 

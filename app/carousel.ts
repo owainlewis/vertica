@@ -11,7 +11,19 @@ export type SlideVisual = "photos" | "diagram";
 export type SlidePosition = "top" | "middle" | "bottom";
 export type SlideAlign = "left" | "center";
 export type EditorialTone = "paper" | "sage" | "black";
-export type CarouselTheme = "editorial" | "ai-engineer";
+export type CarouselTheme = "editorial" | "ai-engineer" | "cinematic";
+export type SlideTypeface = "sans" | "serif";
+export type CarouselFormat = "image" | "video";
+
+/** Legacy theme names are read for compatibility, never offered as separate designs. */
+export function slideTypeface(slide: Pick<CarouselSlide, "typeface">, theme?: CarouselTheme): SlideTypeface {
+  return slide.typeface ?? (carouselTheme(theme) === "editorial" ? "serif" : "sans");
+}
+
+/** Missing formats are still-image decks, preserving older exports. */
+export function carouselFormat(value: unknown): CarouselFormat {
+  return value === "video" ? "video" : "image";
+}
 
 const layouts: SlideLayout[] = ["cover", "content", "note", "closing"];
 const positions: SlidePosition[] = ["top", "middle", "bottom"];
@@ -28,14 +40,12 @@ const MAX_DIAGRAM_CHARS = 60_000;
 
 /** Unknown themes use the original artwork, including documents written before themes. */
 export function carouselTheme(value: unknown): CarouselTheme {
-  return value === "ai-engineer" ? "ai-engineer" : "editorial";
+  return value === "ai-engineer" || value === "cinematic" ? value : "editorial";
 }
 
 /** Stored tones stay intact when switching themes. Only an unset tone is automatic. */
 export function slideTone(slide: CarouselSlide, theme?: CarouselTheme): EditorialTone {
-  // Older AI Engineer decks used the sage slot for sand. Keep the stored choice
-  // for Editorial, but render it as the same soft grey as other light slides.
-  if (theme === "ai-engineer" && slide.tone === "sage") return "paper";
+  if (theme === "cinematic") return slide.tone ?? "black";
   if (slide.tone) return slide.tone;
   return theme === "ai-engineer" && slide.layout === "cover" ? "black" : "paper";
 }
@@ -43,10 +53,14 @@ export function slideTone(slide: CarouselSlide, theme?: CarouselTheme): Editoria
 export type CarouselSlide = {
   id: string;
   layout: SlideLayout;
+  /** Typography belongs to the layout; old Editorial decks default to serif. */
+  typeface?: SlideTypeface;
   /** Body 2 can hold a statement, photographs, or an SVG example. */
   visual?: SlideVisual;
   title: string;
   body: string;
+  /** Optional short tag above Cinematic slide copy, such as "Rule 01". */
+  label?: string;
   background?: string;
   video?: VideoBackground;
   /**
@@ -119,20 +133,20 @@ export function normalizeSlideLayout<T extends Pick<CarouselSlide, "layout" | "v
 }
 
 /** Text slides share a centred block; visual slides place their caption below. */
-export function slidePosition(slide: CarouselSlide): SlidePosition {
+export function slidePosition(slide: CarouselSlide, theme?: CarouselTheme, format?: CarouselFormat): SlidePosition {
   const resolved = normalizeSlideLayout(slide);
   if (resolved.layout === "note" && resolved.visual) {
     // Older visual slides can store "middle". Keep that value in the document,
     // but give the caption a real position above its figure.
     return slide.position === "top" || slide.position === "middle" ? "top" : "bottom";
   }
-  return slide.position ?? "middle";
+  return slide.position ?? (theme === "cinematic" && format !== "video" ? "top" : "middle");
 }
 
 /** Covers and CTAs keep the Editorial composition; explicit alignment always wins. */
 export function slideAlign(slide: CarouselSlide, theme?: CarouselTheme): SlideAlign {
   if (slide.align) return slide.align;
-  if (theme === "ai-engineer") return "left";
+  if (theme === "ai-engineer" || theme === "cinematic") return "left";
   const layout = normalizeLayout(slide.layout, "content");
   return layout === "cover" || layout === "closing" ? "center" : "left";
 }
@@ -143,6 +157,8 @@ export type CarouselConfig = {
   author: string;
   /** Omitted on older decks, which keep the Editorial theme. */
   theme?: CarouselTheme;
+  /** Output intent; changing it keeps all existing media and copy. */
+  format?: CarouselFormat;
   /**
    * A short series label set at the top of every slide. This is what makes a deck
    * recognisable mid-scroll: same words, same place, every slide. Deck-level on
@@ -264,7 +280,9 @@ export function parseCarouselConfig(input: string): CarouselConfig {
       ...(visual ? { visual } : {}),
       title,
       body: limitedText(slide.body, `Slide ${index + 1} body`, 280),
+      ...(cleanText(slide.label) ? { label: limitedText(slide.label, `Slide ${index + 1} label`, 30) } : {}),
       ...(background ? { background } : {}),
+      ...(slide.typeface === "serif" || slide.typeface === "sans" ? { typeface: slide.typeface } : {}),
       ...(video ? { video } : {}),
       ...(images.length ? { images } : {}),
       ...(diagram ? { diagram } : {}),
@@ -294,6 +312,7 @@ export function parseCarouselConfig(input: string): CarouselConfig {
     author: limitedText(record.author, "Author", 40) || BRAND_FOOTER,
     mark,
     ...(record.theme !== undefined ? { theme: carouselTheme(record.theme) } : {}),
+    ...(record.format !== undefined ? { format: carouselFormat(record.format) } : {}),
     ...(record.arrow === false ? { arrow: false } : {}),
     slides,
   };
@@ -539,7 +558,7 @@ const STATEMENT_MAX_WORDS = 8;
  * Keeps one visual rhythm: a cover, teaching slides, concise statements and a close.
  * Copy wraps naturally; generated decks never add decorative colour changes.
  */
-export function generateCarouselFromText(source: string, author = BRAND_FOOTER, theme?: CarouselTheme): CarouselConfig {
+export function generateCarouselFromText(source: string, author = BRAND_FOOTER, theme?: CarouselTheme, typeface?: SlideTypeface): CarouselConfig {
   const chunks = sentenceChunks(source);
   if (!chunks.length) throw new Error("Paste some source text first.");
   if (chunks.length > 10) {
@@ -566,7 +585,7 @@ export function generateCarouselFromText(source: string, author = BRAND_FOOTER, 
     author: author.trim() || BRAND_FOOTER,
     mark: BRAND_MARK,
     ...(theme ? { theme } : {}),
-    slides,
+    slides: typeface ? slides.map((slide) => ({ ...slide, typeface })) : slides,
   };
 }
 
@@ -598,7 +617,7 @@ export function smartQuotes(text: string) {
 export type MarkedRun = { text: string; mark: "plain" | "italic" | "accent" };
 
 /**
- * `*word*` sets a phrase in italic, `**word**` paints a highlighter stroke behind it.
+ * `*word*` sets a phrase in italic; `**word**` adds bold emphasis.
  * Both are the only styling authors can reach for, which keeps slides consistent.
  */
 export function parseInlineMarks(text: string): MarkedRun[] {
@@ -621,35 +640,38 @@ export function bodyParagraphs(body: string) {
   return body.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
 }
 
-/** Fixed sizes for repeated roles preserve hierarchy while previews and exports scale together. */
+/** A rounded golden-ratio scale at 390px, shared by every layout and export. */
+const GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2;
+const BODY_SIZE = 16;
 export const TYPE_SCALE = {
-  cover: 12.8,
-  cta: 8,
-  statement: 6,
-  reading: (18 / 390) * 100, // 18px at phone width, about 50px in a 1080px export.
-  metadata: 2.7,
+  heading: (Math.round(BODY_SIZE * GOLDEN_RATIO) / 390) * 100,
+  reading: (BODY_SIZE / 390) * 100,
+  metadata: (Math.round(BODY_SIZE / GOLDEN_RATIO) / 390) * 100,
 } as const;
 
-/** Geist's heavier shapes need a smaller display size than the Editorial serif. */
-export const AI_ENGINEER_TYPE_SCALE = { ...TYPE_SCALE, cover: 10.6 } as const;
+export const SERIF_TYPE_SCALE = {
+  ...TYPE_SCALE,
+  heading: (Math.round(BODY_SIZE * GOLDEN_RATIO ** 2) / 390) * 100,
+} as const;
 
 export function aiPrompt(config: CarouselConfig) {
-  const branded = config.theme === "ai-engineer";
   return `Create a minimal social carousel from the source text below. Return JSON only, with no markdown fences.
 
 Rules:
+- Use the "cinematic" theme: plain bold or italic emphasis and optional short "label" tags (30 characters maximum). No coloured highlights or badges.
+- Output format: ${carouselFormat(config.format)} carousel. ${config.format === "video" ? "The author will attach an uploaded MP4 to every slide after importing. Do not invent video keys." : "The author can attach background photographs after importing."}
 - 5 to 8 slides. One idea per slide.
 - Titles: 10 words or fewer. Plain, concrete language. Sentence case, never capitals. No colons, no hype.
 - Let headlines wrap naturally. Use "|" only when a deliberate break improves the meaning.
 - Bodies: 30 words or fewer. Separate paragraphs with a blank line. The cover body is its subtitle: one short line.
 - Emphasis is optional: *italic* or **bold** on a short phrase. Do not add emphasis or decoration to meet a quota.
 - Four layouts: "cover" (Cover), "content" (Body 1), "note" (Body 2), "closing" (CTA). Start with a cover and finish with one useful action.
-- Keep a consistent hierarchy: large display headlines on covers, a smaller CTA headline, and a modest step up for standalone statements. Paragraphs, Body 1 leads and visual captions stay at 18px at a 390px phone width. Do not flatten all roles to one size or shrink text to fit.
-- Body 1 is a bold sans lead followed by short paragraphs, separated by space. Use it for most teaching slides. No introduction or agenda slide: begin delivering the cover's promise on slide two.
+- Use per-slide "typeface": "sans" or "serif". The rounded golden-ratio scale is 16px body, 26px Geist sans titles and 42px Signifier serif titles at a 390px phone width. Body copy always uses Geist. Cover, content, note and closing slides use the same title size within each typeface. Do not shrink text to fit.
+- Body 1 is a title in the selected typeface followed by short paragraphs, separated by space. Use it for most teaching slides. No introduction or agenda slide: begin delivering the cover's promise on slide two.
 - Body 2 holds one short statement or a visual example with its title as the caption. It draws the title only; omit body. Use it when the idea benefits, not to meet a layout quota.
 - For pictures on Body 2, set "visual": "photos" and add image references to "images". For an SVG, set "visual": "diagram" and put the drawing in "diagram". Images and diagrams are optional.
-- SVG rules: viewBox="0 0 800 500", no width or height attributes, stroke="currentColor" and fill="none" for shapes, fill="currentColor" for text, stroke-width 2, rx 8 on boxes, font-family="${branded ? "inherit" : "Helvetica Neue, Helvetica, Arial, sans-serif"}", labels and notes 48px, one text size, nothing smaller, at most six boxes, arrows drawn with a line plus a small polygon head, generous space, no colour, no gradients, no scripts.
-- ${branded ? 'The theme is "ai-engineer": Geist type, a forest cover and soft-grey slides. Keep body copy to 30 words or fewer. Omit "tone" for an automatic forest cover and soft grey on every other layout. Explicit tones: "paper" is soft grey and "black" is forest. Do not use "sage" in this theme. Italic and bold phrases use a contrasting accent.' : 'Omit "tone" for a consistent paper ground. Use a different tone only when the source asks for one; "black" is the forest ground. Every text element on a page uses the same ink colour.'}
+- SVG rules: viewBox="0 0 800 500", no width or height attributes, stroke="currentColor" and fill="none" for shapes, fill="currentColor" for text, stroke-width 2, rx 8 on boxes, font-family="inherit", labels and notes 48px, one text size, nothing smaller, at most six boxes, arrows drawn with a line plus a small polygon head, generous space, no colour, no gradients, no scripts.
+- Omit "tone" for a dark ground. Optional solid grounds: "paper", "sage", "black". The author chooses photos or video in the editor.
 - "mark" is the series label at the top of every slide. Keep it short and in sentence case.
 - Per slide, "showHeader": false hides the series label and page number; "showFooter": false hides the author and swipe arrow. Both default to visible. Set both to false for main text only.
 
@@ -660,12 +682,15 @@ ${JSON.stringify(
       title: "Carousel title",
       author: config.author,
       mark: config.mark ?? BRAND_MARK,
-      theme: carouselTheme(config.theme),
+      theme: "cinematic",
+      format: carouselFormat(config.format),
       slides: [
         {
           layout: "cover | content | note | closing",
           visual: "photos | diagram (optional, Body 2 only)",
-          tone: branded ? "paper | black" : "paper | sage | black",
+          typeface: slideTypeface(config.slides[0] ?? {}, config.theme),
+          label: "Optional short tag",
+          tone: "paper | sage | black (optional)",
           title: "Slide headline",
           body: "Optional supporting copy",
           showHeader: true,

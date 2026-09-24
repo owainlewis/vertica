@@ -56,3 +56,12 @@ test("decodes a base64 data URL back to its exact bytes", () => {
   const bytes = dataUrlToBytes("data:image/jpeg;base64,/9j/4AAQ");
   assert.deepEqual([...bytes], [0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 });
+
+test("ZIP entries snapshot only the requested buffer window", async () => {
+  const source = new Uint8Array([99, 10, 20, 30, 88]);
+  const zip = createZip([{ name: "window.bin", bytes: source.subarray(1, 4) }]);
+  source.fill(0);
+  const bytes = new Uint8Array(await zip.arrayBuffer());
+  const offset = 30 + new TextEncoder().encode("window.bin").length;
+  assert.deepEqual([...bytes.subarray(offset, offset + 3)], [10, 20, 30]);
+});

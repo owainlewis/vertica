@@ -1,5 +1,5 @@
 import { Button } from "./components/ui/button";
-import { ArrowUpRight, Copy, Download, Images, Layers, LoaderCircle, Plus, Search, Trash2, X } from "lucide-react";
+import { ArrowUpRight, Copy, Download, Film, Images, Layers, LoaderCircle, Search, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   deleteCarousel,
@@ -9,7 +9,7 @@ import {
   loadCarousel,
   type CarouselSummary,
 } from "./api-client";
-import { assertBackgroundsAvailableForExport, carouselTheme, duplicateCarouselConfig, normalizeSlideLayout, type CarouselConfig, type CarouselSlide } from "./carousel";
+import { assertBackgroundsAvailableForExport, carouselTheme, carouselFormat, duplicateCarouselConfig, normalizeSlideLayout, type CarouselConfig, type CarouselSlide, type CarouselFormat } from "./carousel";
 import { exportStageToPdf, exportStageToZip, fileNameFor } from "./export";
 import { loadImages } from "./image-store";
 import { ExportStage, Slide } from "./slide";
@@ -21,6 +21,7 @@ function readCover(cover: string) {
       slide?: Partial<CarouselSlide>;
       mark?: string;
       theme?: string;
+      format?: string;
     };
   } catch {
     return {};
@@ -68,6 +69,7 @@ function CardPreview({
       title: carousel.title,
       author: carousel.author,
       theme: carouselTheme(stored.theme),
+      format: carouselFormat(stored.format),
       ...(stored.mark ? { mark: stored.mark } : {}),
       slides: Array.from({ length: Math.max(carousel.slideCount, 1) }, () => cover),
     };
@@ -86,7 +88,7 @@ export default function Dashboard({
   reloadToken,
 }: {
   onOpen: (id: string) => void;
-  onCreate: () => void;
+  onCreate: (format: CarouselFormat) => void;
   reloadToken: number;
 }) {
   const [carousels, setCarousels] = useState<CarouselSummary[] | null>(null);
@@ -208,7 +210,10 @@ export default function Dashboard({
       <section className="dashboard-body">
         <div className="dashboard-heading">
           <h1>Your carousels</h1>
-          <Button className="export-button" type="button" onClick={onCreate}><Plus size={18} /> New carousel</Button>
+          <div className="new-carousel-actions">
+            <Button className="export-button" type="button" onClick={() => onCreate("image")}><Images size={16} /> New image carousel</Button>
+            <Button variant="outline" className="secondary-button" type="button" onClick={() => onCreate("video")}><Film size={16} /> New video carousel</Button>
+          </div>
         </div>
 
         <div className="library-toolbar">
@@ -225,7 +230,7 @@ export default function Dashboard({
           <div className="empty-state">
             <Layers size={36} strokeWidth={1.2} aria-hidden="true" />
             <h2>Nothing saved yet</h2>
-            <Button className="export-button" type="button" onClick={onCreate}><Plus size={15} /> New carousel</Button>
+            <p>Start with images or bring your own b-roll. Add text, preview each slide, then export in order.</p>
           </div>
         )}
 
@@ -244,17 +249,17 @@ export default function Dashboard({
               <div className="card-overlay">
                 <span className="card-meta">
                   <strong title={carousel.title}>{carousel.title}</strong>
-                  <small>{carousel.slideCount} slide{carousel.slideCount === 1 ? "" : "s"} · edited {relativeDate(carousel.updatedAt)}</small>
+                  <small>{readCover(carousel.cover).format === "video" ? "Video" : "Image"} · {carousel.slideCount} slide{carousel.slideCount === 1 ? "" : "s"} · edited {relativeDate(carousel.updatedAt)}</small>
                 </span>
                 <div className="card-actions">
                   <button type="button" onClick={() => download(carousel, "pdf")} disabled={busyId !== null} aria-label={`Download ${carousel.title} as PDF`}>
                     {busyId === carousel.id && pending?.kind === "pdf" ? <LoaderCircle className="spin" size={14} /> : <Download size={14} />}
                     PDF
                   </button>
-                  <button type="button" onClick={() => download(carousel, "zip")} disabled={busyId !== null} aria-label={`Download ${carousel.title} as JPEGs`} title="Numbered JPEGs, zipped, for Instagram">
+                  {readCover(carousel.cover).format === "video" ? <button type="button" onClick={() => onOpen(carousel.id)} disabled={busyId !== null} aria-label={`Open ${carousel.title} to export MP4s`} title="Open the editor to export numbered MP4s"><Film size={14} /> MP4s</button> : <button type="button" onClick={() => download(carousel, "zip")} disabled={busyId !== null} aria-label={`Download ${carousel.title} as JPEGs`} title="Numbered JPEGs, zipped, for Instagram">
                     {busyId === carousel.id && pending?.kind === "zip" ? <LoaderCircle className="spin" size={14} /> : <Images size={14} />}
                     JPEGs
-                  </button>
+                  </button>}
                   <button type="button" disabled={busyId !== null} aria-busy={duplicatingId === carousel.id} onClick={() => { void duplicate(carousel); }} aria-label={`Duplicate ${carousel.title}`} title="Duplicate carousel">
                     {duplicatingId === carousel.id ? <LoaderCircle className="spin" size={14} /> : <Copy size={14} />}
                   </button>
@@ -273,9 +278,9 @@ export default function Dashboard({
           ))}
         </ul>
         {visibleCount < visibleCarousels.length && (
-          <button className="secondary-button media-load-more" type="button" onClick={() => setVisibleCount((count) => count + 24)}>
+          <Button variant="outline" className="secondary-button media-load-more" type="button" onClick={() => setVisibleCount((count) => count + 24)}>
             Load more carousels ({visibleCarousels.length - visibleCount} remaining)
-          </button>
+          </Button>
         )}
       </section>
 
