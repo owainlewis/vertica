@@ -6,6 +6,8 @@
  */
 import type { Bucket, ObjectMeta } from "./bucket.ts";
 import { PreconditionError } from "./bucket.ts";
+import { IMAGE_KEY_PREFIX } from "../app/image-formats.ts";
+import { isVideoKey } from "../app/video-formats.ts";
 
 export type CarouselSummary = {
   id: string;
@@ -63,19 +65,25 @@ function carouselKey(id: string) {
   return `${CAROUSELS}${id}.json`;
 }
 
+/** `img:<hash>` lives at `media/<hash>`. */
 function mediaObjectKey(key: string) {
-  return `${MEDIA}${key.slice(4)}`;
+  return `${MEDIA}${key.slice(IMAGE_KEY_PREFIX.length)}`;
 }
 
-/** Every media key a config refers to: backgrounds, pictures and the avatar. */
+function mediaKeyOf(objectKey: string) {
+  return `${IMAGE_KEY_PREFIX}${objectKey.slice(MEDIA.length)}`;
+}
+
+/** Every media key a slide refers to: backgrounds, pictures and videos. */
 export function mediaKeysIn(config: string) {
   try {
-    const parsed = JSON.parse(config) as { avatar?: unknown; slides?: Array<{ background?: unknown; images?: unknown }> };
-    const refs = [parsed.avatar, ...(parsed.slides ?? []).flatMap((slide) => [
+    const parsed = JSON.parse(config) as { slides?: Array<{ background?: unknown; images?: unknown; video?: { key?: unknown } }> };
+    const refs = (parsed.slides ?? []).flatMap((slide) => [
       slide?.background,
+      slide?.video?.key,
       ...(Array.isArray(slide?.images) ? slide.images : []),
-    ])];
-    return [...new Set(refs.filter((value): value is string => typeof value === "string" && isMediaKey(value)))];
+    ]);
+    return [...new Set(refs.filter((value): value is string => typeof value === "string" && (isMediaKey(value) || isVideoKey(value))))];
   } catch {
     return [];
   }
@@ -100,8 +108,7 @@ export async function listCarousels(bucket: Bucket): Promise<CarouselSummary[]> 
   return objects
     .filter(({ key }) => key.endsWith(".json"))
     .map(({ key, meta }) => summaryOf(key.slice(CAROUSELS.length, -".json".length), meta))
-    .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
-    .slice(0, 200);
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id));
 }
 
 export async function getCarousel(bucket: Bucket, id: string): Promise<CarouselRecord | null> {
@@ -194,7 +201,7 @@ export async function listMediaAssets(bucket: Bucket): Promise<MediaAsset[]> {
   const objects = await bucket.list(MEDIA);
   return objects
     .filter(({ meta }) => meta.custom.library === "1")
-    .map(({ key, meta }) => assetOf(`img:${key.slice(MEDIA.length)}`, meta))
+    .map(({ key, meta }) => assetOf(mediaKeyOf(key), meta))
     .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
 }
 
@@ -232,12 +239,21 @@ export function getMedia(bucket: Bucket, key: string) {
   return bucket.get(mediaObjectKey(key));
 }
 
-/** Removes a library item unless a deck still uses it. */
+/** Hide the library entry, retaining bytes so a concurrent save cannot lose media. */
 export async function removeMediaAsset(bucket: Bucket, key: string) {
   const objectKey = mediaObjectKey(key);
-  const existing = await bucket.head(objectKey);
-  if (!existing || existing.custom.library !== "1") return "missing" as const;
+  const existing = await bucket.get(objectKey);
+  if (!existing || existing.meta.custom.library !== "1") return "missing" as const;
   if (await mediaInUse(bucket, key)) return "in-use" as const;
-  await bucket.delete(objectKey);
+  try {
+    await bucket.put(objectKey, existing.bytes, {
+      contentType: existing.meta.contentType,
+      custom: { ...existing.meta.custom, library: "0" },
+      ifGeneration: existing.meta.generation,
+    });
+  } catch (error) {
+    if (error instanceof PreconditionError) return "changed" as const;
+    throw error;
+  }
   return "deleted" as const;
 }

@@ -1,6 +1,8 @@
 /** The JSON API. Mounted under /api; the same routes the client has always called. */
 import { Hono } from "hono";
-import { SUPPORTED_IMAGE_MIME_TYPES } from "../app/image-formats.ts";
+import { validateCarouselSlides } from "../app/carousel-validation.ts";
+import { videoRoutes } from "./video.ts";
+import { matchImageDataUrl } from "../app/image-formats.ts";
 import { clearSessionCookie, createSessionCookie, isAuthorised, isSecureRequest, passwordMatches } from "./auth.ts";
 import type { Bucket } from "./bucket.ts";
 import {
@@ -22,10 +24,7 @@ class InvalidInput extends Error {}
 
 const MAX_CONFIG_BYTES = 400_000;
 const MAX_MEDIA_BYTES = 12 * 1024 * 1024;
-const DATA_URL = new RegExp(
-  `^data:(${SUPPORTED_IMAGE_MIME_TYPES.map((type) => type.replace("/", "\\/")).join("|")});base64,([a-z0-9+/=\\s]+)$`,
-  "i",
-);
+const CAROUSEL_ID = /^[\w-]{1,200}$/;
 
 /** Mirrors the client's parser closely enough to keep junk out of the bucket. */
 function readInput(body: unknown) {
@@ -38,15 +37,19 @@ function readInput(body: unknown) {
     throw new InvalidInput("This carousel is too large to save. Images belong in the media library, not the config.");
   }
 
-  let parsed: { title?: unknown; author?: unknown; mark?: unknown; avatar?: unknown; slides?: unknown };
+  let parsed: { title?: unknown; author?: unknown; mark?: unknown; theme?: unknown; slides?: unknown };
   try {
     parsed = JSON.parse(config);
   } catch {
     throw new InvalidInput("The carousel config is not valid JSON.");
   }
 
-  const slides = Array.isArray(parsed.slides) ? parsed.slides : [];
-  if (!slides.length) throw new InvalidInput("A carousel needs at least one slide.");
+  const slides = parsed?.slides;
+  try {
+    validateCarouselSlides(slides);
+  } catch (cause) {
+    throw new InvalidInput(cause instanceof Error ? cause.message : "Invalid slides.");
+  }
 
   const cover = slides[0] as Record<string, unknown> | undefined;
   const text = (value: unknown, fallback: string) =>
@@ -61,7 +64,7 @@ function readInput(body: unknown) {
   return {
     version,
     input: {
-      id: typeof record.id === "string" && /^[\w-]{1,200}$/.test(record.id) ? record.id : "",
+      id: typeof record.id === "string" && CAROUSEL_ID.test(record.id) ? record.id : "",
       title: text(parsed.title, "Untitled carousel"),
       author: text(parsed.author, ""),
       slideCount: slides.length,
@@ -70,7 +73,7 @@ function readInput(body: unknown) {
       cover: JSON.stringify({
         slide: cover ?? {},
         mark: typeof parsed.mark === "string" ? parsed.mark.slice(0, 30) : "",
-        ...(typeof parsed.avatar === "string" && isMediaKey(parsed.avatar) ? { avatar: parsed.avatar } : {}),
+        ...(parsed.theme === "ai-engineer" ? { theme: "ai-engineer" } : {}),
       }),
       config,
     },
@@ -79,16 +82,16 @@ function readInput(body: unknown) {
 
 /** Decodes an image data URL without trusting its declared size. */
 function readDataUrl(text: string) {
-  const match = text.match(DATA_URL);
+  const match = matchImageDataUrl(text);
   if (!match) throw new InvalidInput("Only PNG, JPEG, GIF, AVIF, and WebP images can be stored.");
   let binary: string;
   try {
-    binary = atob(match[2].replace(/\s/g, ""));
+    binary = atob(match.base64.replace(/\s/g, ""));
   } catch {
     throw new InvalidInput("That image data is not valid base64.");
   }
   if (binary.length > MAX_MEDIA_BYTES) throw new InvalidInput("That image is too large. Keep images under 12MB.");
-  return { mimeType: match[1].toLowerCase(), bytes: Uint8Array.from(binary, (character) => character.charCodeAt(0)) };
+  return { mimeType: match.mimeType, bytes: Uint8Array.from(binary, (character) => character.charCodeAt(0)) };
 }
 
 function header(request: Request, name: string, maxLength: number) {
@@ -131,7 +134,9 @@ export function createApi({ bucket, secret }: ApiOptions) {
     await next();
   });
 
-  api.get("/media", async (c) => c.json({ media: await listMediaAssets(bucket), nextCursor: null }));
+  api.get("/media", async (c) => c.json({ media: await listMediaAssets(bucket) }));
+
+  api.route("/", videoRoutes(bucket));
 
   api.put("/media/:key", async (c) => {
     const key = c.req.param("key");
@@ -164,7 +169,10 @@ export function createApi({ bucket, secret }: ApiOptions) {
     const result = await removeMediaAsset(bucket, key);
     if (result === "missing") return c.json({ error: "That image is not in your media library." }, 404);
     if (result === "in-use") {
-      return c.json({ error: "This image is used by a carousel. Remove it from every slide before deleting it." }, 409);
+      return c.json({ error: "This image is used by a carousel. Remove it from every slide before removing it from the library." }, 409);
+    }
+    if (result === "changed") {
+      return c.json({ error: "This image changed while you were removing it. Reload the library before trying again." }, 409);
     }
     return c.json({ ok: true });
   });
@@ -175,6 +183,11 @@ export function createApi({ bucket, secret }: ApiOptions) {
     const { input } = readInput(await c.req.json().catch(() => null));
     const carousel = await saveCarousel(bucket, { ...input, id: input.id || crypto.randomUUID() }, null);
     return c.json({ carousel }, 201);
+  });
+
+  api.use("/carousels/:id", async (c, next) => {
+    if (!CAROUSEL_ID.test(c.req.param("id") ?? "")) return c.json({ error: "That carousel ID is invalid." }, 400);
+    await next();
   });
 
   api.get("/carousels/:id", async (c) => {

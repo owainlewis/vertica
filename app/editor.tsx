@@ -3,84 +3,64 @@ import {
   ArrowDown,
   ArrowUp,
   Check,
-  ChevronDown,
   Copy,
-  Download,
-  Images,
-  Layers3,
+  Eye,
+  Pause,
+  Play,
   Plus,
+  RectangleVertical,
   Redo2,
   Sparkles,
-  RectangleVertical,
-  Eye,
   Trash2,
   Undo2,
-  UserRound,
   X,
 } from "lucide-react";
-import { Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { type Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { saveCarousel, StaleSaveError, type CarouselSummary, type MediaAsset } from "./api-client";
-import { isImageKey, loadImages } from "./image-store";
-import Dialog from "./dialog";
-import ExportMenu from "./export-menu";
-import ReaderPreview from "./reader-preview";
-import MediaPicker from "./media-picker";
 import {
-  aiPrompt,
   assertBackgroundsAvailableForExport,
-  CarouselConfig,
-  CarouselSlide,
-  generateCarouselFromText,
+  type CarouselConfig,
+  type CarouselSlide,
+  carouselTheme,
   imageCapacity,
-  parseCarouselConfig,
-  slideAlign,
-  SlideAlign,
-  SlideLayout,
-  showsBody,
-  slidePosition,
-  SlidePosition,
+  MAX_SLIDES,
+  newSlideId,
   titleLines,
-  usesImages,
 } from "./carousel";
-import { downloadBlob, exportStageToPdf, exportStageToZip, fileNameFor } from "./export";
+import Composer, { type ComposerMode } from "./composer";
+import { downloadBlob, exportStageToMp4, exportStageToPdf, exportStageToZip, fileNameFor } from "./export";
+import ExportMenu from "./export-menu";
+import { loadImages } from "./image-store";
+import Inspector, { layoutNames } from "./inspector";
+import MediaPicker from "./media-picker";
+import ReaderPreview from "./reader-preview";
 import { SaveQueue } from "./save-queue";
-import { DEFAULT_VEIL, ExportStage, Slide } from "./slide";
+import { ExportStage, Slide } from "./slide";
+import { slideHasOverflow } from "./slide-overflow";
+import { useHistory } from "./use-history";
+import { boundVideoBackground, parseVideoBackground } from "./video-formats";
+import VideoPicker from "./video-picker";
 
 type Notice = { kind: "success" | "error"; message: string } | null;
+type ExportKind = "pdf" | "zip" | "mp4";
 
 /** What the shell can ask of an open editor: finish saving before leaving it. */
-export type EditorHandle = { flush: () => Promise<boolean> };
+export type EditorHandle = { flush: () => Promise<boolean>; isDirty: () => boolean };
 
 const SAVE_LABEL = {
   saved: "Saved",
   dirty: "Unsaved",
-  saving: "Saving\u2026",
+  saving: "Saving…",
   error: "Not saved",
   stale: "Out of date",
 } as const;
 
-const layoutNames: Record<SlideLayout, string> = {
-  cover: "Cover",
-  content: "Content",
-  note: "Note",
-  poster: "Poster",
-  diagram: "Diagram",
-  photos: "Photos",
-  closing: "Closing",
-};
+/** Edits settle for this long before an autosave is attempted. */
+const AUTOSAVE_MS = 1200;
+const NOTICE_MS = 3200;
 
-const layoutHints: Record<SlideLayout, string> = {
-  cover: "The headline large, with the supporting copy as a one-line subtitle at the foot.",
-  content: "A headline with copy underneath. The workhorse.",
-  note: "One plain sans statement, no headline. The title is the statement; **bold** marks the phrase that matters.",
-  poster: "One short serif statement, oversized. Title only.",
-  diagram: "An SVG figure with the headline as its caption. Title only. Bottom puts the caption under the figure, Top above it.",
-  photos: "Pictures under a one-line title. One picture is a figure, two or three a filmstrip, four or more a grid.",
-  closing: "A headline and one line to finish on.",
-};
-
-/** Where a picked image goes: behind the copy, into the slide's pictures, or the deck avatar. */
-type MediaTarget = "background" | "images" | "avatar";
+/** Where a picked image goes: behind the copy or into the slide's pictures. */
+type MediaTarget = "background" | "images";
 
 /**
  * Signifier is loaded from the machine, not bundled, because its web licence is
@@ -104,19 +84,9 @@ function useSignifierCheck() {
   return missing;
 }
 
-/** Longest a burst of edits can be folded into one undo step. */
-const COALESCE_MS = 700;
-
-/* Clock and id reads live outside the component so the compiler can see they only
-   run from event handlers, never from render. */
-function clockNow() {
-  return Date.now();
+function plainTitle(slide: CarouselSlide) {
+  return titleLines(slide.title).join(" ").replace(/\*/g, "");
 }
-function newSlideId() {
-  // Event-time uniqueness keeps imported and duplicated slide ids distinct.
-  return `slide-${crypto.randomUUID()}`;
-}
-const HISTORY_LIMIT = 60;
 
 export default function Editor({
   ref,
@@ -133,22 +103,23 @@ export default function Editor({
   onExit: () => void;
   onSaved: (summary: CarouselSummary) => void;
 }) {
-  const [config, setConfig] = useState<CarouselConfig>(initialConfig);
-  const [showCrop, setShowCrop] = useState(false);
+  const [exporting, setExporting] = useState<false | ExportKind>(false);
+  // Every change to the deck goes through `commit` so it can be undone. Export
+  // freezes the deck so the mounted stage cannot change under the rasteriser.
+  const { value: config, setValue: setConfig, commit, step, canUndo, canRedo } = useHistory(initialConfig, Boolean(exporting));
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [inspectorTab, setInspectorTab] = useState<"content" | "layout" | "design">("content");
-  const [composeOpen, setComposeOpen] = useState(false);
-  const [readerOpen, setReaderOpen] = useState(false);
-  const [composeMessage, setComposeMessage] = useState<Notice>(null);
-  const sourceRef = useRef<HTMLTextAreaElement>(null);
-  const [composeMode, setComposeMode] = useState<"text" | "json">("text");
+  const [showCrop, setShowCrop] = useState(false);
+  const [composer, setComposer] = useState<ComposerMode | null>(null);
   const [sourceText, setSourceText] = useState("");
-  const [jsonText, setJsonText] = useState("");
+  const [readerOpen, setReaderOpen] = useState(false);
   const [mediaOpen, setMediaOpen] = useState<MediaTarget | null>(null);
+  const [videoOpen, setVideoOpen] = useState(false);
+  const [videoPlaying, setVideoPlaying] = useState(true);
+  const [copyOverflow, setCopyOverflow] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
-  const [exporting, setExporting] = useState<false | "pdf" | "zip">(false);
   const [saveState, setSaveState] = useState<keyof typeof SAVE_LABEL>("saved");
   const [exiting, setExiting] = useState(false);
+  const previewRef = useRef<HTMLDivElement>(null);
 
   const mounted = useRef(true);
   // Set when the user chooses to reload out of a stale deck, so the unload warning
@@ -164,11 +135,7 @@ export default function Editor({
       const summary = await saveCarousel(savedIdRef.current, nextConfig, savedVersionRef.current);
       savedIdRef.current = summary.id;
       savedVersionRef.current = summary.version;
-
-      if (mounted.current) {
-        onSavedRef.current(summary);
-      }
-
+      if (mounted.current) onSavedRef.current(summary);
       return summary;
     });
     saveQueueRef.current = queue;
@@ -177,14 +144,25 @@ export default function Editor({
 
   const selectedSlide = config.slides[selectedIndex] ?? config.slides[0];
   const signifierMissing = useSignifierCheck();
-  const activePosition = slidePosition(selectedSlide);
-  const activeAlign = slideAlign(selectedSlide);
+  const theme = carouselTheme(config.theme);
+  const anyDialogOpen = composer !== null || mediaOpen !== null || videoOpen || readerOpen;
+
+  useEffect(() => {
+    let active = true;
+    const check = () => {
+      if (active) setCopyOverflow(slideHasOverflow(previewRef.current?.querySelector("article") ?? null));
+    };
+    const timer = setTimeout(check, 0);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(check);
+    if (previewRef.current) observer?.observe(previewRef.current);
+    void document.fonts?.ready.then(check);
+    return () => { active = false; clearTimeout(timer); observer?.disconnect(); };
+  }, [selectedSlide, config]);
   const exportFileName = useMemo(() => fileNameFor(config.title), [config.title]);
-  const zipFileName = useMemo(() => fileNameFor(config.title, "zip"), [config.title]);
 
   function showNotice(next: Notice) {
     setNotice(next);
-    window.setTimeout(() => setNotice(null), 3200);
+    window.setTimeout(() => setNotice(null), NOTICE_MS);
   }
 
   const flushSave = useCallback(async () => {
@@ -206,57 +184,25 @@ export default function Editor({
     }
   }, []);
 
-  useImperativeHandle(ref, () => ({ flush: flushSave }), [flushSave]);
+  useImperativeHandle(ref, () => ({ flush: flushSave, isDirty: () => saveQueueRef.current?.dirty ?? false }), [flushSave]);
 
-  // Undo holds whole configs. The deck is a small plain object, so keeping sixty of
-  // them costs less than the machinery to diff them would.
-  const past = useRef<CarouselConfig[]>([]);
-  const future = useRef<CarouselConfig[]>([]);
-  const [depth, setDepth] = useState({ past: 0, future: 0 });
-  const lastMark = useRef({ key: "", at: 0 });
-
-  /**
-   * Every change to the deck goes through here so it can be undone. Typing would
-   * otherwise put one entry on the stack per keystroke, so edits that share a key and
-   * land within COALESCE_MS are folded into the step already recorded, which keeps the
-   * state from before the burst rather than from the middle of it.
-   */
-  function commit(next: CarouselConfig, key = "") {
-    // This runs only in user and async callbacks, never while rendering.
-    const now = clockNow();
-    const continuing = key !== "" && key === lastMark.current.key && now - lastMark.current.at < COALESCE_MS;
-    if (!continuing) past.current = [...past.current, config].slice(-HISTORY_LIMIT);
-    lastMark.current = { key, at: now };
-    future.current = [];
-    setDepth({ past: past.current.length, future: 0 });
-    setConfig(next);
-  }
-
-  const step = useCallback((from: "past" | "future") => {
-    const source = from === "past" ? past : future;
-    const target = from === "past" ? future : past;
-    const next = source.current.at(-1);
-    if (!next) return;
-    source.current = source.current.slice(0, -1);
-    target.current = [...target.current, config].slice(-HISTORY_LIMIT);
-    setConfig(next);
+  const undoRedo = useCallback((from: "past" | "future") => {
+    const restored = step(from);
     // A slide the undone step had added may no longer be there to select.
-    setSelectedIndex((index) => Math.min(index, next.slides.length - 1));
-    lastMark.current = { key: "", at: 0 };
-    setDepth({ past: past.current.length, future: future.current.length });
-  }, [config]);
+    if (restored) setSelectedIndex((index) => Math.min(index, restored.slides.length - 1));
+  }, [step]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       // Modal text fields own their native undo history, not the deck history.
-      if (composeOpen || mediaOpen || readerOpen) return;
+      if (anyDialogOpen) return;
       if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "z") return;
       event.preventDefault();
-      step(event.shiftKey ? "future" : "past");
+      undoRedo(event.shiftKey ? "future" : "past");
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [step, composeOpen, mediaOpen, readerOpen]);
+  }, [undoRedo, anyDialogOpen]);
 
   // Set on the way in as well as cleared on the way out. With only the cleanup, a
   // StrictMode mount/cleanup/mount cycle would leave this false for good and every
@@ -279,7 +225,7 @@ export default function Editor({
     saveQueueRef.current?.enqueue(config);
     setSaveState("dirty");
 
-    const timer = window.setTimeout(() => { void flushSave(); }, 1200);
+    const timer = window.setTimeout(() => { void flushSave(); }, AUTOSAVE_MS);
     return () => window.clearTimeout(timer);
   }, [config, flushSave]);
 
@@ -295,27 +241,7 @@ export default function Editor({
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, []);
 
-  // Back is same-document navigation here, so beforeunload does not run. Hold the
-  // editor in place, flush it, then repeat the Back action with a clean queue.
-  useEffect(() => {
-    const onPop = (event: PopStateEvent) => {
-      if (!saveQueueRef.current?.dirty) return;
-      event.stopImmediatePropagation();
-      const editorUrl = savedIdRef.current ? `/?id=${encodeURIComponent(savedIdRef.current)}` : "/?view=carousels";
-      window.history.pushState(savedIdRef.current ? { id: savedIdRef.current } : {}, "", editorUrl);
-      void flushSave().then((saved) => {
-        if (saved && mounted.current) window.history.back();
-      });
-    };
-    window.addEventListener("popstate", onPop, { capture: true });
-    return () => window.removeEventListener("popstate", onPop, { capture: true });
-  }, [flushSave]);
-
-  /**
-   * `key` groups a burst of edits into one undo step. Text fields pass a stable key
-   * so a sentence typed straight through undoes as a sentence; discrete choices pass
-   * nothing so each one is its own step.
-   */
+  /** Patch the selected slide. `key` groups a burst of edits into one undo step. */
   function updateSlide(patch: Partial<CarouselSlide>, key = "") {
     commit(
       {
@@ -327,6 +253,7 @@ export default function Editor({
   }
 
   function addSlide() {
+    if (config.slides.length >= MAX_SLIDES) return;
     const slide: CarouselSlide = {
       id: newSlideId(),
       layout: "content",
@@ -338,6 +265,7 @@ export default function Editor({
   }
 
   function duplicateSlide() {
+    if (config.slides.length >= MAX_SLIDES) return;
     const copy = { ...selectedSlide, id: newSlideId() };
     const slides = [...config.slides];
     slides.splice(selectedIndex + 1, 0, copy);
@@ -370,56 +298,35 @@ export default function Editor({
     const data = loaded[asset.key];
     if (!data) throw new Error("That image could not be loaded. Try uploading it again from Media.");
 
-    if (target === "avatar") {
-      commit({ ...config, avatar: data });
-      showNotice({ kind: "success", message: `${asset.name} is now the deck avatar.` });
-      return;
-    }
     if (target === "images") {
       const images = [...(selectedSlide.images ?? []), data];
       updateSlide({ images });
-      const room = imageCapacity(selectedSlide.layout) - images.length;
+      const room = imageCapacity(selectedSlide) - images.length;
       showNotice({ kind: "success", message: room > 0 ? `Added ${asset.name}. Room for ${room} more.` : `Added ${asset.name}.` });
       return;
     }
-    updateSlide({ background: data });
+    updateSlide({ background: data, video: undefined });
     showNotice({ kind: "success", message: `${asset.name} is now the slide background.` });
   }
 
-  function removePicture(at: number) {
-    const images = (selectedSlide.images ?? []).filter((_, index) => index !== at);
-    updateSlide({ images: images.length ? images : undefined });
+  /** Source metadata is derived, so refreshing it must not add an undo step. */
+  function adoptVideoDuration(duration: number) {
+    if (exporting) return;
+    setConfig((current) => {
+      const slide = current.slides.find((item) => item.id === selectedSlide.id);
+      if (!slide?.video || slide.video.key !== selectedSlide.video?.key) return current;
+      const video = boundVideoBackground(slide.video, duration);
+      if (video.sourceDuration === slide.video.sourceDuration && video.start === slide.video.start && video.duration === slide.video.duration) return current;
+      return { ...current, slides: current.slides.map((item) => item === slide ? { ...slide, video } : item) };
+    });
   }
 
-  function openComposer(mode: "text" | "json") {
-    setComposeMessage(null);
-    setComposeMode(mode);
-    setJsonText(JSON.stringify(config, null, 2));
-    setComposeOpen(true);
-  }
-
-  function applyComposer() {
-    try {
-      const next = composeMode === "json"
-        ? parseCarouselConfig(jsonText)
-        : generateCarouselFromText(sourceText, config.author);
-      // Through commit, so replacing a whole deck by mistake is undoable.
-      commit(next);
-      setSelectedIndex(0);
-      setComposeOpen(false);
-      showNotice({ kind: "success", message: `Created ${next.slides.length} slides. They are ready to edit.` });
-    } catch (error) {
-      setComposeMessage({ kind: "error", message: error instanceof Error ? error.message : "Could not create the carousel." });
-    }
-  }
-
-  async function copyAiPrompt() {
-    try {
-      await navigator.clipboard.writeText(aiPrompt(config));
-      setComposeMessage({ kind: "success", message: "Prompt copied. Add your source text in Claude or Codex." });
-    } catch {
-      setComposeMessage({ kind: "error", message: "Could not copy the prompt. Check clipboard access and try again." });
-    }
+  function applyComposer(next: CarouselConfig) {
+    // Through commit, so replacing a whole deck by mistake is undoable.
+    commit(next);
+    setSelectedIndex(0);
+    setComposer(null);
+    showNotice({ kind: "success", message: `Created ${next.slides.length} slides. They are ready to edit.` });
   }
 
   function downloadJson() {
@@ -444,16 +351,23 @@ export default function Editor({
     window.location.reload();
   }
 
-  async function runExport(kind: "pdf" | "zip") {
+  async function runExport(kind: ExportKind) {
     if (exporting) return;
     setExporting(kind);
     try {
-      assertBackgroundsAvailableForExport(config);
-      if (kind === "pdf") {
+      assertBackgroundsAvailableForExport(kind === "mp4" ? { ...config, slides: [selectedSlide] } : config);
+      if (kind === "mp4") {
+        if (!selectedSlide.video) throw new Error("Choose a slide with a video background.");
+        if (!selectedSlide.video.sourceDuration) throw new Error("Wait for the video to load before exporting.");
+        parseVideoBackground(selectedSlide.video);
+        const page = String(selectedIndex + 1).padStart(2, "0");
+        await exportStageToMp4(fileNameFor(`${config.title}-${page}`, "mp4"), config.slides.length, selectedIndex, selectedSlide.video);
+        showNotice({ kind: "success", message: `Exported slide ${selectedIndex + 1} as an MP4.` });
+      } else if (kind === "pdf") {
         await exportStageToPdf(exportFileName, config.slides.length);
         showNotice({ kind: "success", message: `Exported ${config.slides.length} PDF pages for LinkedIn.` });
       } else {
-        await exportStageToZip(zipFileName, config.slides.length);
+        await exportStageToZip(fileNameFor(config.title, "zip"), config.slides.length);
         showNotice({ kind: "success", message: `Exported ${config.slides.length} numbered JPEGs for Instagram.` });
       }
     } catch (error) {
@@ -465,10 +379,9 @@ export default function Editor({
 
   return (
     <main className="studio-shell">
-      <header className="topbar">
+      <header className="topbar" inert={Boolean(exporting)}>
         <div className="topbar-crumbs">
           <button type="button" onClick={() => { void requestExit(); }} disabled={exiting}>Carousels</button>
-
         </div>
         <div className="project-name">
           <span className={`status-dot ${saveState}`} title={SAVE_LABEL[saveState]} />
@@ -480,24 +393,25 @@ export default function Editor({
           </div>
         </div>
         <div className="topbar-actions">
-          <Button variant="outline" className="secondary-button icon-button" type="button" onClick={() => step("past")} disabled={depth.past === 0} title="Undo (⌘Z)" aria-label="Undo"><Undo2 size={15} /></Button>
-          <Button variant="outline" className="secondary-button icon-button" type="button" onClick={() => step("future")} disabled={depth.future === 0} title="Redo (⇧⌘Z)" aria-label="Redo"><Redo2 size={15} /></Button>
-          <Button variant="outline" className="secondary-button generate-button" type="button" onClick={() => openComposer("text")} aria-label="Create from text" title="Create from text"><Sparkles size={15} /> <span>Create from text</span></Button>
+          <Button variant="outline" className="secondary-button icon-button" type="button" onClick={() => undoRedo("past")} disabled={!canUndo} title="Undo (⌘Z)" aria-label="Undo"><Undo2 size={15} /></Button>
+          <Button variant="outline" className="secondary-button icon-button" type="button" onClick={() => undoRedo("future")} disabled={!canRedo} title="Redo (⇧⌘Z)" aria-label="Redo"><Redo2 size={15} /></Button>
+          <Button variant="outline" className="secondary-button generate-button" type="button" onClick={() => setComposer("text")} aria-label="Create from text" title="Create from text"><Sparkles size={15} /> <span>Create from text</span></Button>
           <Button variant="outline" className="secondary-button icon-button" type="button" onClick={() => setReaderOpen(true)} aria-label="Reader preview" title="Reader preview"><Eye size={16} /></Button>
-          <ExportMenu busy={Boolean(exporting)} onExport={(kind) => { void runExport(kind); }} />
+          <ExportMenu busy={Boolean(exporting)} video={Boolean(selectedSlide.video)} onExport={(kind) => { void runExport(kind); }} />
         </div>
       </header>
 
-      <section className="workspace">
+      {exporting && <p className="video-export-status" role="status">{exporting === "mp4" ? "Rendering MP4… This may take a minute." : "Exporting slides…"} Keep this tab open.</p>}
+      <section className="workspace" inert={Boolean(exporting)}>
         <aside className="rail">
-          <div className="rail-heading"><span>Slides</span><button type="button" onClick={addSlide} aria-label="Add slide"><Plus size={15} /></button></div>
+          <div className="rail-heading"><span>Slides</span><button type="button" onClick={addSlide} disabled={config.slides.length >= MAX_SLIDES} aria-label="Add slide"><Plus size={15} /></button></div>
           <div className="slide-list">
             {config.slides.map((slide, index) => (
-              <button className={`slide-thumb ${index === selectedIndex ? "selected" : ""}`} type="button" key={slide.id} onClick={() => setSelectedIndex(index)} aria-pressed={index === selectedIndex} aria-label={`Slide ${index + 1}: ${titleLines(slide.title).join(" ").replace(/\*/g, "")}`}>
+              <button className={`slide-thumb ${index === selectedIndex ? "selected" : ""}`} type="button" key={slide.id} onClick={() => setSelectedIndex(index)} aria-pressed={index === selectedIndex} aria-label={`Slide ${index + 1}: ${plainTitle(slide)}`}>
                 <span className="thumb-number">{String(index + 1).padStart(2, "0")}</span>
                 <span className="thumb-frame" aria-hidden="true"><Slide slide={slide} config={config} index={index} /></span>
                 <span className="thumb-label">
-                  <strong>{titleLines(slide.title).join(" ").replace(/\*/g, "")}</strong>
+                  <strong>{plainTitle(slide)}</strong>
                   <small>{layoutNames[slide.layout]}</small>
                 </span>
               </button>
@@ -506,7 +420,7 @@ export default function Editor({
         </aside>
 
         <section className="canvas-area" aria-label="Slide preview">
-          {signifierMissing && (
+          {signifierMissing && theme === "editorial" && (
             <p className="font-warning" role="status">
               Signifier is not installed on this machine, so slides are showing Georgia. Exports from here will ship Georgia too. Install Signifier or export from a machine that has it.
             </p>
@@ -518,196 +432,47 @@ export default function Editor({
             </button>
             <span>{selectedIndex + 1} of {config.slides.length}</span>
           </div>
-          <div className="preview-frame">
-            <Slide slide={selectedSlide} config={config} index={selectedIndex} />
+          <div className="preview-frame" ref={previewRef}>
+            <Slide slide={selectedSlide} config={config} index={selectedIndex} videoPreview playing={videoPlaying && !readerOpen} onVideoDuration={adoptVideoDuration} />
             {showCrop && <div className="crop-guide" />}
           </div>
+          {copyOverflow && <p className="slide-overflow-warning" role="status">Some text overlaps or runs outside the slide. Shorten the copy, remove forced line breaks, or choose another position before exporting.</p>}
           <div className="slide-actions" aria-label="Slide actions">
+            {selectedSlide.video && <button type="button" onClick={() => setVideoPlaying(!videoPlaying)}>{videoPlaying ? <Pause size={14} /> : <Play size={14} />}{videoPlaying ? "Pause video" : "Play video"}</button>}
             <button type="button" onClick={() => moveSlide(-1)} disabled={selectedIndex === 0} aria-label="Move slide up"><ArrowUp size={15} /></button>
             <button type="button" onClick={() => moveSlide(1)} disabled={selectedIndex === config.slides.length - 1} aria-label="Move slide down"><ArrowDown size={15} /></button>
-            <button type="button" onClick={duplicateSlide}><Copy size={14} /> Duplicate</button>
+            <button type="button" onClick={duplicateSlide} disabled={config.slides.length >= MAX_SLIDES}><Copy size={14} /> Duplicate</button>
             <button className="danger-action" type="button" onClick={deleteSlide}><Trash2 size={14} /> Delete</button>
           </div>
         </section>
 
-        <aside className="inspector">
-          <div className="inspector-tabs" role="group" aria-label="Slide settings">
-            <button aria-pressed={inspectorTab === "content"} className={inspectorTab === "content" ? "active" : ""} onClick={() => setInspectorTab("content")} type="button">Content</button>
-            <button aria-pressed={inspectorTab === "layout"} className={inspectorTab === "layout" ? "active" : ""} onClick={() => setInspectorTab("layout")} type="button">Layout</button>
-            <button aria-pressed={inspectorTab === "design"} className={inspectorTab === "design" ? "active" : ""} onClick={() => setInspectorTab("design")} type="button">Design</button>
-          </div>
-
-          {inspectorTab === "layout" ? (
-            <div className="inspector-panel">
-              <label className="field-label" htmlFor="slide-layout">Slide type</label>
-              <div className="select-wrap"><select id="slide-layout" value={selectedSlide.layout} onChange={(event) => updateSlide({ layout: event.target.value as SlideLayout })}>{(Object.keys(layoutNames) as SlideLayout[]).map((layout) => <option value={layout} key={layout}>{layoutNames[layout]}</option>)}</select><ChevronDown size={14} /></div>
-
-              <span className="field-label">Text position</span>
-              <div className="segmented">
-                {(["top", "middle", "bottom"] as SlidePosition[]).map((position) => (
-                  <button type="button" key={position} aria-pressed={activePosition === position} className={activePosition === position ? "active" : ""} onClick={() => updateSlide({ position })}>
-                    {position === "top" ? "Top" : position === "middle" ? "Middle" : "Bottom"}
-                  </button>
-                ))}
-              </div>
-
-              <span className="field-label">Alignment</span>
-              <div className="segmented">
-                {(["left", "center"] as SlideAlign[]).map((align) => (
-                  <button type="button" key={align} aria-pressed={activeAlign === align} className={activeAlign === align ? "active" : ""} onClick={() => updateSlide({ align })}>
-                    {align === "left" ? "Left" : "Centred"}
-                  </button>
-                ))}
-              </div>
-
-              <button type="button" className="text-button subtle" onClick={() => commit({ ...config, slides: config.slides.map((slide) => ({ ...slide, position: activePosition, align: activeAlign })) })}>
-                Apply position and alignment to all slides
-              </button>
-
-              <p className="field-hint">{layoutHints[selectedSlide.layout]}</p>
-            </div>
-          ) : inspectorTab === "content" ? (
-            <div className="inspector-panel">
-              <label className="field-label" htmlFor="headline">Headline</label>
-              <textarea id="headline" maxLength={120} rows={5} value={selectedSlide.title} onChange={(event) => updateSlide({ title: event.target.value }, "title")} />
-              <div className="character-count" style={{ visibility: selectedSlide.title.length >= 100 ? "visible" : "hidden" }}>{selectedSlide.title.length} / 120</div>
-              <details className="format-help"><summary>Formatting help</summary><p className="field-hint"><em>|</em> starts a headline line. <em>*italic*</em> adds emphasis. <em>**highlight**</em> marks a phrase. A blank line starts a paragraph.</p></details>
-              {showsBody(selectedSlide.layout) ? (
-                <>
-                  <label className="field-label" htmlFor="body">Supporting copy</label>
-                  <textarea id="body" maxLength={280} rows={6} value={selectedSlide.body} onChange={(event) => updateSlide({ body: event.target.value }, "body")} />
-
-                </>
-              ) : (
-                <p className="field-hint">
-                  {layoutNames[selectedSlide.layout]} slides draw the headline only, so nothing can crowd the {selectedSlide.layout === "diagram" ? "figure" : selectedSlide.layout === "photos" ? "pictures" : "statement"}.
-                  {selectedSlide.body ? " The supporting copy is kept and comes back if you change the slide type." : ""}
-                </p>
-              )}
-              {selectedSlide.layout === "diagram" && (
-                <>
-                  <label className="field-label" htmlFor="diagram">Diagram SVG</label>
-                  <textarea className="svg-editor" id="diagram" rows={8} spellCheck={false} value={selectedSlide.diagram ?? ""} onChange={(event) => updateSlide({ diagram: event.target.value || undefined }, "diagram")} placeholder='<svg viewBox="0 0 800 500">…</svg>' />
-                  <p className="field-hint">Paste inline SVG. Use <em>currentColor</em> for strokes and text so it takes the slide’s ink on any ground. Scripts and external references are stripped. Find Copy AI prompt in Design → Project data → Edit JSON config.</p>
-                </>
-              )}
-              {usesImages(selectedSlide.layout) && (
-                <>
-                  <span className="field-label">Pictures · {(selectedSlide.images ?? []).length} of {imageCapacity(selectedSlide.layout)}</span>
-                  {(selectedSlide.images ?? []).length > 0 && (
-                    <ul className="picture-list">
-                      {(selectedSlide.images ?? []).map((image, pictureIndex) => (
-                        <li
-                          key={`${pictureIndex}-${image.slice(-24)}`}
-                          className={isImageKey(image) ? "is-missing" : ""}
-                          style={isImageKey(image) ? undefined : { backgroundImage: `url(${image})` }}
-                          title={isImageKey(image) ? "Not available in this browser" : `Picture ${pictureIndex + 1}`}
-                        >
-                          <button type="button" onClick={() => removePicture(pictureIndex)} aria-label={`Remove picture ${pictureIndex + 1}`}><X size={12} /></button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <p className="field-hint">One picture is a figure, two or three a filmstrip, four or more a grid. Grids read best with four or nine.</p>
-                  {(selectedSlide.images ?? []).length < imageCapacity(selectedSlide.layout) ? (
-                    <button className="wide-upload" type="button" onClick={() => setMediaOpen("images")} style={{ marginTop: 8 }}><Images size={15} /> Add a picture</button>
-                  ) : (
-                    <p className="field-hint">This layout is full. Remove a picture to add another.</p>
-                  )}
-                </>
-              )}
-            </div>
-          ) : (
-            <div className="inspector-panel">
-              <h3 className="settings-heading">This slide</h3>
-              <span className="field-label">Background colour</span>
-              <div className="segmented" aria-label="Slide ground colour">
-                <button type="button" aria-pressed={(selectedSlide.tone ?? "paper") === "paper"} className={(selectedSlide.tone ?? "paper") === "paper" ? "active" : ""} onClick={() => updateSlide({ tone: "paper" })}>Paper</button>
-                <button type="button" aria-pressed={selectedSlide.tone === "sage"} className={selectedSlide.tone === "sage" ? "active" : ""} onClick={() => updateSlide({ tone: "sage" })}>Sage</button>
-                <button type="button" aria-pressed={selectedSlide.tone === "black"} className={selectedSlide.tone === "black" ? "active" : ""} onClick={() => updateSlide({ tone: "black" })}>Black</button>
-              </div>
-              <span className="field-label">Background photo</span>
-              <button className="wide-upload" type="button" onClick={() => setMediaOpen("background")}><Images size={15} /> {selectedSlide.background ? "Choose another image" : "Choose from media"}</button>
-              {isImageKey(selectedSlide.background) && (
-                <p className="field-hint warning">
-                  This slide has an image that is not available in this browser, so it cannot be shown or exported here.
-                  It is kept in the saved carousel. If it predates media persistence, add it to Media again or choose a replacement from your library.
-                </p>
-              )}
-              {selectedSlide.background && (
-                <>
-                  <label className="field-label range-label" htmlFor="veil">
-                    <span>Photo veil</span>
-                    <span>{Math.round((selectedSlide.veil ?? DEFAULT_VEIL) * 100)}%</span>
-                  </label>
-                  <input id="veil" className="range" type="range" min={0} max={100} step={5} value={Math.round((selectedSlide.veil ?? DEFAULT_VEIL) * 100)} onChange={(event) => updateSlide({ veil: Number(event.target.value) / 100 }, "veil")} />
-                  <p className="field-hint">0% shows the photograph untouched. Raise it when copy has to sit on a busy part of the picture.</p>
-                  <button type="button" className="text-button" onClick={() => updateSlide({ background: undefined, veil: undefined })}>Remove image</button>
-                </>
-              )}
-
-              <h3 className="settings-heading settings-divider">All slides</h3>
-              <label className="field-label" htmlFor="mark">Series label</label>
-              <input id="mark" maxLength={30} value={config.mark ?? ""} placeholder="AI Engineer" onChange={(event) => commit({ ...config, mark: event.target.value }, "mark")} />
-              <label className="field-label" htmlFor="author">Footer name</label>
-              <input id="author" maxLength={40} value={config.author} onChange={(event) => commit({ ...config, author: event.target.value }, "author")} />
-              <span className="field-label">Avatar</span>
-              <div className="avatar-row">
-                <span className="avatar-preview" style={config.avatar && !isImageKey(config.avatar) ? { backgroundImage: `url(${config.avatar})` } : undefined} />
-                <button className="wide-upload" type="button" onClick={() => setMediaOpen("avatar")}><UserRound size={15} /> {config.avatar ? "Change avatar" : "Choose from media"}</button>
-              </div>
-              {config.avatar && <button type="button" className="text-button" onClick={() => commit({ ...config, avatar: undefined })}>Remove avatar</button>}
-              <span className="field-label">Page number</span>
-              <div className="segmented" aria-label="Page number style">
-                <button type="button" aria-pressed={(config.numbering ?? "page") === "page"} className={(config.numbering ?? "page") === "page" ? "active" : ""} onClick={() => commit({ ...config, numbering: undefined })}>02</button>
-                <button type="button" aria-pressed={config.numbering === "fraction"} className={config.numbering === "fraction" ? "active" : ""} onClick={() => commit({ ...config, numbering: "fraction" })}>02 / 06</button>
-              </div>
-              <label className="check-row"><input type="checkbox" checked={config.arrow !== false} onChange={(event) => commit({ ...config, arrow: event.target.checked ? undefined : false })} /> Swipe arrow on every slide but the last</label>
-              <details className="config-tools">
-                <summary>Project data</summary>
-                <button type="button" onClick={() => openComposer("json")}><Layers3 size={15} /> Edit JSON config</button>
-                <button type="button" onClick={downloadJson}><Download size={15} /> Download config</button>
-              </details>
-            </div>
-          )}
-        </aside>
+        <Inspector
+          config={config}
+          slide={selectedSlide}
+          theme={theme}
+          updateSlide={updateSlide}
+          commit={commit}
+          onAddPicture={() => setMediaOpen("images")}
+          onChooseImage={() => setMediaOpen("background")}
+          onChooseVideo={() => setVideoOpen(true)}
+          onEditJson={() => setComposer("json")}
+          onDownloadJson={downloadJson}
+        />
       </section>
 
       <ExportStage config={config} />
 
-      {composeOpen && (
-        <Dialog labelId="composer-title" onDismiss={() => setComposeOpen(false)} initialFocus={sourceRef}>
-          <section className="composer-dialog">
-            <div className="dialog-header">
-              <div><span className="dialog-icon"><Sparkles size={17} /></span><div><h2 id="composer-title">Create slides</h2></div></div>
-              <button type="button" onClick={() => setComposeOpen(false)} aria-label="Close"><X size={18} /></button>
-            </div>
-            <div className="mode-tabs">
-              <button aria-pressed={composeMode === "text"} className={composeMode === "text" ? "active" : ""} type="button" onClick={() => setComposeMode("text")}>Paste text</button>
-              <button aria-pressed={composeMode === "json"} className={composeMode === "json" ? "active" : ""} type="button" onClick={() => setComposeMode("json")}>JSON config</button>
-            </div>
-            {composeMode === "text" ? (
-              <div className="composer-body">
-                <label htmlFor="source-text">Source text</label>
-                <textarea ref={sourceRef} id="source-text" rows={12} value={sourceText} onChange={(event) => setSourceText(event.target.value)} placeholder="Paste an article, notes, or a rough idea. Separate sections with blank lines for more control…" />
-                <p>Vertica turns each paragraph into a slide. You can edit every word afterward.</p>
-              </div>
-            ) : (
-              <div className="composer-body">
-                <div className="json-label"><label htmlFor="json-config">Carousel config</label><button type="button" onClick={copyAiPrompt}><Copy size={13} /> Copy AI prompt</button></div>
-                <textarea ref={sourceRef} className="json-editor" id="json-config" rows={15} value={jsonText} onChange={(event) => setJsonText(event.target.value)} spellCheck={false} />
-                <p>Ask Claude or Codex to return this shape, then paste the result here.</p>
-              </div>
-            )}
-            {composeMessage && <p className={`composer-message ${composeMessage.kind}`} role="status">{composeMessage.message}</p>}
-            <div className="dialog-footer"><Button variant="outline" className="secondary-button" type="button" onClick={() => setComposeOpen(false)}>Cancel</Button><Button className="primary-button" type="button" onClick={applyComposer}><Sparkles size={15} /> {composeMode === "text" ? "Create slides" : "Apply config"}</Button></div>
-          </section>
-        </Dialog>
+      {composer && (
+        <Composer config={config} initialMode={composer} sourceText={sourceText} onSourceText={setSourceText} onApply={applyComposer} onClose={() => setComposer(null)} />
       )}
 
       {readerOpen && <ReaderPreview config={config} initialIndex={selectedIndex} onClose={() => setReaderOpen(false)} />}
 
       {mediaOpen && <MediaPicker onChoose={chooseMedia} onClose={() => setMediaOpen(null)} />}
+      {videoOpen && <VideoPicker onChoose={(video) => {
+        updateSlide({ background: undefined, video: { key: video.key, start: 0, duration: Math.min(10, Math.floor(video.duration * 10) / 10), sourceDuration: video.duration } });
+        setVideoPlaying(true);
+      }} onClose={() => setVideoOpen(false)} />}
 
       {notice && <div className={`toast ${notice.kind}`} role="status">{notice.kind === "success" ? <Check size={16} /> : <X size={16} />}{notice.message}</div>}
     </main>

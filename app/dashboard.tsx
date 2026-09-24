@@ -9,7 +9,7 @@ import {
   loadCarousel,
   type CarouselSummary,
 } from "./api-client";
-import { assertBackgroundsAvailableForExport, CarouselConfig, CarouselSlide, duplicateCarouselConfig, normalizeLayout } from "./carousel";
+import { assertBackgroundsAvailableForExport, carouselTheme, duplicateCarouselConfig, normalizeSlideLayout, type CarouselConfig, type CarouselSlide } from "./carousel";
 import { exportStageToPdf, exportStageToZip, fileNameFor } from "./export";
 import { loadImages } from "./image-store";
 import { ExportStage, Slide } from "./slide";
@@ -20,7 +20,7 @@ function readCover(cover: string) {
     return JSON.parse(cover || "{}") as {
       slide?: Partial<CarouselSlide>;
       mark?: string;
-      avatar?: string;
+      theme?: string;
     };
   } catch {
     return {};
@@ -53,22 +53,22 @@ function CardPreview({
     const stored = readCover(carousel.cover);
     const resolve = (ref: string | undefined) => (ref && images[ref]) || ref;
     const parsed = stored.slide ?? {};
-    const cover: CarouselSlide = {
+    const cover: CarouselSlide = normalizeSlideLayout({
       ...parsed,
       id: parsed.id ?? "cover",
-      layout: normalizeLayout(parsed.layout, "cover"),
+      layout: parsed.layout ?? "cover",
       title: parsed.title ?? (carousel.coverTitle || carousel.title),
       body: parsed.body ?? "",
       ...(parsed.background ? { background: resolve(parsed.background) } : {}),
       ...(parsed.images ? { images: parsed.images.map((ref) => resolve(ref) ?? ref) } : {}),
-    };
+    }, "cover");
     // The footer counter reads off the deck length, so the card needs the real count.
     return {
       version: 1,
       title: carousel.title,
       author: carousel.author,
+      theme: carouselTheme(stored.theme),
       ...(stored.mark ? { mark: stored.mark } : {}),
-      ...(stored.avatar && images[stored.avatar] ? { avatar: images[stored.avatar] } : {}),
       slides: Array.from({ length: Math.max(carousel.slideCount, 1) }, () => cover),
     };
   }, [carousel, images]);
@@ -97,6 +97,7 @@ export default function Dashboard({
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("updated");
+  const [visibleCount, setVisibleCount] = useState(24);
   const visibleCarousels = useMemo(() => {
     const search = query.trim().toLocaleLowerCase();
     return (carousels ?? [])
@@ -105,6 +106,7 @@ export default function Dashboard({
         ? a.title.localeCompare(b.title)
         : Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
   }, [carousels, query, sort]);
+  const pageCarousels = useMemo(() => visibleCarousels.slice(0, visibleCount), [visibleCarousels, visibleCount]);
   // Downloading needs the slides on the page, so the chosen deck is mounted
   // offscreen and rasterised once React has painted it.
   const [pending, setPending] = useState<{ config: CarouselConfig; title: string; kind: "pdf" | "zip" } | null>(null);
@@ -126,17 +128,17 @@ export default function Dashboard({
   }, [reloadToken]);
 
   useEffect(() => {
-    if (!carousels?.length) return;
+    if (!pageCarousels.length) return;
     let live = true;
-    const keys = carousels.flatMap((row) => {
+    const keys = pageCarousels.flatMap((row) => {
       const stored = readCover(row.cover);
-      return [stored.avatar ?? "", stored.slide?.background ?? "", ...(stored.slide?.images ?? [])];
+      return [stored.slide?.background ?? "", ...(stored.slide?.images ?? [])];
     }).filter(Boolean);
     loadImages([...new Set(keys)]).then((images) => {
       if (live) setCovers(images);
     });
     return () => { live = false; };
-  }, [carousels]);
+  }, [pageCarousels]);
 
   useEffect(() => {
     if (!pending) return;
@@ -211,8 +213,8 @@ export default function Dashboard({
 
         <div className="library-toolbar">
           <div className="library-filters">
-            <label className="library-search"><Search size={16} aria-hidden="true" /><input type="search" aria-label="Search carousels" placeholder="Search carousels…" value={query} onChange={(event) => setQuery(event.target.value)} />{query && <button type="button" aria-label="Clear search" onClick={() => setQuery("")}><X size={14} /></button>}</label>
-            <select aria-label="Sort carousels" value={sort} onChange={(event) => setSort(event.target.value)}><option value="updated">Last edited</option><option value="title">Name A–Z</option></select>
+            <label className="library-search"><Search size={16} aria-hidden="true" /><input type="search" aria-label="Search carousels" placeholder="Search carousels…" value={query} onChange={(event) => { setQuery(event.target.value); setVisibleCount(24); }} />{query && <button type="button" aria-label="Clear search" onClick={() => setQuery("")}><X size={14} /></button>}</label>
+            <select aria-label="Sort carousels" value={sort} onChange={(event) => { setSort(event.target.value); setVisibleCount(24); }}><option value="updated">Last edited</option><option value="title">Name A–Z</option></select>
           </div>
         </div>
 
@@ -233,7 +235,7 @@ export default function Dashboard({
         )}
 
         <ul className="gallery">
-          {visibleCarousels.map((carousel) => (
+          {pageCarousels.map((carousel) => (
             <li className="gallery-card" key={carousel.id}>
               <button className="card-open" type="button" onClick={() => onOpen(carousel.id)} aria-label={`Open ${carousel.title}`}>
                 <CardPreview carousel={carousel} images={covers} />
@@ -245,31 +247,36 @@ export default function Dashboard({
                   <small>{carousel.slideCount} slide{carousel.slideCount === 1 ? "" : "s"} · edited {relativeDate(carousel.updatedAt)}</small>
                 </span>
                 <div className="card-actions">
-                <button type="button" onClick={() => download(carousel, "pdf")} disabled={busyId !== null} aria-label={`Download ${carousel.title} as PDF`}>
-                  {busyId === carousel.id && pending?.kind === "pdf" ? <LoaderCircle className="spin" size={14} /> : <Download size={14} />}
-                  PDF
-                </button>
-                <button type="button" onClick={() => download(carousel, "zip")} disabled={busyId !== null} aria-label={`Download ${carousel.title} as JPEGs`} title="Numbered JPEGs, zipped, for Instagram">
-                  {busyId === carousel.id && pending?.kind === "zip" ? <LoaderCircle className="spin" size={14} /> : <Images size={14} />}
-                  JPEGs
-                </button>
-                <button type="button" disabled={busyId !== null} aria-busy={duplicatingId === carousel.id} onClick={() => { void duplicate(carousel); }} aria-label={`Duplicate ${carousel.title}`} title="Duplicate carousel">
-                  {duplicatingId === carousel.id ? <LoaderCircle className="spin" size={14} /> : <Copy size={14} />}
-                </button>
-                <button className="danger-action" type="button" disabled={busyId !== null} onClick={() => setConfirmId(carousel.id)} aria-label={`Delete ${carousel.title}`}>
-                  <Trash2 size={14} />
-                </button>
-                {confirmId === carousel.id && (
-                  <span className="confirm-delete">
-                    <button className="danger-action" type="button" disabled={busyId !== null} onClick={() => remove(carousel.id)}>Delete</button>
-                    <button type="button" onClick={() => setConfirmId(null)}>Keep</button>
-                  </span>
-                )}
+                  <button type="button" onClick={() => download(carousel, "pdf")} disabled={busyId !== null} aria-label={`Download ${carousel.title} as PDF`}>
+                    {busyId === carousel.id && pending?.kind === "pdf" ? <LoaderCircle className="spin" size={14} /> : <Download size={14} />}
+                    PDF
+                  </button>
+                  <button type="button" onClick={() => download(carousel, "zip")} disabled={busyId !== null} aria-label={`Download ${carousel.title} as JPEGs`} title="Numbered JPEGs, zipped, for Instagram">
+                    {busyId === carousel.id && pending?.kind === "zip" ? <LoaderCircle className="spin" size={14} /> : <Images size={14} />}
+                    JPEGs
+                  </button>
+                  <button type="button" disabled={busyId !== null} aria-busy={duplicatingId === carousel.id} onClick={() => { void duplicate(carousel); }} aria-label={`Duplicate ${carousel.title}`} title="Duplicate carousel">
+                    {duplicatingId === carousel.id ? <LoaderCircle className="spin" size={14} /> : <Copy size={14} />}
+                  </button>
+                  <button className="danger-action" type="button" disabled={busyId !== null} onClick={() => setConfirmId(carousel.id)} aria-label={`Delete ${carousel.title}`}>
+                    <Trash2 size={14} />
+                  </button>
+                  {confirmId === carousel.id && (
+                    <span className="confirm-delete">
+                      <button className="danger-action" type="button" disabled={busyId !== null} onClick={() => remove(carousel.id)}>Delete</button>
+                      <button type="button" onClick={() => setConfirmId(null)}>Keep</button>
+                    </span>
+                  )}
                 </div>
               </div>
             </li>
           ))}
         </ul>
+        {visibleCount < visibleCarousels.length && (
+          <button className="secondary-button media-load-more" type="button" onClick={() => setVisibleCount((count) => count + 24)}>
+            Load more carousels ({visibleCarousels.length - visibleCount} remaining)
+          </button>
+        )}
       </section>
 
       {pending && <ExportStage config={pending.config} />}

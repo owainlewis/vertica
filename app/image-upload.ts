@@ -1,3 +1,4 @@
+import { blobToDataUrl } from "./data-url";
 import { SUPPORTED_IMAGE_MIME_TYPES } from "./image-formats";
 
 const MAX_IMAGE_EDGE = 2160;
@@ -9,15 +10,6 @@ export type PreparedImage = {
   width: number;
   height: number;
 };
-
-function blobToDataUrl(blob: Blob, fileName: string) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error(`Could not read ${fileName}.`));
-    reader.readAsDataURL(blob);
-  });
-}
 
 async function prepareImage(file: File): Promise<PreparedImage> {
   const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
@@ -37,7 +29,7 @@ async function prepareImage(file: File): Promise<PreparedImage> {
       );
     });
     return {
-      dataUrl: await blobToDataUrl(blob, file.name),
+      dataUrl: await blobToDataUrl(blob, `Could not read ${file.name}.`),
       name: file.name.replace(/\.[^.]+$/, "").trim() || "Untitled image",
       width: canvas.width,
       height: canvas.height,

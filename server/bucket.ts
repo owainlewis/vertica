@@ -5,7 +5,7 @@
  * and tests. No database.
  */
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { dirname, join, relative } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 export type ObjectMeta = {
   /** Changes on every write. A conditional put names the generation it expects. */
@@ -41,60 +41,85 @@ export interface Bucket {
   list(prefix: string): Promise<Array<{ key: string; meta: ObjectMeta }>>;
 }
 
+// Share ordering across bucket instances in this server process.
+const localOperations = new Map<string, Promise<void>>();
+
 /**
- * A folder on disk. Each object is a file plus a sidecar `.meta.json`. Good enough
- * for one developer and for tests; not safe for two writers at once, which is why
- * production uses the real thing.
+ * A folder on disk. Operations on each object run in order, including reads of
+ * its bytes and metadata. Independent server processes must use cloud storage.
  */
 export class LocalBucket implements Bucket {
   private readonly root: string;
 
   constructor(root: string) {
-    this.root = root;
+    this.root = resolve(root);
   }
 
   private path(key: string) {
-    return join(this.root, key);
+    const path = resolve(this.root, key);
+    if (isAbsolute(key) || (path !== this.root && !path.startsWith(`${this.root}${sep}`))) {
+      throw new Error("Invalid bucket key.");
+    }
+    return path;
+  }
+
+  private async withObject<T>(key: string, work: () => Promise<T>): Promise<T> {
+    const path = this.path(key);
+    const result = (localOperations.get(path) ?? Promise.resolve()).then(work);
+    const settled = result.then(() => {}, () => {});
+    localOperations.set(path, settled);
+    try {
+      return await result;
+    } finally {
+      if (localOperations.get(path) === settled) localOperations.delete(path);
+    }
   }
 
   private async readMeta(key: string): Promise<ObjectMeta | null> {
+    const path = this.path(key);
     try {
-      return JSON.parse(await readFile(`${this.path(key)}.meta.json`, "utf8")) as ObjectMeta;
+      return JSON.parse(await readFile(`${path}.meta.json`, "utf8")) as ObjectMeta;
     } catch {
       return null;
     }
   }
 
   async get(key: string) {
-    const meta = await this.readMeta(key);
-    if (!meta) return null;
-    return { bytes: new Uint8Array(await readFile(this.path(key))), meta };
+    return this.withObject(key, async () => {
+      const meta = await this.readMeta(key);
+      if (!meta) return null;
+      return { bytes: new Uint8Array(await readFile(this.path(key))), meta };
+    });
   }
 
   head(key: string) {
-    return this.readMeta(key);
+    return this.withObject(key, () => this.readMeta(key));
   }
 
   async put(key: string, bytes: Uint8Array, options: PutOptions) {
-    const current = await this.readMeta(key);
-    if (options.ifGeneration !== undefined && (current?.generation ?? 0) !== options.ifGeneration) {
-      throw new PreconditionError();
-    }
-    const meta: ObjectMeta = {
-      generation: Math.max(Date.now(), (current?.generation ?? 0) + 1),
-      contentType: options.contentType,
-      custom: options.custom ?? current?.custom ?? {},
-      updated: new Date().toISOString(),
-    };
-    await mkdir(dirname(this.path(key)), { recursive: true });
-    await writeFile(this.path(key), bytes);
-    await writeFile(`${this.path(key)}.meta.json`, JSON.stringify(meta));
-    return meta;
+    return this.withObject(key, async () => {
+      const current = await this.readMeta(key);
+      if (options.ifGeneration !== undefined && (current?.generation ?? 0) !== options.ifGeneration) {
+        throw new PreconditionError();
+      }
+      const meta: ObjectMeta = {
+        generation: Math.max(Date.now(), (current?.generation ?? 0) + 1),
+        contentType: options.contentType,
+        custom: options.custom ?? current?.custom ?? {},
+        updated: new Date().toISOString(),
+      };
+      await mkdir(dirname(this.path(key)), { recursive: true });
+      await writeFile(this.path(key), bytes);
+      await writeFile(`${this.path(key)}.meta.json`, JSON.stringify(meta));
+      return meta;
+    });
   }
 
   async delete(key: string) {
-    await rm(this.path(key), { force: true });
-    await rm(`${this.path(key)}.meta.json`, { force: true });
+    return this.withObject(key, async () => {
+      await rm(this.path(key), { force: true });
+      await rm(`${this.path(key)}.meta.json`, { force: true });
+    });
   }
 
   async list(prefix: string) {
@@ -110,7 +135,7 @@ export class LocalBucket implements Bucket {
     for (const entry of entries) {
       if (!entry.endsWith(".meta.json")) continue;
       const key = join(prefix, entry.slice(0, -".meta.json".length));
-      const meta = await this.readMeta(key);
+      const meta = await this.head(key);
       if (meta) found.push({ key: relative(".", key), meta });
     }
     return found;
@@ -138,14 +163,24 @@ export class GcsBucket implements Bucket {
   }
 
   async get(key: string) {
-    const file = (await this.ready).file(key);
-    try {
-      const [[bytes], [raw]] = await Promise.all([file.download(), file.getMetadata()]);
-      return { bytes: new Uint8Array(bytes), meta: this.toMeta(raw) };
-    } catch (error) {
-      if (isNotFound(error)) return null;
-      throw error;
+    const bucket = await this.ready;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      let raw;
+      try {
+        [raw] = await bucket.file(key).getMetadata();
+      } catch (error) {
+        if (isNotFound(error)) return null;
+        throw error;
+      }
+      try {
+        const [bytes] = await bucket.file(key, { generation: raw.generation }).download();
+        return { bytes: new Uint8Array(bytes), meta: this.toMeta(raw) };
+      } catch (error) {
+        // Without object versioning, a replacement can remove the pinned version.
+        if (!isNotFound(error)) throw error;
+      }
     }
+    throw new Error("The object changed repeatedly while being read.");
   }
 
   async head(key: string) {
@@ -171,8 +206,8 @@ export class GcsBucket implements Bucket {
       if ((error as { code?: number }).code === 412) throw new PreconditionError();
       throw error;
     }
-    const [raw] = await file.getMetadata();
-    return this.toMeta(raw);
+    // save() stores the upload response on this File, including its generation.
+    return this.toMeta(file.metadata);
   }
 
   async delete(key: string) {

@@ -1,11 +1,14 @@
 import { Button } from "./components/ui/button";
-import { ChevronDown, ImagePlus, LoaderCircle, Trash2, Upload } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { ImagePlus, LoaderCircle, Trash2, Upload } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { deleteMedia, listMedia, type MediaAsset } from "./api-client";
 import BusyLabel from "./busy-label";
 import { SUPPORTED_IMAGE_ACCEPT } from "./image-formats";
 import { mediaUrl, putImage } from "./image-store";
 import { prepareImages } from "./image-upload";
+
+/** Decode, resize and upload this many files at a time to bound memory. */
+const UPLOAD_BATCH = 3;
 
 function imageDetails(asset: MediaAsset) {
   if (asset.width && asset.height) return `${asset.width} × ${asset.height}`;
@@ -16,32 +19,29 @@ export default function MediaGallery() {
   const [media, setMedia] = useState<MediaAsset[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [uploadCount, setUploadCount] = useState(0);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [confirmKey, setConfirmKey] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const refresh = useCallback(async () => {
+  useEffect(() => {
+    let live = true;
+    listMedia()
+      .then((assets) => { if (live) setMedia(assets); })
+      .catch((cause) => { if (live) setError(cause instanceof Error ? cause.message : "Could not load your media."); });
+    return () => { live = false; };
+  }, []);
+
+  /** Re-read after uploads so the list carries the server's names and de-duplicated keys. */
+  async function refresh() {
     try {
-      const page = await listMedia();
-      setMedia(page.media);
-      setNextCursor(page.nextCursor);
+      setMedia(await listMedia());
       setError(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not load your media.");
     }
-  }, []);
-
-  useEffect(() => {
-    let live = true;
-    listMedia()
-      .then((page) => { if (live) { setMedia(page.media); setNextCursor(page.nextCursor); } })
-      .catch((cause) => { if (live) setError(cause instanceof Error ? cause.message : "Could not load your media."); });
-    return () => { live = false; };
-  }, []);
+  }
 
   async function upload(files: FileList | File[]) {
     if (!files.length || uploading) return;
@@ -51,14 +51,9 @@ export default function MediaGallery() {
     let completed = 0;
     try {
       const selected = Array.from(files);
-      for (let start = 0; start < selected.length; start += 3) {
-        // Decode, resize, and upload one small batch before allocating the next.
-        const prepared = await prepareImages(selected.slice(start, start + 3));
-        const results = await Promise.allSettled(prepared.map((image) => putImage(image.dataUrl, {
-          name: image.name,
-          width: image.width,
-          height: image.height,
-        })));
+      for (let start = 0; start < selected.length; start += UPLOAD_BATCH) {
+        const prepared = await prepareImages(selected.slice(start, start + UPLOAD_BATCH));
+        const results = await Promise.allSettled(prepared.map((image) => putImage(image.dataUrl, image)));
         completed += results.filter((result) => result.status === "fulfilled").length;
         setUploadCount(completed);
         const failed = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
@@ -77,23 +72,6 @@ export default function MediaGallery() {
     }
   }
 
-  async function loadMore() {
-    if (!nextCursor || loadingMore) return;
-    setLoadingMore(true);
-    try {
-      const page = await listMedia(nextCursor);
-      setMedia((current) => {
-        const existing = new Set((current ?? []).map((item) => item.key));
-        return [...(current ?? []), ...page.media.filter((item) => !existing.has(item.key))];
-      });
-      setNextCursor(page.nextCursor);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not load more media.");
-    } finally {
-      setLoadingMore(false);
-    }
-  }
-
   async function remove(asset: MediaAsset) {
     setBusyKey(asset.key);
     setError(null);
@@ -101,7 +79,7 @@ export default function MediaGallery() {
       await deleteMedia(asset.key);
       setMedia((current) => (current ?? []).filter((item) => item.key !== asset.key));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not delete that image.");
+      setError(cause instanceof Error ? cause.message : "Could not remove that image.");
     } finally {
       setBusyKey(null);
       setConfirmKey(null);
@@ -130,7 +108,6 @@ export default function MediaGallery() {
           </Button>
         </div>
 
-
         {error && <p className="dashboard-error" role="status">{error}</p>}
 
         <div
@@ -151,6 +128,7 @@ export default function MediaGallery() {
 
         {media === null && !error && <div className="library-loading" role="status"><LoaderCircle className="spin" size={20} /> Loading images…</div>}
 
+        <p>Removing an image hides it from the library. Its file is retained to protect saved carousels.</p>
         <ul className="media-grid">
           {(media ?? []).map((asset) => (
             <li className="media-card" key={asset.key}>
@@ -164,22 +142,17 @@ export default function MediaGallery() {
                 {confirmKey === asset.key ? (
                   <span className="media-confirm">
                     <button type="button" className="danger-action" onClick={() => { void remove(asset); }} disabled={busyKey === asset.key} aria-busy={busyKey === asset.key}>
-                      <BusyLabel busy={busyKey === asset.key} idle="Delete" pending="Deleting…" />
+                      <BusyLabel busy={busyKey === asset.key} idle="Remove" pending="Removing…" />
                     </button>
                     <button type="button" onClick={() => setConfirmKey(null)}>Keep</button>
                   </span>
                 ) : (
-                  <button type="button" className="media-delete" onClick={() => setConfirmKey(asset.key)} aria-label={`Delete ${asset.name}`}><Trash2 size={14} /></button>
+                  <button type="button" className="media-delete" onClick={() => setConfirmKey(asset.key)} aria-label={`Remove ${asset.name} from library`}><Trash2 size={14} /></button>
                 )}
               </div>
             </li>
           ))}
         </ul>
-        {nextCursor && (
-          <Button variant="outline" className="secondary-button media-load-more" type="button" onClick={() => { void loadMore(); }} disabled={loadingMore} aria-busy={loadingMore}>
-            {loadingMore ? <LoaderCircle className="spin" size={16} /> : <ChevronDown size={16} />}<BusyLabel busy={loadingMore} idle="Load more images" pending="Loading…" />
-          </Button>
-        )}
       </section>
     </main>
   );

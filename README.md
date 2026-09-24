@@ -1,6 +1,6 @@
 # Vertica
 
-A studio for LinkedIn and Instagram carousels. One editorial design system, seven
+A studio for LinkedIn and Instagram carousels. Two themes, four
 slide layouts, a media library, and one-click export to PDF or numbered JPEGs.
 
 Every deck is a small JSON document. You can write it by hand, paste it from Claude,
@@ -18,11 +18,65 @@ npm install
 npm run dev
 ```
 
+With `just` installed, run `just` or `just start` instead of `npm run dev`.
+
 That starts the API on port 8787 and Vite on the port it prints, with `/api`
 proxied through. Decks and images are written to `.data/` in the project, so
 nothing leaves your machine.
 
 `npm test` typechecks, builds, and runs the tests. `npm run lint` runs ESLint.
+
+## Experimental video backgrounds
+
+Install `ffmpeg` and `ffprobe` on the server's PATH (`brew install ffmpeg` on
+macOS). The Docker image includes them. In the editor, open **Design → Choose a
+video**, upload an MP4 or MOV, and set the clip's start and duration. Use the
+existing text, positioning, colours, and background veil. Pause/play controls are
+available in the editor and reader preview.
+
+**Export → Video slide** downloads the selected slide as a silent 1080 × 1350,
+30 fps H.264 MP4. It keeps the preview's centred 4:5 crop and burns in the text,
+branding, and veil. New uploads retain their exact original file; MP4 export
+encodes directly from that original at CRF 16 with the medium preset and Lanczos
+scaling. PDF and JPEG exports also read their selected first frame from the
+original. The final resize and H.264 encode are not mathematically lossless.
+MP4 export currently produces one slide at a time; there is no audio, animated
+text, timeline, or combined deck video.
+
+Sources can be 1–120 seconds, up to 512 MB and 4096 pixels on either side. Clips
+can be 1–30 seconds. The editor reads and stores the source duration and constrains
+the start and duration to fit; older saved intervals are corrected when the video
+metadata loads. Uploads use 8 MB chunks in the
+same storage bucket as the app, so they work across server instances. Compatible
+H.264 clips are repackaged as silent MP4s without changing their video pixels,
+resolution, or frame rate. Stream copy accepts common 8-bit profiles through
+level 5.1, up to UHD dimensions and 60 fps, with square pixels and no rotation.
+Other formats or playback files over 96 MB get a smaller H.264 preview capped at
+30 fps, preserving slower source frame rates;
+exports still use the untouched original. Short compatible clips usually avoid
+that fallback. Each upload has its own ID so failed writes can be rolled back
+without deleting another upload, even when the original files are identical.
+The server deletes temporary upload chunks after processing. Removing unused
+media hides it from the library while retaining its files, so a concurrent deck
+save cannot lose its image or video. Retained files continue to incur storage
+costs; there is no automatic purge. Uploading an image again restores its library
+entry. Uploading a video again creates a new entry; the retained original remains
+available to existing references. Interrupted uploads expire after an hour and
+are cleaned up on the next upload.
+
+Existing videos can be reused from the video picker. Uploads made before original
+retention still export from their playback copy. Re-upload those videos to gain
+the higher quality; previously discarded source detail cannot be restored.
+
+Video processing uses temporary disk and one encoder per instance, with a
+three-minute processing timeout. The deploy script allocates 2 GiB of memory,
+two CPUs, four concurrent requests, and a five-minute request timeout because
+Cloud Run also charges temporary files against memory. A busy encoder returns a
+retryable error. This branch changes deployment settings but does not deploy them.
+
+Run `npm test` with FFmpeg installed to include actual video upload, encoding,
+crop, overlay, duration, and error-path checks. Those integration checks report
+as skipped when FFmpeg is absent; parser and API validation checks still run.
 
 ## How it is built
 
@@ -32,17 +86,22 @@ One Node process, one bucket, one container.
 app/            the React app (Vite)
   carousel.ts     the document model, parser, generator, AI prompt
   slide.tsx       the one renderer, used for the editor, the gallery and the export
-  editor.tsx      the editor screen
+  editor.tsx      the editor screen: rail, canvas, autosave and export
+  inspector.tsx   the editor's Content, Layout and Design panels
+  composer.tsx    the "create from text or JSON" dialog
+  use-history.ts  undo and redo over whole decks
   dashboard.tsx   the gallery
   media-*.tsx     the media library and the picker
   export.ts       PDF and ZIP export, rasterised from the DOM at 2x
   image-store.ts  content-addressed media keys, IndexedDB cache in front of the API
+  *-formats.ts    image and video rules shared with the server
   save-queue.ts   ordered, coalesced autosave
   globals.css     the design system and the app chrome
 server/         the API and static host (Hono)
   bucket.ts       the storage interface: Google Cloud Storage, or a folder on disk
   store.ts        decks and media as objects
   api.ts          routes and validation
+  video.ts        video upload, processing and export routes
   auth.ts         the optional shared-password gate
 tests/          node:test suites, run against the on-disk bucket
 ```
@@ -67,58 +126,132 @@ on any machine. Deleting a library image is refused while a deck still uses it.
 
 ## The design system
 
-Signifier for headlines, Helvetica for copy and furniture, paper ground with sage
-and black as the two alternative grounds. A faint twelve-column field sits under
-every text slide. Series label top left, page number top right, footer and optional
-avatar bottom left, a swipe arrow bottom right on every slide but the last.
+Choose **Editorial** or **AI Engineer** in the editor's **Design → Carousel theme**.
+The theme applies to the whole deck and is saved, duplicated, imported and exported
+with it. Existing decks default to Editorial. Both themes use the same Forest
+background (`#0c110f`). The saved tone value remains `"black"`, so existing dark
+slides adopt Forest without a document migration.
 
-Seven layouts, each with one job. Note, poster, diagram and photos draw the headline
-only, so nothing can collide with the figure.
+AI Engineer pairs bundled Geist regular and italic fonts with a forest cover
+(`#0c110f`) and soft-grey slides (`#efeeea`, the same paper as Editorial). Unset
+backgrounds use forest for covers and soft grey for every other layout, including
+Body 2 and CTA slides. Choose Soft grey (`paper`) or Forest (`black`) for an
+explicit background. Older AI Engineer decks with `sage` tones also render soft
+grey; their stored choices are kept so switching to Editorial restores sage.
+Alignment choices survive switching themes. Automatic alignment is left. Forest
+slides keep cream text and sand emphasis; light slides use dark ink and muted
+green emphasis.
+AI Engineer diagrams inherit the theme font unless their markup sets a font explicitly;
+use `font-family="inherit"` for labels that should follow the deck.
 
-| Layout | Draws | Use it for |
+Set `"theme": "ai-engineer"` in a JSON config to use it; omit the field or use
+`"editorial"` for the original theme. Both themes use the same four layouts and
+renderer in the gallery, editor, reader preview and PDF/JPEG export.
+
+The type scale is consistent by role. Covers keep their expressive display
+headlines: about 50px for Editorial and 41px for AI Engineer at a 390px feed width.
+CTA headlines are 31px; standalone Body 2 statements are 23px. Paragraphs, Body 1
+leads and visual captions share the agreed 18px reading size, with 1.4 line height.
+All sizes scale with the slide for export. Editorial keeps Signifier on covers,
+CTAs and visual captions, paired with plain sans teaching copy. AI Engineer uses
+Geist. Body 1 leads use weight to separate them from paragraphs.
+
+Editorial covers and CTAs centre by default; teaching copy aligns left. AI
+Engineer keeps its left alignment. Explicit alignment always wins. Body layouts
+share 9.5% side margins; centred Editorial covers use a wider 6% margin for the
+display title. Text slides centre their copy block vertically. Supporting
+paragraphs follow the heading in normal flow, including on covers.
+
+Pictures and diagrams share a contained figure area, with a caption below by
+default; choose Top to put the caption above. Visual slides offer Top and Bottom
+only. Older visual slides set to Middle render their caption above the figure
+while retaining the saved value.
+
+Keep teaching slides around 30 words. The editor warns when rendered copy overlaps
+or leaves the frame. Explicit `|` breaks are preserved; generated copy wraps
+naturally. Generated Editorial decks keep a paper ground instead of inserting
+colour changes. Background choices remain available. Pages have no decorative
+column rules or header borders, and inline emphasis uses weight rather than a
+highlighter stroke.
+
+SVG text keeps its authored size and font. The AI prompt recommends one 48-unit
+size for labels and notes in an 800-unit-wide drawing, approximately 19px at phone
+width when the full figure fits. Inspect dense or tall diagrams at phone size;
+labels can be smaller when the figure is constrained by height.
+
+**Layout → Show header / Show footer** controls the series label, page number,
+author and swipe arrow independently. Settings apply to previews and exports.
+
+| Editor layout | JSON value | Purpose |
 |---|---|---|
-| `cover` | headline, one-line subtitle | the opener |
-| `content` | headline, copy | most slides |
-| `note` | one sans statement, `**bold**` for emphasis | an aside |
-| `poster` | one short serif statement | the strongest line |
-| `diagram` | inline SVG, headline as caption | architecture and flows |
-| `photos` | one to nine pictures under a title | a figure, a filmstrip, a grid |
-| `closing` | headline, one line | the finish |
+| Cover | `cover` | A specific promise and a short subtitle |
+| Body 1 | `content` | A bold lead followed by short paragraphs |
+| Body 2 | `note` | A short statement or visual example with a caption |
+| CTA | `closing` | One next action and a supporting line |
 
-Inline marks: `*word*` for italic, `**phrase**` for a highlighter stroke, `|` in a
-headline to force the line break. Photos can also sit behind the copy on any slide,
-with a per-slide veil dial.
+For Body 2, choose **Content → Visual example → Pictures / Diagram**, or keep
+**Text only**. JSON uses `visual: "photos"` with `images`, or `visual: "diagram"`
+with an inline `diagram` SVG. One picture is contained in the figure area; two to
+nine form a grid inside the same margins. Images are shown in full, without
+filmstrip overflow or cropping. Switching
+layouts or visual types keeps the unused copy and assets for switching back.
 
-`.claude/skills/carousel/SKILL.md` is the house style for writing a deck: the
-seven-slide arc, the one character slide, copy rules, diagram rules, and the JSON
-shape. In Claude Code, `/carousel` loads it.
+Older `poster`, `diagram`, `photos`, `grid`, `strip` and `figure` layouts load as
+Body 2, retaining their visuals and hidden supporting copy. Older `quote` and
+`split` layouts become Body 1. Existing text remains editable; it adopts the new
+type scale. The four roles share one renderer across the editor, reader, gallery
+and exports.
+
+Inline marks: `*word*` for italic, `**phrase**` for emphasis, `|` for an explicit
+headline break. Pictures and videos can also sit behind the copy on any layout.
+
+`.claude/skills/carousel/SKILL.md` describes the house writing framework, the four
+layouts, typography and diagram guidance. In Claude Code, `/carousel` loads it.
 
 ## The document
 
 ```json
 {
   "version": 1,
-  "title": "What is a software factory?",
+  "title": "Choose a design for the work",
   "author": "aiengineer.co",
-  "mark": "Software factories",
+  "mark": "AI system design",
   "slides": [
-    { "layout": "cover", "title": "What is a | software *factory*?", "body": "A thesis, and the place it breaks" },
-    { "layout": "content", "title": "Agents are | inconsistent", "body": "Fifty runs, fifty answers.\n\nPrompts narrow the spread. They do not close it." },
-    { "layout": "poster", "tone": "sage", "title": "*Except…*" },
-    { "layout": "diagram", "title": "Control plane and data plane", "diagram": "<svg viewBox=\"0 0 800 500\">…</svg>" },
-    { "layout": "closing", "title": "Build the tool. | Keep the agent for *judgment*.", "body": "Link in the comments." }
+    {
+      "layout": "cover",
+      "title": "Choose a design | for the *work*.",
+      "body": "Start with the task you need to complete."
+    },
+    {
+      "layout": "content",
+      "title": "Put known steps in code.",
+      "body": "A model can read a request while code controls the next step.\n\nEach path has a rule you can test."
+    },
+    {
+      "layout": "note",
+      "title": "The model can help | inside a fixed workflow."
+    },
+    {
+      "layout": "closing",
+      "title": "Map the next step.",
+      "body": "If the route is known, code it. If it must be discovered, consider an agent."
+    }
   ]
 }
 ```
 
-Optional fields: `avatar` (a media key or data URL), `numbering` (`"fraction"` for
-02 / 06), `arrow: false`, and per slide `tone`, `position`, `align`, `background`,
-`veil`, `images`. `parseCarouselConfig` in `app/carousel.ts` is the contract; it
+Optional fields: `arrow: false`, and per slide `tone`, `position`, `align`,
+`background`, `video`, `veil`, `visual`, `diagram`, `images`, `showHeader`, `showFooter`. Header and
+footer default to visible; set either to `false` to hide it on that slide. Page
+numbers always use `01`, `02`, etc.
+`parseCarouselConfig` in `app/carousel.ts` is the contract; it
 throws a plain message for anything the app would refuse, and it maps older layout
-names onto the current seven.
+names onto the current four.
 
-Diagrams are sanitised on the way in. Scripts, event handlers, embedded HTML and
-external references are stripped, so a pasted SVG can draw but never run or fetch.
+Diagrams are sanitised on the way in. Scripts, event handlers, embedded HTML,
+stylesheets, and external references are stripped. Use SVG presentation attributes
+or inline styles for drawing properties such as fill, stroke, and font size;
+page layout rules and resource-loading CSS are removed.
 
 ## Deploying
 
@@ -151,6 +284,9 @@ With it unset the app is open, which is what local development wants. With `BUCK
 unset the server uses `.data/` on disk.
 
 ## Fonts
+
+The AI Engineer theme bundles Geist under the SIL Open Font License 1.1. Its fonts
+and license are in `public/fonts/geist/`; no font installation is needed.
 
 Signifier is a commercial face from Klim and is not bundled. The app loads it from
 the machine and warns in the editor when it is missing, since the export would

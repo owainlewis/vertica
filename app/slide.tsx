@@ -1,15 +1,21 @@
-import { CSSProperties } from "react";
+import type { CSSProperties } from "react";
+import VideoBackground from "./video-background";
+import { videoUrl } from "./video-formats";
 import {
   bodyParagraphs,
-  CarouselConfig,
-  CarouselSlide,
+  AI_ENGINEER_TYPE_SCALE,
+  carouselTheme,
+  type CarouselConfig,
+  type CarouselSlide,
   imageCapacity,
+  normalizeSlideLayout,
   parseInlineMarks,
   photoArrangement,
   showsBody,
   sanitizeSvg,
   slideAlign,
   slidePosition,
+  slideTone,
   smartQuotes,
   titleLines,
   TYPE_SCALE,
@@ -37,44 +43,52 @@ function painted(ref: string | undefined) {
 }
 
 export function Slide({
-  slide,
+  slide: sourceSlide,
   config,
   index,
   exportMode = false,
+  videoPreview = false,
+  playing = true,
+  onVideoDuration,
 }: {
   slide: CarouselSlide;
   config: CarouselConfig;
   index: number;
   exportMode?: boolean;
+  videoPreview?: boolean;
+  playing?: boolean;
+  onVideoDuration?: (duration: number) => void;
 }) {
-  const scale = TYPE_SCALE;
-  const isCover = slide.layout === "cover";
-  const isPoster = slide.layout === "poster";
+  const slide = normalizeSlideLayout(sourceSlide);
+  const theme = carouselTheme(config.theme);
+  const scale = theme === "ai-engineer" ? AI_ENGINEER_TYPE_SCALE : TYPE_SCALE;
+  const visual = slide.layout === "note" ? slide.visual : undefined;
   const position = slidePosition(slide);
   const lines = titleLines(slide.title);
   // Title-only layouts keep their body in the document but never draw it.
   const paragraphs = showsBody(slide.layout) ? bodyParagraphs(slide.body) : [];
   const background = painted(slide.background);
-  const avatar = painted(config.avatar);
-  const pictures = usesImages(slide.layout)
-    ? (slide.images ?? []).slice(0, imageCapacity(slide.layout)).map(painted)
+  const pictures = usesImages(slide)
+    ? (slide.images ?? []).slice(0, imageCapacity(slide)).map(painted)
     : [];
-  const diagram = slide.layout === "diagram" && slide.diagram ? sanitizeSvg(slide.diagram) : "";
+  const diagram = visual === "diagram" && slide.diagram ? sanitizeSvg(slide.diagram) : "";
   const isLast = index === config.slides.length - 1;
   const showArrow = config.arrow !== false && !isLast;
 
+  const titleSize = slide.layout === "cover" ? scale.cover
+    : slide.layout === "closing" ? scale.cta
+      : slide.layout === "note" && !visual ? scale.statement : scale.reading;
   const style = {
-    "--title-size": `${isCover ? scale.cover : isPoster ? scale.poster : scale.title}cqw`,
-    "--title-tracking": `${scale.tracking}em`,
-    "--title-leading": `${scale.leading}`,
-    "--body-size": `${scale.body}cqw`,
+    "--title-size": `${titleSize}cqw`,
+    "--reading-size": `${TYPE_SCALE.reading}cqw`,
+    "--metadata-size": `${TYPE_SCALE.metadata}cqw`,
     "--veil": String(slide.veil ?? DEFAULT_VEIL),
   } as CSSProperties;
 
   // A headline opening on a quote mark sits visibly indented against the copy below
   // it unless the mark is hung into the margin. CSS hanging-punctuation is Safari
   // only, so the indent is set by hand, and only where there is a margin to hang into.
-  const hangs = /^["“”'‘’]/.test(smartQuotes(lines[0])) && slideAlign(slide) === "left";
+  const hangs = /^["“”'‘’]/.test(smartQuotes(lines[0])) && slideAlign(slide, theme) === "left";
 
   const copy = (
     <>
@@ -90,24 +104,20 @@ export function Slide({
   );
 
   const page = String(index + 1).padStart(2, "0");
-  const counter = config.numbering === "fraction"
-    ? `${page} / ${String(config.slides.length).padStart(2, "0")}`
-    : page;
 
   const classes = [
     "carousel-slide",
-    "template-editorial",
+    `template-${theme}`,
     `layout-${slide.layout}`,
+    visual ? `visual-${visual}` : "",
+    visual === "diagram" || pictures.length > 0 ? "has-visual" : "",
     `pos-${position}`,
-    `align-${slideAlign(slide)}`,
-    slide.tone ? `tone-${slide.tone}` : "tone-paper",
-    background ? "has-background" : "",
+    `align-${slideAlign(slide, theme)}`,
+    `tone-${slideTone(slide, theme)}`,
+    background || slide.video ? "has-background" : "",
     config.mark ? "has-mark" : "",
-    avatar ? "has-avatar" : "",
     pictures.length ? `has-pictures pictures-${pictures.length} photos-${photoArrangement(pictures.length)}` : "",
     diagram ? "has-diagram" : "",
-    // A one-word poster ("But…") is a beat, not a sentence, and gets set larger.
-    isPoster && slide.title.replace(/[*|]/g, "").trim().length <= 10 ? "title-short" : "",
     exportMode ? "export-slide" : "",
   ].filter(Boolean).join(" ");
 
@@ -115,16 +125,21 @@ export function Slide({
     <article className={classes} style={style} data-export-slide={exportMode ? "true" : undefined}>
       {/* Pictures are <img> elements, not CSS backgrounds. Chrome silently drops a
           style value past a few megabytes, and a data URL of a photograph is one. */}
-      {background && <img className="slide-image" src={background} alt="" />}
+      {slide.video
+        ? videoPreview
+          ? <VideoBackground key={slide.video.key} clip={slide.video} playing={playing} onDuration={onVideoDuration} />
+          : <img key={`${slide.video.key}:${slide.video.start}`} className="slide-image" src={videoUrl(slide.video.key, "/poster")} data-video-key={slide.video.key} data-video-start={slide.video.start} alt="" />
+        : background && <img className="slide-image" src={background} alt="" />}
       <div className="slide-overlay" />
-      <div className="slide-rules" aria-hidden="true">{Array.from({ length: 13 }, (_, index) => <span key={index} />)}</div>
-      <header className="slide-head">
-        {config.mark && <span className="slide-mark">{config.mark}</span>}
-        <span className="slide-counter">{counter}</span>
-      </header>
+      {slide.showHeader !== false && (
+        <header className="slide-head">
+          {config.mark && <span className="slide-mark">{config.mark}</span>}
+          <span className="slide-counter">{page}</span>
+        </header>
+      )}
       <div className="slide-content">{copy}</div>
       {/* Sanitised at parse time and again here, so a diagram can draw but never run. */}
-      {slide.layout === "diagram" && (
+      {visual === "diagram" && (
         <div className="slide-diagram">
           {diagram
             ? <div className="slide-diagram-svg" dangerouslySetInnerHTML={{ __html: diagram }} />
@@ -140,13 +155,12 @@ export function Slide({
           ))}
         </div>
       )}
-      <footer className="slide-meta">
-        <span className="meta-identity">
-          {avatar && <img className="slide-avatar" src={avatar} alt="" />}
+      {slide.showFooter !== false && (
+        <footer className="slide-meta">
           <span className="meta-author">{config.author}</span>
-        </span>
-        {showArrow && <span className="slide-arrow" aria-hidden="true">→</span>}
-      </footer>
+          {showArrow && <span className="slide-arrow" aria-hidden="true">→</span>}
+        </footer>
+      )}
     </article>
   );
 }

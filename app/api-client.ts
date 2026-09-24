@@ -1,5 +1,6 @@
-import { slideImageRefs, type CarouselConfig } from "./carousel";
-import { isImageKey, loadImages, putImage } from "./image-store";
+import { normalizeSlideLayout, slideImageRefs, type CarouselConfig } from "./carousel";
+import { isImageKey } from "./image-formats";
+import { loadImages, putImage } from "./image-store";
 import type { CarouselSummary, MediaAsset } from "../server/store.ts";
 
 export type { CarouselSummary, MediaAsset } from "../server/store.ts";
@@ -39,9 +40,8 @@ export async function listCarousels() {
   return (await call<{ carousels: CarouselSummary[] }>("/carousels")).carousels;
 }
 
-export function listMedia(cursor?: string | null) {
-  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
-  return call<{ media: MediaAsset[]; nextCursor: string | null }>(`/media${query}`);
+export async function listMedia() {
+  return (await call<{ media: MediaAsset[] }>("/media")).media;
 }
 
 export function deleteMedia(key: string) {
@@ -54,7 +54,7 @@ export function deleteCarousel(id: string) {
 
 /**
  * Moves any freshly uploaded image bytes into the durable media store, so what
- * reaches the database is keys. Slides that already carry a key are left alone.
+ * reaches the bucket is keys. Slides that already carry a key are left alone.
  */
 async function externalise(ref: string | undefined) {
   if (!ref || isImageKey(ref)) return ref;
@@ -73,8 +73,7 @@ async function storeMedia(config: CarouselConfig): Promise<CarouselConfig> {
       };
     }),
   );
-  const avatar = await externalise(config.avatar);
-  return { ...config, ...(avatar ? { avatar } : {}), slides };
+  return { ...config, slides };
 }
 
 /**
@@ -84,16 +83,15 @@ async function storeMedia(config: CarouselConfig): Promise<CarouselConfig> {
  * cannot reach the durable store. The key is kept exactly as it was. Replacing it
  * with undefined is what used to destroy data: the editor would hold the stripped
  * config, autosave on the next keystroke, and write a deck with no image references
- * at all over the one in the database. The renderer paints data URLs only, so an
+ * at all over the one in the bucket. The renderer paints data URLs only, so an
  * unresolved key shows nothing and saves back unharmed.
  */
 export async function resolveMedia(config: CarouselConfig): Promise<CarouselConfig> {
-  const keys = [config.avatar ?? "", ...config.slides.flatMap(slideImageRefs)].filter(isImageKey);
+  const keys = config.slides.flatMap(slideImageRefs).filter(isImageKey);
   const images = await loadImages(keys);
   const resolve = (ref: string) => (isImageKey(ref) && images[ref]) || ref;
   return {
     ...config,
-    ...(config.avatar ? { avatar: resolve(config.avatar) } : {}),
     slides: config.slides.map((slide) => ({
       ...slide,
       ...(slide.background ? { background: resolve(slide.background) } : {}),
@@ -101,7 +99,6 @@ export async function resolveMedia(config: CarouselConfig): Promise<CarouselConf
     })),
   };
 }
-
 
 export async function saveCarousel(id: string | null, config: CarouselConfig, version: number | null) {
   const stored = await storeMedia(config);
@@ -114,5 +111,21 @@ export async function saveCarousel(id: string | null, config: CarouselConfig, ve
 
 export async function loadCarousel(id: string) {
   const { carousel } = await call<{ carousel: CarouselSummary & { config: string } }>(`/carousels/${id}`);
-  return { summary: carousel, config: JSON.parse(carousel.config) as CarouselConfig };
+  const config = JSON.parse(carousel.config) as CarouselConfig;
+  // Legacy API documents can omit IDs or repeat them. Reserve all explicit IDs
+  // before assigning stable fallbacks so loading never creates React key clashes.
+  const explicitIds = new Set(config.slides.map((slide) => typeof slide.id === "string" ? slide.id.trim() : "").filter(Boolean));
+  const usedIds = new Set<string>();
+  const slides = config.slides.map((slide, index) => {
+    let slideId = typeof slide.id === "string" ? slide.id.trim() : "";
+    if (!slideId || usedIds.has(slideId)) {
+      const base = `legacy-slide-${index + 1}`;
+      slideId = base;
+      let suffix = 1;
+      while (explicitIds.has(slideId) || usedIds.has(slideId)) slideId = `${base}-${suffix++}`;
+    }
+    usedIds.add(slideId);
+    return normalizeSlideLayout({ ...slide, id: slideId });
+  });
+  return { summary: carousel, config: { ...config, slides } };
 }

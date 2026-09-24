@@ -1,11 +1,11 @@
-import { ChevronDown, Check, Images, LoaderCircle, Upload, X } from "lucide-react";
+import { Check, Images, LoaderCircle, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { listMedia, type MediaAsset } from "./api-client";
-import Dialog from "./dialog";
-import { prepareImages } from "./image-upload";
-import { SUPPORTED_IMAGE_ACCEPT } from "./image-formats";
 import BusyLabel from "./busy-label";
+import Dialog from "./dialog";
+import { SUPPORTED_IMAGE_ACCEPT } from "./image-formats";
 import { mediaUrl, putImage } from "./image-store";
+import { prepareImages } from "./image-upload";
 
 export default function MediaPicker({
   onChoose,
@@ -15,21 +15,19 @@ export default function MediaPicker({
   onClose: () => void;
 }) {
   const [media, setMedia] = useState<MediaAsset[] | null>(null);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [choosing, setChoosing] = useState<string | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const liveRef = useRef(true);
   const [uploading, setUploading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Uploads outlive a closed dialog; nothing may touch state after unmount.
+  const live = useRef(true);
 
   useEffect(() => {
-    let live = true;
-    liveRef.current = true;
+    live.current = true;
     listMedia()
-      .then((page) => { if (live) { setMedia(page.media); setNextCursor(page.nextCursor); } })
-      .catch((cause) => { if (live) setError(cause instanceof Error ? cause.message : "Could not load your media."); });
-    return () => { live = false; liveRef.current = false; };
+      .then((assets) => { if (live.current) setMedia(assets); })
+      .catch((cause) => { if (live.current) setError(cause instanceof Error ? cause.message : "Could not load your media."); });
+    return () => { live.current = false; };
   }, []);
 
   async function upload(file: File) {
@@ -39,14 +37,15 @@ export default function MediaPicker({
       const [image] = await prepareImages([file]);
       if (!image) throw new Error("Choose a PNG, JPEG, GIF, AVIF, or WebP image.");
       const key = await putImage(image.dataUrl, image);
-      if (!liveRef.current) return;
-      const asset: MediaAsset = { key, name: image.name, width: image.width, height: image.height, kind: "image", mimeType: "image/webp", byteSize: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      if (!live.current) return;
+      const now = new Date().toISOString();
+      const asset: MediaAsset = { key, name: image.name, width: image.width, height: image.height, kind: "image", mimeType: "image/webp", byteSize: null, createdAt: now, updatedAt: now };
       setMedia((current) => [asset, ...(current ?? []).filter((item) => item.key !== key)]);
       await choose(asset);
     } catch (cause) {
-      if (liveRef.current) setError(cause instanceof Error ? cause.message : "Could not upload that image. Try again.");
+      if (live.current) setError(cause instanceof Error ? cause.message : "Could not upload that image. Try again.");
     } finally {
-      if (liveRef.current) {
+      if (live.current) {
         setUploading(false);
         if (inputRef.current) inputRef.current.value = "";
       }
@@ -65,22 +64,7 @@ export default function MediaPicker({
     }
   }
 
-  async function loadMore() {
-    if (!nextCursor || loadingMore) return;
-    setLoadingMore(true);
-    try {
-      const page = await listMedia(nextCursor);
-      setMedia((current) => {
-        const keys = new Set((current ?? []).map((asset) => asset.key));
-        return [...(current ?? []), ...page.media.filter((asset) => !keys.has(asset.key))];
-      });
-      setNextCursor(page.nextCursor);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not load more media.");
-    } finally {
-      setLoadingMore(false);
-    }
-  }
+  const busy = uploading || choosing !== null;
 
   return (
     <Dialog labelId="media-picker-title" onDismiss={() => { if (!choosing) onClose(); }}>
@@ -91,7 +75,7 @@ export default function MediaPicker({
         </div>
         <div className="picker-upload">
           <input ref={inputRef} type="file" hidden accept={SUPPORTED_IMAGE_ACCEPT} onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); }} />
-          <button className="secondary-button" type="button" disabled={uploading || choosing !== null || (media === null && !error)} aria-busy={uploading} onClick={() => inputRef.current?.click()}>
+          <button className="secondary-button" type="button" disabled={busy || (media === null && !error)} aria-busy={uploading} onClick={() => inputRef.current?.click()}>
             {uploading ? <LoaderCircle className="spin" size={16} /> : <Upload size={16} />}<BusyLabel busy={uploading} idle="Upload image" pending="Uploading…" />
           </button>
         </div>
@@ -103,19 +87,14 @@ export default function MediaPicker({
           )}
           <div className="media-picker-grid">
             {(media ?? []).map((asset) => (
-              <button type="button" key={asset.key} onClick={() => { void choose(asset); }} disabled={choosing !== null || uploading} aria-label={`Use ${asset.name}`}>
+              <button type="button" key={asset.key} onClick={() => { void choose(asset); }} disabled={busy} aria-label={`Use ${asset.name}`}>
                 <img src={mediaUrl(asset.key)} alt="" loading="lazy" />
                 <span>{asset.name}</span>
                 {choosing === asset.key && <i><LoaderCircle className="spin" size={15} /></i>}
-                {choosing !== null && choosing !== asset.key ? null : choosing === null ? <i className="picker-check"><Check size={14} /></i> : null}
+                {choosing === null && <i className="picker-check"><Check size={14} /></i>}
               </button>
             ))}
           </div>
-          {nextCursor && (
-            <button className="secondary-button media-load-more" type="button" onClick={() => { void loadMore(); }} disabled={loadingMore} aria-busy={loadingMore}>
-              {loadingMore ? <LoaderCircle className="spin" size={16} /> : <ChevronDown size={16} />}<BusyLabel busy={loadingMore} idle="Load more images" pending="Loading…" />
-            </button>
-          )}
         </div>
         <div className="dialog-footer"><button className="secondary-button" type="button" disabled={choosing !== null} onClick={onClose}>Cancel</button></div>
       </section>

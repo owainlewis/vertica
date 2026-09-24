@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -24,6 +24,59 @@ const jsonRequest = (path, body, method = "POST") =>
 
 const PIXEL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 const KEY = "img:1234567890abcdef1234567890abcdef";
+
+test("POST and PUT reject oversized decks and duplicate normalized IDs without storing them", async () => {
+  const { app } = api();
+  const created = await app.request(jsonRequest("/carousels", { config: deck() }));
+  const { carousel } = await created.json();
+  const cases = [
+    { slides: Array.from({ length: 21 }, (_, i) => ({ id: `slide-${i}`, title: "Slide" })), error: /20 slides/ },
+    { slides: [{ id: "same", title: "First" }, { id: " same ", title: "Second" }], error: /duplicate id/ },
+  ];
+  for (const { slides, error } of cases) {
+    for (const method of ["POST", "PUT"]) {
+      const path = method === "POST" ? "/carousels" : `/carousels/${carousel.id}`;
+      const response = await app.request(jsonRequest(path, { config: JSON.stringify({ slides }), version: carousel.version }, method));
+      assert.equal(response.status, 400);
+      assert.match((await response.json()).error, error);
+    }
+  }
+  const list = await (await app.request("/carousels")).json();
+  assert.equal(list.carousels.length, 1);
+  const stored = (await (await app.request(`/carousels/${carousel.id}`)).json()).carousel;
+  assert.equal(stored.config, deck());
+  assert.equal(stored.version, carousel.version);
+});
+
+test("API writes preserve older documents without explicit slide IDs", async () => {
+  const { app } = api();
+  const config = JSON.stringify({ slides: [{ layout: "cover" }, { layout: "content" }] });
+  const response = await app.request(jsonRequest("/carousels", { config }));
+  assert.equal(response.status, 201);
+  const { carousel } = await response.json();
+  const updated = await app.request(jsonRequest(`/carousels/${carousel.id}`, { config, version: carousel.version }, "PUT"));
+  assert.equal(updated.status, 200);
+  assert.equal((await updated.json()).carousel.config, config);
+});
+
+test("persists the theme in the deck and gallery cover, including a switch back to Editorial", async () => {
+  const { app } = api();
+  const config = { ...JSON.parse(deck()), theme: "ai-engineer" };
+  const response = await app.request(jsonRequest("/carousels", { config: JSON.stringify(config) }));
+  assert.equal(response.status, 201);
+  const { carousel } = await response.json();
+  const fetched = await (await app.request(`/carousels/${carousel.id}`)).json();
+  assert.equal(JSON.parse(fetched.carousel.config).theme, "ai-engineer");
+  const list = await (await app.request("/carousels")).json();
+  assert.equal(JSON.parse(list.carousels[0].cover).theme, "ai-engineer");
+  const updated = await app.request(jsonRequest(`/carousels/${carousel.id}`, {
+    version: carousel.version, config: JSON.stringify({ ...config, theme: "editorial" }),
+  }, "PUT"));
+  assert.equal(updated.status, 200);
+  const next = (await updated.json()).carousel;
+  assert.equal(JSON.parse(next.config).theme, "editorial");
+  assert.equal(JSON.parse(next.cover).theme, undefined);
+});
 
 test("saves a carousel, lists it, and refuses a stale write", async () => {
   const { app } = api();
@@ -95,7 +148,10 @@ test("stores media, serves it back, and protects images a deck still uses", asyn
   await app.request(new Request(`http://localhost/carousels/${carousel.id}`, { method: "DELETE" }));
   assert.equal((await remove()).status, 200);
   assert.equal((await remove()).status, 404);
-  assert.equal((await app.request(`/media/${encodeURIComponent(KEY)}`)).status, 404);
+  assert.equal((await app.request(`/media/${encodeURIComponent(KEY)}`)).status, 200, "removal retains bytes for concurrent saves");
+  assert.deepEqual((await (await app.request("/media")).json()).media, []);
+  await put({ "x-media-library": "1", "x-media-name": "Restored" });
+  assert.equal((await (await app.request("/media")).json()).media[0].name, "Restored");
 
   const bad = await app.request(new Request(`http://localhost/media/${encodeURIComponent(KEY)}`, { method: "PUT", body: "data:image/svg+xml;base64,PHN2Zz4=" }));
   assert.equal(bad.status, 400);
@@ -126,4 +182,95 @@ test("with no secret set the API is open, which is what local development wants"
   const { app } = api();
   assert.deepEqual(await (await app.request("/session")).json(), { gated: false, authorised: true });
   assert.equal((await app.request("/carousels")).status, 200);
+});
+
+test("carousel routes reject path traversal without touching files outside the bucket", async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "vertica-traversal-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const root = join(directory, "data");
+  mkdirSync(root);
+  const sentinel = join(directory, "sentinel.json");
+  writeFileSync(sentinel, "keep this file");
+  const app = createApi({ bucket: new LocalBucket(root) });
+  for (const id of ["..%2F..%2Fsentinel", "%2Ftmp%2Fsentinel", "bad%5Cid", "bad%00id", "a".repeat(201)]) {
+    for (const method of ["GET", "PUT", "DELETE"]) {
+      const path = `/carousels/${id}`;
+      const request = method === "PUT"
+        ? jsonRequest(path, { version: 1, config: deck() }, method)
+        : new Request(`http://localhost${path}`, { method });
+      assert.equal((await app.request(request)).status, 400, `${method} ${id}`);
+      assert.equal(readFileSync(sentinel, "utf8"), "keep this file");
+    }
+  }
+});
+
+test("simultaneous local edits accept one writer and reject the stale writer", async () => {
+  const { app } = api();
+  const { carousel } = await (await app.request(jsonRequest("/carousels", { config: deck() }))).json();
+  const results = await Promise.all(["Editor A", "Editor B"].map(async (title) => {
+    const response = await app.request(jsonRequest(`/carousels/${carousel.id}`, { version: carousel.version, config: deck(title) }, "PUT"));
+    return { status: response.status, body: await response.json() };
+  }));
+  assert.deepEqual(results.map(({ status }) => status).sort(), [200, 409]);
+  const winner = results.find(({ status }) => status === 200).body.carousel;
+  const fetched = (await (await app.request(`/carousels/${carousel.id}`)).json()).carousel;
+  assert.equal(fetched.config, winner.config);
+  assert.equal(fetched.version, winner.version);
+});
+
+
+test("lists every deck beyond the former 200-deck limit with stable ordering", async () => {
+  const { app, bucket } = api();
+  // Identical timestamps exercise the ID tie-breaker too.
+  bucket.list = async () => Array.from({ length: 205 }, (_, i) => ({
+    key: `carousels/deck-${String(204 - i).padStart(3, "0")}.json`,
+    meta: { generation: 1, updated: "2026-09-10T12:00:00Z", custom: {} },
+  }));
+  const { carousels } = await (await app.request("/carousels")).json();
+  assert.equal(carousels.length, 205);
+  assert.equal(carousels[0].id, "deck-000");
+  assert.equal(carousels.at(-1).id, "deck-204");
+});
+
+test("an image referenced by a save after the removal check remains available", async () => {
+  const { app, bucket } = api();
+  await app.request(new Request(`http://localhost/media/${KEY}`, {
+    method: "PUT", body: PIXEL, headers: { "x-media-library": "1" },
+  }));
+  const list = bucket.list.bind(bucket);
+  bucket.list = async (prefix) => {
+    const beforeSave = await list(prefix);
+    if (prefix === "carousels/") {
+      await app.request(jsonRequest("/carousels", { id: "concurrent", config: JSON.stringify({ slides: [{ title: "Saved while removing", background: KEY }] }) }));
+    }
+    return beforeSave;
+  };
+  assert.equal((await app.request(`/media/${KEY}`, { method: "DELETE" })).status, 200);
+  assert.equal((await app.request(`/media/${KEY}`)).status, 200);
+  assert.equal((await app.request("/carousels/concurrent")).status, 200);
+  assert.deepEqual((await (await app.request("/media")).json()).media, []);
+});
+
+test("image removal cannot overwrite a concurrent library reupload", async () => {
+  const { app, bucket } = api();
+  const upload = (name, width) => app.request(new Request(`http://localhost/media/${KEY}`, {
+    method: "PUT", body: PIXEL,
+    headers: { "x-media-library": "1", "x-media-name": name, "x-media-width": String(width) },
+  }));
+  assert.equal((await upload("Old name", 1)).status, 200);
+  const list = bucket.list.bind(bucket);
+  // The removal has read the old object before checking deck references.
+  bucket.list = async (prefix) => {
+    const rows = await list(prefix);
+    if (prefix === "carousels/") assert.equal((await upload("New name", 2)).status, 200);
+    return rows;
+  };
+  const response = await app.request(`/media/${KEY}`, { method: "DELETE" });
+  assert.equal(response.status, 409);
+  assert.match((await response.json()).error, /Reload the library/);
+  const { media } = await (await app.request("/media")).json();
+  assert.equal(media.length, 1);
+  assert.equal(media[0].name, "New name");
+  assert.equal(media[0].width, 2);
+  assert.equal((await app.request(`/media/${KEY}`)).status, 200);
 });

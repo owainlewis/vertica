@@ -85,10 +85,3 @@ export function createZip(files: Entry[]): Blob {
     type: "application/zip",
   });
 }
-
-export function dataUrlToBytes(dataUrl: string) {
-  const binary = atob(dataUrl.slice(dataUrl.indexOf(",") + 1));
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  return bytes;
-}
