@@ -7,8 +7,8 @@ export function slideHasOverflow(slide: HTMLElement | null): boolean {
   const footer = slide.querySelector(".slide-meta")?.getBoundingClientRect();
   const top = header?.bottom ?? frame.top;
   const bottom = footer?.top ?? frame.bottom;
-  const copy = [...slide.querySelectorAll(".slide-content h2, .slide-content p")].map((node) => node.getBoundingClientRect());
-  const figure = slide.querySelector(".slide-pictures, .slide-diagram-svg")?.getBoundingClientRect();
+  const copy = [...slide.querySelectorAll(".slide-label, .slide-content h2, .slide-content p")].map((node) => node.getBoundingClientRect());
+  const figure = slide.querySelector(".slide-pictures, .slide-diagram-svg, .video-horizontal > .slide-media")?.getBoundingClientRect();
   return copy.some((rect, index) =>
     rect.top < top - 1 || rect.bottom > bottom + 1 || rect.left < frame.left - 1 || rect.right > frame.right + 1 ||
     copy.slice(index + 1).some((other) => rect.top < other.bottom - 1 && rect.bottom > other.top + 1) ||

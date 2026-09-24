@@ -18,6 +18,7 @@ import { type Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef,
 import { saveCarousel, StaleSaveError, type CarouselSummary, type MediaAsset } from "./api-client";
 import {
   assertBackgroundsAvailableForExport,
+  slideTypeface,
   type CarouselConfig,
   type CarouselSlide,
   carouselTheme,
@@ -27,8 +28,8 @@ import {
   titleLines,
 } from "./carousel";
 import Composer, { type ComposerMode } from "./composer";
-import { downloadBlob, exportStageToMp4, exportStageToPdf, exportStageToZip, fileNameFor } from "./export";
-import ExportMenu from "./export-menu";
+import { downloadBlob, exportStageToMp4, exportStageToPdf, exportStageToZip, exportStageToVideoZip, exportStageToReel, fileNameFor } from "./export";
+import ExportMenu, { type ExportKind } from "./export-menu";
 import { loadImages } from "./image-store";
 import Inspector, { layoutNames } from "./inspector";
 import MediaPicker from "./media-picker";
@@ -41,7 +42,6 @@ import { boundVideoBackground, parseVideoBackground } from "./video-formats";
 import VideoPicker from "./video-picker";
 
 type Notice = { kind: "success" | "error"; message: string } | null;
-type ExportKind = "pdf" | "zip" | "mp4";
 
 /** What the shell can ask of an open editor: finish saving before leaving it. */
 export type EditorHandle = { flush: () => Promise<boolean>; isDirty: () => boolean };
@@ -84,7 +84,7 @@ function useSignifierCheck() {
 }
 
 function plainTitle(slide: CarouselSlide) {
-  return titleLines(slide.title).join(" ").replace(/\*/g, "");
+  return titleLines(slide.title.trim() || slide.body.trim().split("\n")[0] || slide.label || "Untitled slide").join(" ").replace(/\*/g, "");
 }
 
 export default function Editor({
@@ -103,6 +103,7 @@ export default function Editor({
   onSaved: (summary: CarouselSummary) => void;
 }) {
   const [exporting, setExporting] = useState<false | ExportKind>(false);
+  const [exportProgress, setExportProgress] = useState("");
   // Every change to the deck goes through `commit` so it can be undone. Export
   // freezes the deck so the mounted stage cannot change under the rasteriser.
   const { value: config, setValue: setConfig, commit, step, canUndo, canRedo } = useHistory(initialConfig, Boolean(exporting));
@@ -183,7 +184,10 @@ export default function Editor({
     }
   }, []);
 
-  useImperativeHandle(ref, () => ({ flush: flushSave, isDirty: () => saveQueueRef.current?.dirty ?? false }), [flushSave]);
+  useImperativeHandle(ref, () => ({
+    flush: () => exporting ? Promise.resolve(false) : flushSave(),
+    isDirty: () => Boolean(exporting) || (saveQueueRef.current?.dirty ?? false),
+  }), [flushSave, exporting]);
 
   const undoRedo = useCallback((from: "past" | "future") => {
     const restored = step(from);
@@ -232,13 +236,13 @@ export default function Editor({
   // warns instead of silently discarding a queued or in-flight edit.
   useEffect(() => {
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (leavingRef.current || !saveQueueRef.current?.dirty) return;
+      if (leavingRef.current || (!exporting && !saveQueueRef.current?.dirty)) return;
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, []);
+  }, [exporting]);
 
   /** Patch the selected slide. `key` groups a burst of edits into one undo step. */
   function updateSlide(patch: Partial<CarouselSlide>, key = "") {
@@ -256,6 +260,7 @@ export default function Editor({
     const slide: CarouselSlide = {
       id: newSlideId(),
       layout: "content",
+      typeface: slideTypeface(selectedSlide, config.theme),
       title: "Add a clear headline",
       body: "Use one thought per slide. Keep the supporting copy short.",
     };
@@ -334,7 +339,7 @@ export default function Editor({
   }
 
   async function requestExit() {
-    if (exiting) return;
+    if (exiting || exporting) return;
     setExiting(true);
     if (await flushSave()) onExit();
     else setExiting(false);
@@ -352,6 +357,7 @@ export default function Editor({
 
   async function runExport(kind: ExportKind) {
     if (exporting) return;
+    setNotice(null);
     setExporting(kind);
     try {
       assertBackgroundsAvailableForExport(kind === "mp4" ? { ...config, slides: [selectedSlide] } : config);
@@ -362,6 +368,12 @@ export default function Editor({
         const page = String(selectedIndex + 1).padStart(2, "0");
         await exportStageToMp4(fileNameFor(`${config.title}-${page}`, "mp4"), config.slides.length, selectedIndex, selectedSlide.video);
         showNotice({ kind: "success", message: `Exported slide ${selectedIndex + 1} as an MP4.` });
+      } else if (kind === "video-zip") {
+        await exportStageToVideoZip(fileNameFor(config.title, "zip"), config, setExportProgress);
+        showNotice({ kind: "success", message: `Exported ${config.slides.length} numbered MP4s for Instagram.` });
+      } else if (kind === "reel") {
+        await exportStageToReel(fileNameFor(config.title, "mp4"), config, setExportProgress);
+        showNotice({ kind: "success", message: "Exported all slides as one MP4." });
       } else if (kind === "pdf") {
         await exportStageToPdf(exportFileName, config.slides.length);
         showNotice({ kind: "success", message: `Exported ${config.slides.length} PDF pages for LinkedIn.` });
@@ -370,9 +382,10 @@ export default function Editor({
         showNotice({ kind: "success", message: `Exported ${config.slides.length} numbered JPEGs for Instagram.` });
       }
     } catch (error) {
-      showNotice({ kind: "error", message: error instanceof Error ? error.message : "The export failed." });
+      setNotice({ kind: "error", message: error instanceof Error ? error.message : "The export failed." });
     } finally {
       setExporting(false);
+      setExportProgress("");
     }
   }
 
@@ -396,11 +409,11 @@ export default function Editor({
           <button className="secondary-button icon-button" type="button" onClick={() => undoRedo("future")} disabled={!canRedo} title="Redo (⇧⌘Z)" aria-label="Redo"><Redo2 size={15} /></button>
           <button className="secondary-button generate-button" type="button" onClick={() => setComposer("text")} aria-label="Create from text" title="Create from text"><Sparkles size={15} /> <span>Create from text</span></button>
           <button className="secondary-button icon-button" type="button" onClick={() => setReaderOpen(true)} aria-label="Reader preview" title="Reader preview"><Eye size={16} /></button>
-          <ExportMenu busy={Boolean(exporting)} video={Boolean(selectedSlide.video)} onExport={(kind) => { void runExport(kind); }} />
+          <ExportMenu busy={Boolean(exporting)} video={Boolean(selectedSlide.video)} videoCarousel={config.format === "video" || config.slides.every((slide) => Boolean(slide.video))} onExport={(kind) => { void runExport(kind); }} />
         </div>
       </header>
 
-      {exporting && <p className="video-export-status" role="status">{exporting === "mp4" ? "Rendering MP4… This may take a minute." : "Exporting slides…"} Keep this tab open.</p>}
+      {exporting && <p className="video-export-status" role="status">{exportProgress || (exporting === "mp4" ? "Rendering MP4… This may take a minute." : "Exporting slides…")} Keep this tab open.</p>}
       <section className="workspace" inert={Boolean(exporting)}>
         <aside className="rail">
           <div className="rail-heading"><span>Slides</span><button type="button" onClick={addSlide} disabled={config.slides.length >= MAX_SLIDES} aria-label="Add slide"><Plus size={15} /></button></div>
@@ -419,13 +432,13 @@ export default function Editor({
         </aside>
 
         <section className="canvas-area" aria-label="Slide preview">
-          {signifierMissing && theme === "editorial" && (
+          {signifierMissing && slideTypeface(selectedSlide, config.theme) === "serif" && (
             <p className="font-warning" role="status">
               Signifier is not installed on this machine, so slides are showing Georgia. Exports from here will ship Georgia too. Install Signifier or export from a machine that has it.
             </p>
           )}
           <div className="canvas-toolbar">
-            <span>Portrait · 4:5</span>
+            <span>{config.format === "video" ? "Video carousel" : "Image carousel"} · 4:5</span>
             <button className="crop-toggle" type="button" aria-pressed={showCrop} onClick={() => setShowCrop(!showCrop)} title="Centered 3:4 profile crop; the exported slide stays 4:5">
               <RectangleVertical size={13} /> Profile crop
             </button>
@@ -469,7 +482,7 @@ export default function Editor({
 
       {mediaOpen && <MediaPicker onChoose={chooseMedia} onClose={() => setMediaOpen(null)} />}
       {videoOpen && <VideoPicker onChoose={(video) => {
-        updateSlide({ background: undefined, video: { key: video.key, start: 0, duration: Math.min(10, Math.floor(video.duration * 10) / 10), sourceDuration: video.duration } });
+        updateSlide({ background: undefined, video: { key: video.key, start: 0, duration: Math.min(10, Math.floor(video.duration * 10) / 10), sourceDuration: video.duration, framing: selectedSlide.video?.framing ?? (video.width > video.height ? "horizontal" : "fill"), zoom: selectedSlide.video?.zoom ?? 1 } });
         setVideoPlaying(true);
       }} onClose={() => setVideoOpen(false)} />}
 

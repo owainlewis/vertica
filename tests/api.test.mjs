@@ -78,6 +78,22 @@ test("persists the theme in the deck and gallery cover, including a switch back 
   assert.equal(JSON.parse(next.cover).theme, undefined);
 });
 
+test("Cinematic video intent and slide labels survive save, reload and gallery listing", async () => {
+  const { app } = api();
+  const config = { ...JSON.parse(deck()), theme: "cinematic", format: "video" };
+  config.slides[0].label = "Rule 01";
+  const created = await app.request(jsonRequest("/carousels", { config: JSON.stringify(config) }));
+  assert.equal(created.status, 201);
+  const { carousel } = await created.json();
+  const fetched = await (await app.request(`/carousels/${carousel.id}`)).json();
+  assert.deepEqual(JSON.parse(fetched.carousel.config), config);
+  const list = await (await app.request("/carousels")).json();
+  const cover = JSON.parse(list.carousels[0].cover);
+  assert.equal(cover.format, "video");
+  assert.equal(cover.theme, "cinematic");
+  assert.equal(cover.slide.label, "Rule 01");
+});
+
 test("saves a carousel, lists it, and refuses a stale write", async () => {
   const { app } = api();
   const created = await app.request(jsonRequest("/carousels", { config: deck() }));

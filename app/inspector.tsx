@@ -4,6 +4,8 @@ import {
   type CarouselConfig,
   type CarouselSlide,
   type CarouselTheme,
+  type CarouselFormat,
+  carouselFormat,
   imageCapacity,
   type SlideAlign,
   slideAlign,
@@ -11,6 +13,7 @@ import {
   slidePosition,
   type SlidePosition,
   slideTone,
+  slideTypeface,
   type SlideVisual,
   showsBody,
   usesImages,
@@ -24,8 +27,8 @@ export const layoutNames: Record<SlideLayout, string> = {
 };
 
 const layoutHints: Record<SlideLayout, string> = {
-  cover: "A clear promise in a large headline, with one short supporting line.",
-  content: "A bold lead and short paragraphs at the same readable size. One idea per slide.",
+  cover: "A clear promise in the selected typeface, with one short supporting line.",
+  content: "A clear lead and short, readable paragraphs. One idea per slide.",
   note: "A short statement or visual example. Add pictures or a diagram under Content.",
   closing: "One useful next action, with a short supporting line.",
 };
@@ -87,13 +90,16 @@ export default function Inspector(props: InspectorProps) {
 }
 
 function LayoutPanel({ config, slide, theme, updateSlide, commit }: PanelProps) {
-  const position = slidePosition(slide);
+  const position = slidePosition(slide, theme, carouselFormat(config.format));
   const align = slideAlign(slide, theme);
   // Visual captions sit above or below the figure; only text slides can centre.
   const positions: SlidePosition[] = slide.layout === "note" && slide.visual ? ["top", "bottom"] : ["top", "middle", "bottom"];
 
   return (
     <div className="inspector-panel">
+      <span className="field-label">Typography</span>
+      <Segmented options={["sans", "serif"] as const} value={slideTypeface(slide, config.theme)} onChange={(typeface) => updateSlide({ typeface })} label={(value) => value === "sans" ? "Sans · Geist" : "Serif · Signifier"} />
+      <button type="button" className="text-button subtle" onClick={() => commit({ ...config, slides: config.slides.map((each) => ({ ...each, typeface: slideTypeface(slide, config.theme) })) })}>Apply typography to all slides</button>
       <label className="field-label" htmlFor="slide-layout">Slide type</label>
       <div className="select-wrap">
         <select id="slide-layout" value={slide.layout} onChange={(event) => updateSlide({ layout: event.target.value as SlideLayout })}>
@@ -103,13 +109,13 @@ function LayoutPanel({ config, slide, theme, updateSlide, commit }: PanelProps) 
       </div>
 
       <span className="field-label">Text position</span>
-      <Segmented options={positions} value={position} onChange={(next) => updateSlide({ position: next })} label={(option) => positionLabels[option]} />
+      {slide.video?.framing === "horizontal" ? <p className="field-hint">Text stays above the footage in Horizontal framing.</p> : <Segmented options={positions} value={position} onChange={(next) => updateSlide({ position: next })} label={(option) => positionLabels[option]} />}
 
       <span className="field-label">Alignment</span>
       <Segmented options={["left", "center"] as SlideAlign[]} value={align} onChange={(next) => updateSlide({ align: next })} label={(option) => alignLabels[option]} />
 
-      <button type="button" className="text-button subtle" onClick={() => commit({ ...config, slides: config.slides.map((each) => ({ ...each, position, align })) })}>
-        Apply position and alignment to all slides
+      <button type="button" className="text-button subtle" onClick={() => commit({ ...config, slides: config.slides.map((each) => ({ ...each, ...(slide.video?.framing === "horizontal" ? {} : { position }), align })) })}>
+        {slide.video?.framing === "horizontal" ? "Apply alignment to all slides" : "Apply position and alignment to all slides"}
       </button>
 
       <p className="field-hint">{layoutHints[slide.layout]}</p>
@@ -122,7 +128,7 @@ function LayoutPanel({ config, slide, theme, updateSlide, commit }: PanelProps) 
   );
 }
 
-function ContentPanel({ slide, updateSlide, onAddPicture }: InspectorProps) {
+function ContentPanel({ config, slide, updateSlide, onAddPicture, onChooseImage, onChooseVideo }: InspectorProps) {
   const images = slide.images ?? [];
   const capacity = imageCapacity(slide);
   const isDiagram = slide.layout === "note" && slide.visual === "diagram";
@@ -134,10 +140,17 @@ function ContentPanel({ slide, updateSlide, onAddPicture }: InspectorProps) {
 
   return (
     <div className="inspector-panel">
+      <button className="wide-upload" type="button" onClick={config.format === "video" ? onChooseVideo : onChooseImage}>
+        {config.format === "video" ? <Film size={15} /> : <Images size={15} />}
+        {config.format === "video" ? (slide.video ? "Change video" : "Choose a video") : (slide.background ? "Change image" : "Choose an image")}
+      </button>
+      {config.format === "video" && !slide.video && <p className="field-hint">Add an MP4 to this slide. Reuse a clip across slides or choose different footage for each.</p>}
+      <label className="field-label" htmlFor="slide-label">Slide label</label>
+      <input id="slide-label" maxLength={30} value={slide.label ?? ""} placeholder="e.g. Rule 01" onChange={(event) => updateSlide({ label: event.target.value || undefined }, "label")} />
       <label className="field-label" htmlFor="headline">Headline</label>
       <textarea id="headline" maxLength={120} rows={5} value={slide.title} onChange={(event) => updateSlide({ title: event.target.value }, "title")} />
       <div className="character-count" style={{ visibility: slide.title.length >= 100 ? "visible" : "hidden" }}>{slide.title.length} / 120</div>
-      <details className="format-help"><summary>Formatting help</summary><p className="field-hint"><em>|</em> starts a headline line. <em>*italic*</em> adds emphasis. <em>**highlight**</em> marks a phrase. A blank line starts a paragraph.</p></details>
+      <details className="format-help"><summary>Formatting help</summary><p className="field-hint"><em>|</em> starts a headline line. <em>*italic*</em> adds emphasis. <em>**bold**</em> marks a phrase. A blank line starts a paragraph.</p></details>
       {slide.layout === "note" && (
         <>
           <label className="field-label" htmlFor="slide-visual">Visual example</label>
@@ -221,35 +234,42 @@ function VideoClipFields({ video, onChange }: { video: VideoBackground; onChange
 function DesignPanel({ config, slide, theme, updateSlide, commit, onChooseImage, onChooseVideo, onEditJson, onDownloadJson }: InspectorProps) {
   const tone = slideTone(slide, theme);
   const veil = Math.round((slide.veil ?? DEFAULT_VEIL) * 100);
-  const toneNames = { paper: theme === "ai-engineer" ? "Soft grey" : "Paper", sage: "Sage", black: "Forest" } as const;
-  const tones = theme === "editorial" ? (["paper", "sage", "black"] as const) : (["paper", "black"] as const);
+  const toneNames = { paper: "Paper", sage: "Sage", black: "Black" } as const;
+  const tones = ["paper", "sage", "black"] as const;
 
   return (
     <div className="inspector-panel">
-      <label className="field-label" htmlFor="carousel-theme">Carousel theme</label>
+      <label className="field-label" htmlFor="carousel-format">Carousel format</label>
       <div className="select-wrap">
-        <select id="carousel-theme" value={theme} onChange={(event) => commit({ ...config, theme: event.target.value as CarouselTheme })}>
-          <option value="editorial">Editorial</option>
-          <option value="ai-engineer">AI Engineer</option>
+        <select id="carousel-format" value={carouselFormat(config.format)} onChange={(event) => commit({ ...config, format: event.target.value as CarouselFormat })}>
+          <option value="image">Image carousel</option>
+          <option value="video">Video carousel</option>
         </select>
         <ChevronDown size={14} />
       </div>
-      <p className="field-hint">{theme === "ai-engineer" ? "Geist type with a dark cover and soft-grey slides. Display covers and consistent reading text." : "Signifier headlines and plain supporting copy. Display covers and consistent reading text."}</p>
+      <p className="field-hint">{config.format === "video" ? "One MP4 per slide, with your text over b-roll. Add a video to every slide before exporting." : "Numbered still images, ready to upload in order."}</p>
+      <p className="field-hint">Cinematic. Choose Sans or Serif typography under Layout. Use photos, video or a quiet solid background.</p>
 
       <h3 className="settings-heading settings-divider">This slide</h3>
       <span className="field-label">Background colour</span>
       <Segmented options={[...tones]} value={tone} onChange={(next) => updateSlide({ tone: next })} label={(option) => toneNames[option]} />
-      {theme === "ai-engineer" && <button type="button" className="text-button subtle" disabled={!slide.tone} onClick={() => updateSlide({ tone: undefined })}>Use automatic background</button>}
 
       <span className="field-label">Background photo</span>
       <button className="wide-upload" type="button" onClick={onChooseImage}><Images size={15} /> {slide.background ? "Choose another image" : "Choose from media"}</button>
 
-      <span className="field-label">Video background · Experimental</span>
+      <span className="field-label">Video background</span>
       <button className="wide-upload" type="button" onClick={onChooseVideo}><Film size={15} /> {slide.video ? "Change video" : "Choose a video"}</button>
       {slide.video && (
         <>
+          <span className="field-label">Video framing</span>
+          <Segmented options={["fill", "horizontal"] as const} value={slide.video.framing ?? "fill"} onChange={(framing) => updateSlide({ video: { ...slide.video!, framing } })} label={(value) => value === "fill" ? "Fill slide" : "Horizontal"} />
+          {slide.video.framing === "horizontal" && <>
+            <label className="field-label range-label" htmlFor="video-zoom">Zoom <span>{(slide.video.zoom ?? 1).toFixed(2)}×</span></label>
+            <input id="video-zoom" className="range" type="range" min={1} max={1.3} step={0.01} value={slide.video.zoom ?? 1} onChange={(event) => updateSlide({ video: { ...slide.video!, zoom: Number(event.target.value) } }, "video-zoom")} />
+            <p className="field-hint">Text above landscape footage on a black canvas. At 1× the whole clip fits; zoom crops the edges. Keep the copy short.</p>
+          </>}
           <VideoClipFields video={slide.video} onChange={(video, key) => updateSlide({ video }, key)} />
-          <p className="field-hint">{slide.video.sourceDuration ? `Source: ${slide.video.sourceDuration.toFixed(1)}s. ` : "Loading source duration… "}Silent, centred crop. Export → Video slide creates one MP4. PDF and JPEG use the clip’s first frame.</p>
+          <p className="field-hint">{slide.video.sourceDuration ? `Source: ${slide.video.sourceDuration.toFixed(1)}s. ` : "Loading source duration… "}Silent. Export → Video carousel creates numbered MP4s when every slide has video. Video slide exports just this clip.</p>
           <button type="button" className="text-button" onClick={() => updateSlide({ video: undefined, veil: undefined })}>Remove video</button>
         </>
       )}
@@ -259,7 +279,7 @@ function DesignPanel({ config, slide, theme, updateSlide, commit, onChooseImage,
           It is kept in the saved carousel. If it predates media persistence, add it to Media again or choose a replacement from your library.
         </p>
       )}
-      {(slide.background || slide.video) && (
+      {(slide.background || slide.video) && slide.video?.framing !== "horizontal" && (
         <>
           <label className="field-label range-label" htmlFor="veil">
             <span>Background veil</span>

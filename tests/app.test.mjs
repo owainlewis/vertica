@@ -57,7 +57,7 @@ async function app(t, path = "/?id=old", rows = [record("old"), record("newer")]
 
 test("a delayed deep link cannot replace a new draft or cancel its autosave", async (t) => {
   const view = await app(t);
-  await view.click("New carousel");
+  await view.click("New image carousel");
   await view.click("Add slide");
   assert.equal(view.document.querySelectorAll(".slide-thumb").length, 2);
   await view.finish("old");
@@ -67,6 +67,24 @@ test("a delayed deep link cannot replace a new draft or cancel its autosave", as
   assert.equal(view.writes.length, 1);
   assert.equal(view.writes[0].slides.length, 2);
   assert.equal(view.window.location.search, "?id=saved");
+});
+
+test("new video carousels retain their format through slide creation, undo and saving", async (t) => {
+  const view = await app(t, "/");
+  await view.click("New video carousel");
+  assert.ok(view.document.querySelector(".preview-frame .template-cinematic.format-video"));
+  await view.click("Add slide");
+  await view.click("Design");
+  assert.equal(view.document.querySelector("#carousel-format").value, "video");
+  const format = view.document.querySelector("#carousel-format");
+  await act(() => { format.value = "image"; format.dispatchEvent(new view.window.Event("change", { bubbles: true })); });
+  assert.ok(view.document.querySelector(".preview-frame .format-image"));
+  await view.click("Undo");
+  assert.equal(view.document.querySelector("#carousel-format").value, "video");
+  await view.click("Carousels");
+  assert.equal(view.writes.at(-1).format, "video");
+  assert.equal(view.writes.at(-1).theme, "cinematic");
+  assert.equal(view.writes.at(-1).slides.length, 2);
 });
 
 test("navigating to a library invalidates a pending deck response and error", async (t) => {
@@ -106,7 +124,7 @@ test("only the latest selected carousel can update the editor and history", asyn
 
 test("visibility edits update the selected slide, support undo, and save with duplicates", async (t) => {
   const view = await app(t, "/");
-  await view.click("New carousel");
+  await view.click("New image carousel");
   await view.click("Add slide");
   await view.click("Layout");
   const checkbox = (label) => [...view.document.querySelectorAll("label.check-row")].find((node) => node.textContent.trim() === label).querySelector("input");
@@ -236,6 +254,28 @@ async function traverse(view, delta) {
   });
 }
 
+test("a new unsaved draft stays mounted through Back and Media navigation during export", async (t) => {
+  const view = await app(t, "/");
+  await view.click("New image carousel");
+  // Hold a real export before rasterisation; both image and video exports share
+  // this navigation guard, including when no save or carousel ID exists yet.
+  view.document.fonts = { ready: new Promise(() => {}) };
+  await view.click("JPEG imagesNumbered files in a ZIP · Instagram");
+  assert.ok(view.document.querySelector(".video-export-status"));
+  const events = [];
+  view.window.addEventListener("popstate", () => events.push(view.window.history.state.verticaIndex));
+  await traverse(view, -1);
+  assert.deepEqual(events, [0, 1], "Back is reversed before the guard clears");
+  assert.equal(view.window.location.search, "");
+  assert.equal(view.writes.length, 0);
+  assert.ok(view.document.querySelector("[data-export-slide=true]"));
+  assert.ok(view.document.querySelector('[aria-label="Carousel title"]'));
+  await view.click("Media");
+  await traverse(view, -1);
+  assert.ok(view.document.querySelector(".video-export-status"));
+  assert.ok(view.document.querySelector("[data-export-slide=true]"));
+});
+
 test("dirty Back saves the editor and preserves its Forward entry", async (t) => {
   const view = await app(t, "/");
   await view.click("Open Deck old");
@@ -321,7 +361,7 @@ test("an in-flight first save cannot replace the Back destination URL", async (t
     if (init?.method === "POST") await gate;
     return fetch(url, init);
   });
-  await view.click("New carousel");
+  await view.click("New image carousel");
   await view.click("Add slide");
   await act(() => new Promise((resolve) => setTimeout(resolve, 1250)));
   // Resolve the save after Back lands, before the scheduled restoration lands.

@@ -20,6 +20,7 @@ import {
   slideImageRefs,
   slidePosition,
   slideTone,
+  slideTypeface,
   smartQuotes,
   titleLines,
   usesImages,
@@ -48,25 +49,25 @@ test("AI Engineer chooses automatic grounds and alignment while preserving expli
   assert.equal(slideAlign({ layout: "cover", align: "center" }), "center");
   assert.equal(slideTone({ layout: "cover", tone: "paper" }, "ai-engineer"), "paper");
   assert.equal(slideTone({ layout: "content", tone: "black" }, "ai-engineer"), "black");
-  assert.equal(slideTone({ layout: "poster", tone: "sage" }, "ai-engineer"), "paper");
+  assert.equal(slideTone({ layout: "poster", tone: "sage" }, "ai-engineer"), "sage");
   assert.equal(slideTone({ layout: "poster", tone: "sage" }, "editorial"), "sage");
 });
 
-test("generating slides and copying the AI prompt preserve the chosen theme", () => {
+test("legacy generation stays compatible while the AI prompt uses Cinematic", () => {
   const deck = generateCarouselFromText("Start with design. Define the problem first.\n\nCheck the result\n\nKeep learning", "Owain", "ai-engineer");
   assert.equal(deck.theme, "ai-engineer");
   assert.ok(deck.slides.every((slide) => slide.tone === undefined));
   const prompt = aiPrompt(deck);
-  assert.match(prompt, /"theme": "ai-engineer"/);
-  assert.match(prompt, /Geist type, a forest cover and soft-grey slides/);
+  assert.match(prompt, /"theme": "cinematic"/);
+  assert.match(prompt, /"typeface": "sans"/);
   assert.doesNotMatch(prompt, /"tone": "paper \| sage \| black"/);
   assert.match(prompt, /font-family="inherit"/);
   assert.doesNotMatch(prompt, /one short serif statement|for a highlighter stroke/);
   for (const theme of ["editorial", "ai-engineer"]) {
     const instructions = aiPrompt({ ...deck, theme });
     assert.match(instructions, /Four layouts/);
-    assert.match(instructions, /18px at a 390px phone width/);
-    assert.match(instructions, /large display headlines on covers/);
+    assert.match(instructions, /16px body, 26px Geist sans titles and 42px Signifier serif titles at a 390px phone width/);
+    assert.match(instructions, /closing slides use the same title size/);
     assert.doesNotMatch(instructions, /share one reading size/);
     assert.match(instructions, /Bodies: 30 words or fewer/);
     assert.match(instructions, /labels and notes 48px, one text size/);
@@ -519,4 +520,26 @@ test("generated import IDs cannot collide with explicit slide IDs", (t) => {
   assert.throws(() => parseCarouselConfig(JSON.stringify({ slides: [
     { id: "slide-fixed", title: "First" }, { title: "Second" },
   ] })), /duplicate id/);
+});
+
+
+test("per-slide typography survives parsing and duplication with legacy defaults", () => {
+  const deck = parseCarouselConfig(JSON.stringify({theme: "editorial", slides: [
+    {title: "Serif", typeface: "serif"}, {title: "Sans", typeface: "sans"}, {title: "Legacy"},
+  ]}));
+  assert.deepEqual(deck.slides.map(slide => slideTypeface(slide, deck.theme)), ["serif", "sans", "serif"]);
+  assert.deepEqual(parseCarouselConfig(JSON.stringify(deck)), deck);
+  const copy = duplicateCarouselConfig(deck);
+  assert.deepEqual(copy.slides.map(slide => slide.typeface), ["serif", "sans", undefined]);
+  assert.ok(copy.slides.every((slide, index) => slide.id !== deck.slides[index].id));
+  assert.equal(slideTypeface({}, "cinematic"), "sans");
+  assert.equal(slideTypeface({}, "ai-engineer"), "sans");
+});
+
+
+test("text generation preserves the selected typography across every layout", () => {
+  for (const typeface of ["sans", "serif"]) {
+    const deck = generateCarouselFromText("Start here. A short subtitle.\n\nOne useful point. A little detail.\n\nKeep going", "Owain", "cinematic", typeface);
+    assert.ok(deck.slides.every(slide => slide.typeface === typeface));
+  }
 });
