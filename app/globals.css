@@ -92,6 +92,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .app-nav-links { display: flex; flex-direction: column; gap: 6px; }
 .app-nav-item { display: inline-flex; align-items: center; gap: 8px; min-height: 42px; padding: 10px 18px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 13px; font-weight: 500; cursor: pointer; transition: background .14s ease, color .14s ease; }
 .app-nav-item:hover { color: var(--ink); background: var(--panel-2); }
+.app-nav-logout { margin-top: auto; }
+.app-nav-item:disabled { opacity: .6; cursor: wait; }
 .app-nav-item.active, .app-nav-item[aria-current="page"] { color: var(--ink); background: #e8eae2; }
 .app-main { min-width: 0; min-height: 0; height: 100%; overflow-y: auto; scrollbar-gutter: stable; }
 
@@ -491,6 +493,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .app { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 64px minmax(0, 1fr); }
   .app-nav { flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; height: 64px; padding: 0 16px; border-right: 0; border-bottom: 1px solid var(--line); }
   .app-nav-links { flex-direction: row; gap: 2px; }
+  .app-nav-logout { margin-top: 0; margin-left: auto; }
   .app-nav-item { gap: 6px; padding: 10px; font-size: 12px; }
   .app-nav-item svg { width: 16px; }
   .dashboard-body { padding: 28px var(--page-gutter) 48px; }

@@ -297,8 +297,11 @@ password gate is what protects it.
 The container requires two variables in production: `BUCKET`, the bucket name, and
 `APP_SECRET`, the shared password. It refuses to start if either is missing, so a
 misconfigured Cloud Run revision cannot silently write to ephemeral disk or expose an
-open API. With `APP_SECRET` set the whole app sits behind one password,
+open API. With `APP_SECRET` set the studio and private API require one password,
 exchanged for an HMAC-signed cookie so the secret itself never reaches the browser.
+Use **Log out** in the studio navigation to clear this browser's session and return
+to sign-in. Pending carousel edits are saved first; failed saves and active exports
+keep the studio open. The control is hidden when no password is configured.
 With it unset the app is open, which is what local development wants. With `BUCKET`
 unset the server uses `.data/` on disk.
 

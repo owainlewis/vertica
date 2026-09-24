@@ -1,6 +1,6 @@
-import { Images, LayoutGrid, LoaderCircle, Lock } from "lucide-react";
+import { Images, LayoutGrid, LoaderCircle, Lock, LogOut } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { getSession, loadCarousel, resolveMedia, signIn, type CarouselSummary } from "./api-client";
+import { getSession, loadCarousel, resolveMedia, signIn, signOut, type CarouselSummary } from "./api-client";
 import { BRAND_FOOTER, BRAND_MARK, newSlideId, type CarouselConfig, type CarouselFormat } from "./carousel";
 import Dashboard from "./dashboard";
 import Editor, { type EditorHandle } from "./editor";
@@ -83,23 +83,36 @@ function SignIn({ onDone }: { onDone: () => void }) {
  * changes shape between the library and a deck, so opening a carousel feels like
  * moving within one room rather than into another app.
  */
-function AppNav({ active, onNavigate }: { active: "gallery" | "media" | "editor"; onNavigate: (kind: "gallery" | "media") => void }) {
+function AppNav({ active, onNavigate, onLogOut, busy }: {
+  active: "gallery" | "media" | "editor";
+  onNavigate: (kind: "gallery" | "media") => void;
+  onLogOut?: () => void;
+  busy: boolean;
+}) {
   return (
     <nav className="app-nav" aria-label="Main navigation">
       <div className="app-nav-links">
-        <button type="button" className={`app-nav-item ${active === "gallery" || active === "editor" ? "active" : ""}`} aria-current={active === "gallery" ? "page" : undefined} onClick={() => onNavigate("gallery")}>
+        <button type="button" disabled={busy} className={`app-nav-item ${active === "gallery" || active === "editor" ? "active" : ""}`} aria-current={active === "gallery" ? "page" : undefined} onClick={() => onNavigate("gallery")}>
           <LayoutGrid size={18} /> Carousels
         </button>
-        <button type="button" className={`app-nav-item ${active === "media" ? "active" : ""}`} aria-current={active === "media" ? "page" : undefined} onClick={() => onNavigate("media")}>
+        <button type="button" disabled={busy} className={`app-nav-item ${active === "media" ? "active" : ""}`} aria-current={active === "media" ? "page" : undefined} onClick={() => onNavigate("media")}>
           <Images size={18} /> Media
         </button>
       </div>
+      {onLogOut && (
+        <button type="button" className="app-nav-item app-nav-logout" onClick={onLogOut} disabled={busy} aria-busy={busy} aria-label="Log out">
+          {busy ? <LoaderCircle className="spin" size={18} aria-hidden="true" /> : <LogOut size={18} aria-hidden="true" />} Log out
+        </button>
+      )}
     </nav>
   );
 }
 
 export default function App() {
   const [authorised, setAuthorised] = useState<boolean | null>(null);
+  const [gated, setGated] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const logoutPending = useRef(false);
   const editorRef = useRef<EditorHandle>(null);
   const mainRef = useRef<HTMLDivElement>(null);
   // Every navigation invalidates earlier loads, including their media and errors.
@@ -112,7 +125,10 @@ export default function App() {
 
   useEffect(() => {
     getSession()
-      .then((session) => setAuthorised(!session.gated || session.authorised))
+      .then((session) => {
+        setGated(session.gated);
+        setAuthorised(!session.gated || session.authorised);
+      })
       .catch(() => setAuthorised(true));
   }, []);
 
@@ -167,9 +183,15 @@ export default function App() {
   // Return to the editor's existing entry before flushing. onSaved can then
   // update its URL safely, and replaying go(delta) preserves Back and Forward.
   useEffect(() => {
+    if (authorised !== true) return;
     let pending: { target: number; request: number; saving: boolean } | null = null;
     const onPop = (event: PopStateEvent) => {
       const index = window.history.state?.verticaIndex ?? 0;
+      if (logoutPending.current) {
+        event.stopImmediatePropagation();
+        if (index !== historyIndex.current) window.history.go(historyIndex.current - index);
+        return;
+      }
       if (!pending && editorRef.current?.isDirty() && index !== historyIndex.current) {
         pending = { target: index, request: ++navigation.current, saving: false };
       }
@@ -205,7 +227,7 @@ export default function App() {
     };
     window.addEventListener("popstate", onPop, { capture: true });
     return () => window.removeEventListener("popstate", onPop, { capture: true });
-  }, [openCarousel]);
+  }, [authorised, openCarousel]);
 
   function createCarousel(format: CarouselFormat = "image") {
     navigation.current += 1;
@@ -241,6 +263,31 @@ export default function App() {
     showLibrary(kind);
   }
 
+  async function logOut() {
+    if (logoutPending.current) return;
+    logoutPending.current = true;
+    setLoggingOut(true);
+    navigation.current += 1;
+    setError(null);
+    try {
+      if (editorRef.current && !(await editorRef.current.flush())) {
+        setError("Finish saving or exporting your carousel, then try logging out again.");
+        return;
+      }
+      await signOut();
+      navigation.current += 1;
+      deferredSavedUrl.current = null;
+      setView({ kind: "gallery" });
+      setAuthorised(false);
+      window.history.replaceState({ verticaIndex: historyIndex.current }, "", "/?view=carousels");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not log out. Try again.");
+    } finally {
+      logoutPending.current = false;
+      setLoggingOut(false);
+    }
+  }
+
   function handleSaved(summary: CarouselSummary) {
     // Only the id is adopted here. The editor owns the live version, and writing a
     // stale one back into view state would make its next save look out of date.
@@ -264,11 +311,12 @@ export default function App() {
   return (
     <div className="app">
       {error && <div className="toast error" role="status">{error}</div>}
-      <AppNav active={view.kind} onNavigate={(kind) => { void navigate(kind); }} />
-      <div className="app-main" ref={mainRef}>
+      <AppNav active={view.kind} onNavigate={(kind) => { void navigate(kind); }} onLogOut={gated ? () => { void logOut(); } : undefined} busy={loggingOut} />
+      <div className="app-main" ref={mainRef} inert={loggingOut}>
         {view.kind === "editor" ? (
           <Editor
             ref={editorRef}
+            disabled={loggingOut}
             key={view.key}
             carouselId={view.id}
             initialConfig={view.config}

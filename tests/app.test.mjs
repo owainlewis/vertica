@@ -15,7 +15,7 @@ function record(id) {
   return { id, title: config.title, author: config.author, slideCount: 1, coverTitle: config.title, cover: JSON.stringify({ slide: config.slides[0] }), config: JSON.stringify(config), version: 1, createdAt: "2026-09-07T12:00:00Z", updatedAt: "2026-09-07T12:00:00Z" };
 }
 
-async function app(t, path = "/?id=old", rows = [record("old"), record("newer")], saveStatus = 200, Component = App, beforeMount = () => {}) {
+async function app(t, path = "/?id=old", rows = [record("old"), record("newer")], saveStatus = 200, Component = App, beforeMount = () => {}, sessionOptions = {}) {
   const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: `http://localhost${path}` });
   const { window } = dom;
   const restore = [];
@@ -27,8 +27,19 @@ async function app(t, path = "/?id=old", rows = [record("old"), record("newer")]
   window.HTMLElement.prototype.scrollTo = () => {};
   const pending = new Map();
   const writes = [];
+  const sessionCalls = [];
+  let authorised = true;
   t.mock.method(globalThis, "fetch", async (url, init) => {
-    if (url === "/api/session") return Response.json({ gated: false, authorised: true });
+    if (url === "/api/session") {
+      if (init?.method === "DELETE") {
+        sessionCalls.push("DELETE");
+        const status = sessionOptions.logoutStatus ?? 200;
+        if (status === 200) authorised = false;
+        return Response.json(status === 200 ? { ok: true } : { error: "Logout failed. Try again." }, { status });
+      }
+      if (init?.method === "POST") { authorised = true; return Response.json({ ok: true }); }
+      return Response.json({ gated: sessionOptions.gated ?? false, authorised });
+    }
     if (url === "/api/media") return Response.json({ media: [], nextCursor: null });
     if (init?.method === "POST" || init?.method === "PUT") {
       const payload = JSON.parse(init.body);
@@ -43,7 +54,7 @@ async function app(t, path = "/?id=old", rows = [record("old"), record("newer")]
   beforeMount(window);
   await act(() => root.render(createElement(Component)));
   return {
-    document: window.document, window, writes, pending,
+    document: window.document, window, writes, pending, sessionCalls,
     async click(label) {
       const button = [...window.document.querySelectorAll("button")].find((node) => node.getAttribute("aria-label") === label || node.textContent.trim() === label);
       assert.ok(button, `Button ${label} exists`);
@@ -411,4 +422,109 @@ test("Root keeps a dirty editor mounted until Back to the homepage saves success
       }
     });
   }
+});
+
+
+async function protectedApp(t, path = "/?view=carousels", saveStatus = 200, sessionOptions = {}) {
+  return app(t, path, undefined, saveStatus, App, undefined, { gated: true, ...sessionOptions });
+}
+
+test("logout clears the session from either library and allows signing in again", async (t) => {
+  for (const path of ["/?view=carousels", "/?view=media"]) {
+    await t.test(path, async (t) => {
+      const view = await protectedApp(t, path);
+      await view.click("Log out");
+      assert.deepEqual(view.sessionCalls, ["DELETE"]);
+      assert.ok(view.document.querySelector('[aria-label="Password"]'));
+      assert.equal(view.document.querySelector(".app-nav"), null);
+      assert.equal(view.window.location.search, "?view=carousels");
+      await act(() => view.document.querySelector("form").dispatchEvent(new view.window.Event("submit", { bubbles: true, cancelable: true })));
+      assert.equal(view.document.querySelector("h1").textContent, "Your carousels");
+      assert.ok(view.document.querySelector('[aria-label="Log out"]'));
+    });
+  }
+});
+
+test("logout waits for dirty edits and freezes editing until the session is cleared", async (t) => {
+  const view = await protectedApp(t, "/?id=old");
+  await view.finish("old");
+  await view.click("Add slide");
+  const fetch = globalThis.fetch;
+  let releaseSave;
+  let releaseLogout;
+  const saveGate = new Promise((resolve) => { releaseSave = resolve; });
+  const logoutGate = new Promise((resolve) => { releaseLogout = resolve; });
+  t.mock.method(globalThis, "fetch", async (url, init) => {
+    if (init?.method === "PUT") await saveGate;
+    if (init?.method === "DELETE") await logoutGate;
+    return fetch(url, init);
+  });
+  await view.click("Log out");
+  assert.equal(view.document.querySelector('[aria-label="Log out"]').disabled, true);
+  assert.equal(view.document.querySelector(".app-main").hasAttribute("inert"), true);
+  assert.deepEqual(view.sessionCalls, []);
+  await act(() => view.window.dispatchEvent(new view.window.KeyboardEvent("keydown", { key: "z", ctrlKey: true })));
+  assert.equal(view.document.querySelectorAll(".slide-thumb").length, 2);
+  await act(() => releaseSave());
+  assert.equal(view.writes.at(-1).slides.length, 2);
+  assert.ok(view.document.querySelector('[aria-label="Carousel title"]'));
+  await act(() => releaseLogout());
+  assert.deepEqual(view.sessionCalls, ["DELETE"]);
+  assert.ok(view.document.querySelector('[aria-label="Password"]'));
+  assert.equal(view.document.querySelector('[aria-label="Carousel title"]'), null);
+});
+
+test("a failed save keeps the editor open and never sends logout", async (t) => {
+  const view = await protectedApp(t, "/?id=old", 503);
+  await view.finish("old");
+  await view.click("Add slide");
+  await view.click("Log out");
+  assert.deepEqual(view.sessionCalls, []);
+  assert.equal(view.document.querySelectorAll(".slide-thumb").length, 2);
+  assert.match(view.document.body.textContent, /Save failed/);
+  assert.equal(view.document.querySelector('[aria-label="Log out"]').disabled, false);
+  assert.equal(view.document.querySelector(".app-main").hasAttribute("inert"), false);
+});
+
+test("a failed logout keeps the editor available and can be retried", async (t) => {
+  const view = await protectedApp(t, "/?id=old", 200, { logoutStatus: 503 });
+  await view.finish("old");
+  await view.click("Log out");
+  assert.ok(view.document.querySelector('[aria-label="Carousel title"]'));
+  assert.match(view.document.querySelector(".toast.error").textContent, /Logout failed/);
+  assert.equal(view.document.querySelector('[aria-label="Log out"]').disabled, false);
+  assert.equal(view.document.querySelector(".app-main").hasAttribute("inert"), false);
+  await view.click("Log out");
+  assert.deepEqual(view.sessionCalls, ["DELETE", "DELETE"]);
+});
+
+test("logout invalidates a pending deck load and Back cannot fetch while signed out", async (t) => {
+  const view = await protectedApp(t, "/?id=old");
+  await view.click("Log out");
+  await view.finish("old");
+  assert.ok(view.document.querySelector('[aria-label="Password"]'));
+  assert.equal(view.document.querySelector('[aria-label="Carousel title"]'), null);
+  view.pending.clear();
+  await act(() => {
+    view.window.history.replaceState({ verticaIndex: 0 }, "", "/?id=newer");
+    view.window.dispatchEvent(new view.window.PopStateEvent("popstate"));
+  });
+  assert.equal(view.pending.size, 0);
+  assert.ok(view.document.querySelector('[aria-label="Password"]'));
+});
+
+test("logout cannot interrupt an export", async (t) => {
+  const view = await protectedApp(t);
+  await view.click("New image carousel");
+  view.document.fonts = { ready: new Promise(() => {}) };
+  await view.click("JPEG imagesNumbered files in a ZIP · Instagram");
+  await view.click("Log out");
+  assert.deepEqual(view.sessionCalls, []);
+  assert.ok(view.document.querySelector(".video-export-status"));
+  assert.match(view.document.querySelector(".toast.error").textContent, /Finish saving or exporting/);
+});
+
+test("open local studios do not offer a logout that cannot protect their data", async (t) => {
+  const view = await app(t, "/?view=carousels");
+  assert.equal(view.document.querySelector('[aria-label="Log out"]'), null);
 });

@@ -290,3 +290,23 @@ test("image removal cannot overwrite a concurrent library reupload", async () =>
   assert.equal(media[0].width, 2);
   assert.equal((await app.request(`/media/${KEY}`)).status, 200);
 });
+
+
+test("logout expires the session cookie and subsequent requests require sign-in", async () => {
+  const { app } = api({ secret: "logout-test-password" });
+  const login = await app.request(jsonRequest("/session", { password: "logout-test-password" }));
+  const cookie = login.headers.get("set-cookie").split(";")[0];
+  const logout = await app.request(new Request("https://localhost/session", { method: "DELETE", headers: { cookie } }));
+  assert.equal(logout.status, 200);
+  assert.deepEqual(await logout.json(), { ok: true });
+  const cleared = logout.headers.get("set-cookie");
+  assert.match(cleared, /^vertica_session=;/);
+  assert.match(cleared, /Max-Age=0/);
+  assert.match(cleared, /Path=\//);
+  assert.match(cleared, /HttpOnly/);
+  assert.match(cleared, /Secure/);
+  assert.match(cleared, /SameSite=Lax/);
+  const request = (path) => new Request(`https://localhost${path}`, { headers: { cookie: cleared.split(";")[0] } });
+  assert.deepEqual(await (await app.request(request("/session"))).json(), { gated: true, authorised: false });
+  assert.equal((await app.request(request("/carousels"))).status, 401);
+});

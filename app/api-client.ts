@@ -36,6 +36,10 @@ export function signIn(password: string) {
   return call<{ ok: true }>("/session", { method: "POST", body: JSON.stringify({ password }) });
 }
 
+export function signOut() {
+  return call<{ ok: true }>("/session", { method: "DELETE" });
+}
+
 export async function listCarousels() {
   return (await call<{ carousels: CarouselSummary[] }>("/carousels")).carousels;
 }
