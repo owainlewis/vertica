@@ -7,6 +7,7 @@ import { createRoot } from "react-dom/client";
 
 register("./component-loader.mjs", import.meta.url);
 const { default: App } = await import("../app/app.tsx");
+const { default: Root } = await import("../app/root.tsx");
 const { parseCarouselConfig } = await import("../app/carousel.ts");
 
 function record(id) {
@@ -14,7 +15,7 @@ function record(id) {
   return { id, title: config.title, author: config.author, slideCount: 1, coverTitle: config.title, cover: JSON.stringify({ slide: config.slides[0] }), config: JSON.stringify(config), version: 1, createdAt: "2026-09-07T12:00:00Z", updatedAt: "2026-09-07T12:00:00Z" };
 }
 
-async function app(t, path = "/?id=old", rows = [record("old"), record("newer")], saveStatus = 200) {
+async function app(t, path = "/?id=old", rows = [record("old"), record("newer")], saveStatus = 200, Component = App, beforeMount = () => {}) {
   const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: `http://localhost${path}` });
   const { window } = dom;
   const restore = [];
@@ -39,7 +40,8 @@ async function app(t, path = "/?id=old", rows = [record("old"), record("newer")]
   });
   const root = createRoot(window.document.getElementById("root"));
   t.after(async () => { await act(() => root.unmount()); dom.window.close(); restore.forEach((fn) => fn()); });
-  await act(() => root.render(createElement(App)));
+  beforeMount(window);
+  await act(() => root.render(createElement(Component)));
   return {
     document: window.document, window, writes, pending,
     async click(label) {
@@ -262,11 +264,11 @@ test("a new unsaved draft stays mounted through Back and Media navigation during
   view.document.fonts = { ready: new Promise(() => {}) };
   await view.click("JPEG imagesNumbered files in a ZIP · Instagram");
   assert.ok(view.document.querySelector(".video-export-status"));
-  const events = [];
-  view.window.addEventListener("popstate", () => events.push(view.window.history.state.verticaIndex));
+  const go = t.mock.method(view.window.history, "go");
   await traverse(view, -1);
-  assert.deepEqual(events, [0, 1], "Back is reversed before the guard clears");
-  assert.equal(view.window.location.search, "");
+  assert.deepEqual(go.mock.calls.map(({ arguments: args }) => args[0]), [-1, 1], "Back is reversed before the guard clears");
+  assert.equal(view.window.history.state.verticaIndex, 1);
+  assert.equal(view.window.location.search, "?view=carousels");
   assert.equal(view.writes.length, 0);
   assert.ok(view.document.querySelector("[data-export-slide=true]"));
   assert.ok(view.document.querySelector('[aria-label="Carousel title"]'));
@@ -304,7 +306,7 @@ test("dirty Forward and multi-entry Back keep their original destinations", asyn
   await view.click("Add slide");
   const length = view.window.history.length;
   await traverse(view, 2);
-  assert.equal(view.window.location.search, "");
+  assert.equal(view.window.location.search, "?view=carousels");
   assert.equal(view.document.querySelector("h1").textContent, "Your carousels");
   assert.equal(view.window.history.length, length);
   await traverse(view, -2);
@@ -353,9 +355,11 @@ test("dirty multi-entry Back replays the complete history distance", async (t) =
 });
 
 test("an in-flight first save cannot replace the Back destination URL", async (t) => {
-  const view = await app(t, "/");
-  const fetch = globalThis.fetch;
   let release;
+  const view = await app(t, "/", undefined, 200, App, (window) => {
+    window.addEventListener("popstate", () => release(), { once: true, capture: true });
+  });
+  const fetch = globalThis.fetch;
   const gate = new Promise((resolve) => { release = resolve; });
   t.mock.method(globalThis, "fetch", async (url, init) => {
     if (init?.method === "POST") await gate;
@@ -365,11 +369,46 @@ test("an in-flight first save cannot replace the Back destination URL", async (t
   await view.click("Add slide");
   await act(() => new Promise((resolve) => setTimeout(resolve, 1250)));
   // Resolve the save after Back lands, before the scheduled restoration lands.
-  view.window.addEventListener("popstate", () => release(), { once: true });
   await traverse(view, -1);
   assert.equal(view.window.location.search, "");
   assert.equal(view.document.querySelector("h1").textContent, "Your carousels");
   await traverse(view, 1);
   assert.equal(view.window.location.search, "?id=saved");
   await view.finish("saved");
+});
+
+
+test("Root keeps a dirty editor mounted until Back to the homepage saves successfully", async (t) => {
+  for (const status of [200, 503]) {
+    await t.test(String(status), async (t) => {
+      const view = await app(t, "/", [record("old")], status, Root, (window) => {
+        window.history.replaceState({ verticaIndex: 0 }, "", "/");
+        window.history.pushState({ verticaIndex: 1 }, "", "/?id=old");
+      });
+      await view.finish("old");
+      const fetch = globalThis.fetch;
+      let release;
+      const gate = new Promise((resolve) => { release = resolve; });
+      t.mock.method(globalThis, "fetch", async (url, init) => {
+        if (init?.method === "PUT") await gate;
+        return fetch(url, init);
+      });
+      await view.click("Add slide");
+      await traverse(view, -1);
+      assert.equal(view.document.querySelectorAll(".slide-thumb").length, 2);
+      assert.equal(view.window.location.search, "?id=old");
+      assert.equal(view.writes.length, 0);
+      await act(async () => { release(); await new Promise((resolve) => setTimeout(resolve, 80)); });
+      assert.equal(view.writes.at(-1).slides.length, 2);
+      if (status === 200) {
+        assert.equal(view.window.location.search, "");
+        assert.match(view.document.querySelector("h1").textContent, /Build beautiful carousels/);
+        assert.equal(view.document.querySelector('[aria-label="Carousel title"]'), null);
+      } else {
+        assert.equal(view.window.location.search, "?id=old");
+        assert.equal(view.document.querySelectorAll(".slide-thumb").length, 2);
+        assert.match(view.document.body.textContent, /Save failed/);
+      }
+    });
+  }
 });

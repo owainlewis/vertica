@@ -6,8 +6,8 @@ const appRoot = new URL("../app/", import.meta.url).href;
 
 // Node's type stripping does not handle TSX or the app's bundler-style imports.
 export async function resolve(specifier, context, nextResolve) {
-  if (context.parentURL?.startsWith(appRoot) && specifier.startsWith(".")) {
-    const base = new URL(specifier, context.parentURL);
+  if (context.parentURL?.startsWith(appRoot) && (specifier.startsWith(".") || specifier.startsWith("@/"))) {
+    const base = specifier.startsWith("@/") ? new URL(specifier.slice(2), appRoot) : new URL(specifier, context.parentURL);
     for (const extension of [".ts", ".tsx"]) {
       const candidate = new URL(`${base.href}${extension}`);
       if (existsSync(candidate)) return { url: candidate.href, shortCircuit: true };

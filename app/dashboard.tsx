@@ -1,3 +1,4 @@
+import { Button } from "./components/ui/button";
 import { ArrowUpRight, Copy, Download, Film, Images, Layers, LoaderCircle, Search, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -210,8 +211,8 @@ export default function Dashboard({
         <div className="dashboard-heading">
           <h1>Your carousels</h1>
           <div className="new-carousel-actions">
-            <button className="export-button" type="button" onClick={() => onCreate("image")}><Images size={16} /> New image carousel</button>
-            <button className="secondary-button" type="button" onClick={() => onCreate("video")}><Film size={16} /> New video carousel</button>
+            <Button className="export-button" type="button" onClick={() => onCreate("image")}><Images size={16} /> New image carousel</Button>
+            <Button variant="outline" className="secondary-button" type="button" onClick={() => onCreate("video")}><Film size={16} /> New video carousel</Button>
           </div>
         </div>
 
@@ -235,7 +236,7 @@ export default function Dashboard({
 
         {carousels === null && !error && <div className="library-loading" role="status"><LoaderCircle className="spin" size={20} /> Loading your library…</div>}
         {carousels !== null && carousels.length > 0 && visibleCarousels.length === 0 && (
-          <div className="empty-state"><Search size={28} aria-hidden="true" /><h2>No matching carousels</h2><p>Try another title or clear your search to see every deck.</p><button className="secondary-button" type="button" onClick={() => setQuery("")}>Clear search</button></div>
+          <div className="empty-state"><Search size={28} aria-hidden="true" /><h2>No matching carousels</h2><p>Try another title or clear your search to see every deck.</p><Button variant="outline" className="secondary-button" type="button" onClick={() => setQuery("")}>Clear search</Button></div>
         )}
 
         <ul className="gallery">
@@ -277,9 +278,9 @@ export default function Dashboard({
           ))}
         </ul>
         {visibleCount < visibleCarousels.length && (
-          <button className="secondary-button media-load-more" type="button" onClick={() => setVisibleCount((count) => count + 24)}>
+          <Button variant="outline" className="secondary-button media-load-more" type="button" onClick={() => setVisibleCount((count) => count + 24)}>
             Load more carousels ({visibleCarousels.length - visibleCount} remaining)
-          </button>
+          </Button>
         )}
       </section>
 

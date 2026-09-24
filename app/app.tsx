@@ -4,6 +4,8 @@ import { getSession, loadCarousel, resolveMedia, signIn, type CarouselSummary } 
 import { BRAND_FOOTER, BRAND_MARK, newSlideId, type CarouselConfig, type CarouselFormat } from "./carousel";
 import Dashboard from "./dashboard";
 import Editor, { type EditorHandle } from "./editor";
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
 import MediaGallery from "./media-gallery";
 
 type View =
@@ -59,7 +61,7 @@ function SignIn({ onDone }: { onDone: () => void }) {
         <span className="dialog-icon"><Lock size={17} /></span>
         <h1>Vertica</h1>
         <p>Enter the password to open your carousels.</p>
-        <input
+        <Input
           type="password"
           aria-label="Password"
           autoComplete="current-password"
@@ -67,9 +69,10 @@ function SignIn({ onDone }: { onDone: () => void }) {
           onChange={(event) => setPassword(event.target.value)}
         />
         {error && <span className="signin-error" role="status">{error}</span>}
-        <button className="export-button" type="submit" disabled={busy || !password}>
+        <Button className="export-button" type="submit" disabled={busy || !password}>
           {busy ? <LoaderCircle className="spin" size={15} /> : null} Sign in
-        </button>
+        </Button>
+        <a className="signin-home" href="/">Back to homepage</a>
       </form>
     </main>
   );
@@ -165,12 +168,13 @@ export default function App() {
   // update its URL safely, and replaying go(delta) preserves Back and Forward.
   useEffect(() => {
     let pending: { target: number; request: number; saving: boolean } | null = null;
-    const onPop = () => {
+    const onPop = (event: PopStateEvent) => {
       const index = window.history.state?.verticaIndex ?? 0;
       if (!pending && editorRef.current?.isDirty() && index !== historyIndex.current) {
         pending = { target: index, request: ++navigation.current, saving: false };
       }
       if (pending) {
+        event.stopImmediatePropagation();
         if (index !== historyIndex.current) {
           window.history.go(historyIndex.current - index);
           return;
@@ -199,15 +203,15 @@ export default function App() {
       if (next) void openCarousel(next, false);
       else setView({ kind: params.get("view") === "media" ? "media" : "gallery" });
     };
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
+    window.addEventListener("popstate", onPop, { capture: true });
+    return () => window.removeEventListener("popstate", onPop, { capture: true });
   }, [openCarousel]);
 
   function createCarousel(format: CarouselFormat = "image") {
     navigation.current += 1;
     setError(null);
     setView({ kind: "editor", key: `new-${Date.now().toString(36)}`, id: null, config: emptyConfig(format), version: null });
-    pushHistory("/");
+    pushHistory("/?view=carousels");
   }
 
   function exitToGallery() {
@@ -215,7 +219,7 @@ export default function App() {
     setError(null);
     setView({ kind: "gallery" });
     setReloadToken((token) => token + 1);
-    pushHistory("/");
+    pushHistory("/?view=carousels");
   }
 
   function showLibrary(kind: "gallery" | "media") {
@@ -223,7 +227,7 @@ export default function App() {
     setError(null);
     setView({ kind });
     if (kind === "gallery") setReloadToken((token) => token + 1);
-    pushHistory(kind === "media" ? "/?view=media" : "/");
+    pushHistory(kind === "media" ? "/?view=media" : "/?view=carousels");
   }
 
   // Leaving an open deck through the rail flushes its queued edits first, the same
