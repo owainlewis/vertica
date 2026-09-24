@@ -91,6 +91,7 @@ function plainTitle(slide: CarouselSlide) {
 export default function Editor({
   ref,
   carouselId,
+  disabled = false,
   initialConfig,
   initialVersion,
   onExit,
@@ -98,6 +99,7 @@ export default function Editor({
 }: {
   ref?: Ref<EditorHandle>;
   carouselId: string | null;
+  disabled?: boolean;
   initialConfig: CarouselConfig;
   initialVersion: number | null;
   onExit: () => void;
@@ -107,7 +109,7 @@ export default function Editor({
   const [exportProgress, setExportProgress] = useState("");
   // Every change to the deck goes through `commit` so it can be undone. Export
   // freezes the deck so the mounted stage cannot change under the rasteriser.
-  const { value: config, setValue: setConfig, commit, step, canUndo, canRedo } = useHistory(initialConfig, Boolean(exporting));
+  const { value: config, setValue: setConfig, commit, step, canUndo, canRedo } = useHistory(initialConfig, disabled || Boolean(exporting));
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showCrop, setShowCrop] = useState(false);
   const [composer, setComposer] = useState<ComposerMode | null>(null);
