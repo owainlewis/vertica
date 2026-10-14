@@ -185,6 +185,10 @@ test("the editor has four layouts and preserves a legacy diagram when switching 
   assert.equal(view.document.querySelector(".preview-frame svg text").textContent, "A useful example");
   await view.click("Layout");
   await select(view.document.querySelector("#slide-layout"), "cover");
+  // A cover can carry the diagram as its artwork, so it stays visible with a caption position.
+  assert.equal(view.document.querySelector(".preview-frame svg text").textContent, "A useful example");
+  assert.ok(![...view.document.querySelectorAll(".inspector button")].some((button) => button.textContent === "Middle"), "a cover with a diagram has only top and bottom positions");
+  await select(view.document.querySelector("#slide-layout"), "content");
   assert.ok([...view.document.querySelectorAll(".inspector button")].some((button) => button.textContent === "Middle"), "text layouts keep the middle position");
   assert.equal(view.document.querySelector(".preview-frame .slide-diagram"), null);
   await select(view.document.querySelector("#slide-layout"), "note");

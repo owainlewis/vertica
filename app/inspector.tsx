@@ -6,11 +6,13 @@ import {
   type CarouselTheme,
   type CarouselFormat,
   carouselFormat,
+  type DiagramStyle,
   imageCapacity,
   type SlideAlign,
   slideAlign,
   type SlideLayout,
   slidePosition,
+  slideVisual,
   type SlidePosition,
   slideTone,
   slideTypeface,
@@ -27,7 +29,7 @@ export const layoutNames: Record<SlideLayout, string> = {
 };
 
 const layoutHints: Record<SlideLayout, string> = {
-  cover: "A clear promise in the selected typeface, with one short supporting line.",
+  cover: "A clear promise in the selected typeface, with one short supporting line. A diagram can sit below as cover art.",
   content: "A clear lead and short, readable paragraphs. One idea per slide.",
   note: "A short statement or visual example. Add pictures or a diagram under Content.",
   closing: "One useful next action, with a short supporting line.",
@@ -93,7 +95,7 @@ function LayoutPanel({ config, slide, theme, updateSlide, commit }: PanelProps) 
   const position = slidePosition(slide, theme, carouselFormat(config.format));
   const align = slideAlign(slide, theme);
   // Visual captions sit above or below the figure; only text slides can centre.
-  const positions: SlidePosition[] = slide.layout === "note" && slide.visual ? ["top", "bottom"] : ["top", "middle", "bottom"];
+  const positions: SlidePosition[] = slideVisual(slide) ? ["top", "bottom"] : ["top", "middle", "bottom"];
 
   return (
     <div className="inspector-panel">
@@ -131,7 +133,7 @@ function LayoutPanel({ config, slide, theme, updateSlide, commit }: PanelProps) 
 function ContentPanel({ config, slide, updateSlide, onAddPicture, onChooseImage, onChooseVideo }: InspectorProps) {
   const images = slide.images ?? [];
   const capacity = imageCapacity(slide);
-  const isDiagram = slide.layout === "note" && slide.visual === "diagram";
+  const isDiagram = slideVisual(slide) === "diagram";
 
   function removePicture(at: number) {
     const remaining = images.filter((_, index) => index !== at);
@@ -148,7 +150,7 @@ function ContentPanel({ config, slide, updateSlide, onAddPicture, onChooseImage,
       <label className="field-label" htmlFor="slide-label">Slide label</label>
       <input id="slide-label" maxLength={30} value={slide.label ?? ""} placeholder="e.g. Rule 01" onChange={(event) => updateSlide({ label: event.target.value || undefined }, "label")} />
       <label className="field-label" htmlFor="headline">Headline</label>
-      <textarea id="headline" maxLength={120} rows={5} value={slide.title} onChange={(event) => updateSlide({ title: event.target.value }, "title")} />
+      <textarea id="headline" maxLength={120} rows={3} value={slide.title} onChange={(event) => updateSlide({ title: event.target.value }, "title")} />
       <div className="character-count" style={{ visibility: slide.title.length >= 100 ? "visible" : "hidden" }}>{slide.title.length} / 120</div>
       <details className="format-help"><summary>Formatting help</summary><p className="field-hint"><em>|</em> starts a headline line. <em>*italic*</em> adds emphasis. <em>**bold**</em> marks a phrase. A blank line starts a paragraph.</p></details>
       {slide.layout === "note" && (
@@ -164,10 +166,22 @@ function ContentPanel({ config, slide, updateSlide, onAddPicture, onChooseImage,
           </div>
         </>
       )}
+      {slide.layout === "cover" && (
+        <>
+          <label className="field-label" htmlFor="slide-visual">Cover art</label>
+          <div className="select-wrap">
+            <select id="slide-visual" value={slide.visual === "diagram" ? "diagram" : ""} onChange={(event) => updateSlide({ visual: event.target.value ? "diagram" : undefined })}>
+              <option value="">Text only</option>
+              <option value="diagram">Diagram</option>
+            </select>
+            <ChevronDown size={14} />
+          </div>
+        </>
+      )}
       {showsBody(slide.layout) ? (
         <>
           <label className="field-label" htmlFor="body">Supporting copy</label>
-          <textarea id="body" maxLength={280} rows={6} value={slide.body} onChange={(event) => updateSlide({ body: event.target.value }, "body")} />
+          <textarea id="body" maxLength={280} rows={5} value={slide.body} onChange={(event) => updateSlide({ body: event.target.value }, "body")} />
         </>
       ) : (
         <p className="field-hint">
@@ -180,6 +194,9 @@ function ContentPanel({ config, slide, updateSlide, onAddPicture, onChooseImage,
           <label className="field-label" htmlFor="diagram">Diagram SVG</label>
           <textarea className="svg-editor" id="diagram" rows={8} spellCheck={false} value={slide.diagram ?? ""} onChange={(event) => updateSlide({ diagram: event.target.value || undefined }, "diagram")} placeholder='<svg viewBox="0 0 800 500">…</svg>' />
           <p className="field-hint">Paste inline SVG. Use <em>currentColor</em> for strokes and text so it takes the slide’s ink on any ground. Scripts and external references are stripped. Find Copy AI prompt in Design → Project data → Edit JSON config.</p>
+          <span className="field-label">Drawing style</span>
+          <Segmented<DiagramStyle> options={["clean", "drawn"]} value={slide.diagramStyle ?? "clean"} onChange={(next) => updateSlide({ diagramStyle: next === "drawn" ? "drawn" : undefined })} label={(option) => option === "drawn" ? "Hand-drawn" : "Clean"} />
+          <p className="field-hint">Hand-drawn redraws the same SVG in pen and pencil. Shapes with a tinted fill, or <em>class=&quot;hatch&quot;</em> or <em>&quot;crosshatch&quot;</em>, are hatched.</p>
         </>
       )}
       {usesImages(slide) && (
@@ -239,18 +256,8 @@ function DesignPanel({ config, slide, theme, updateSlide, commit, onChooseImage,
 
   return (
     <div className="inspector-panel">
-      <label className="field-label" htmlFor="carousel-format">Carousel format</label>
-      <div className="select-wrap">
-        <select id="carousel-format" value={carouselFormat(config.format)} onChange={(event) => commit({ ...config, format: event.target.value as CarouselFormat })}>
-          <option value="image">Image carousel</option>
-          <option value="video">Video carousel</option>
-        </select>
-        <ChevronDown size={14} />
-      </div>
-      <p className="field-hint">{config.format === "video" ? "One MP4 per slide, with your text over b-roll. Add a video to every slide before exporting." : "Numbered still images, ready to upload in order."}</p>
-      <p className="field-hint">Cinematic. Choose Sans or Serif typography under Layout. Use photos, video or a quiet solid background.</p>
-
-      <h3 className="settings-heading settings-divider">This slide</h3>
+      {/* Settings for the selected slide come first; everything below the divider changes the whole deck. */}
+      <h3 className="settings-heading">This slide</h3>
       <span className="field-label">Background colour</span>
       <Segmented options={[...tones]} value={tone} onChange={(next) => updateSlide({ tone: next })} label={(option) => toneNames[option]} />
 
@@ -292,6 +299,16 @@ function DesignPanel({ config, slide, theme, updateSlide, commit, onChooseImage,
       )}
 
       <h3 className="settings-heading settings-divider">All slides</h3>
+      <label className="field-label" htmlFor="carousel-format">Carousel format</label>
+      <div className="select-wrap">
+        <select id="carousel-format" value={carouselFormat(config.format)} onChange={(event) => commit({ ...config, format: event.target.value as CarouselFormat })}>
+          <option value="image">Image carousel</option>
+          <option value="video">Video carousel</option>
+        </select>
+        <ChevronDown size={14} />
+      </div>
+      <p className="field-hint">{config.format === "video" ? "One MP4 per slide, with your text over b-roll. Add a video to every slide before exporting." : "Numbered still images, ready to upload in order."}</p>
+      <p className="field-hint">Cinematic. Choose Sans or Serif typography under Layout. Use photos, video or a quiet solid background.</p>
       <label className="field-label" htmlFor="mark">Series label</label>
       <input id="mark" maxLength={30} value={config.mark ?? ""} placeholder="AI Engineer" onChange={(event) => commit({ ...config, mark: event.target.value }, "mark")} />
       <label className="field-label" htmlFor="author">Footer name</label>

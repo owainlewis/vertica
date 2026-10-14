@@ -1,4 +1,5 @@
-import type { CSSProperties } from "react";
+import { useId, type CSSProperties } from "react";
+import { drawnSvg } from "./drawn-diagram";
 import VideoBackground from "./video-background";
 import { HORIZONTAL_VIDEO_FRAME, videoUrl } from "./video-formats";
 import {
@@ -13,6 +14,7 @@ import {
   photoArrangement,
   showsBody,
   sanitizeSvg,
+  slideVisual,
   slideAlign,
   slidePosition,
   slideTone,
@@ -65,7 +67,9 @@ export function Slide({
   const theme = carouselTheme(config.theme);
   const typeface = slideTypeface(slide, config.theme);
   const scale = typeface === "serif" ? SERIF_TYPE_SCALE : TYPE_SCALE;
-  const visual = slide.layout === "note" ? slide.visual : undefined;
+  const visual = slideVisual(slide);
+  // The same slide can be mounted twice (editor and export), so its drawing's ids are per mount.
+  const mountId = useId();
   const position = slidePosition(slide, theme, carouselFormat(config.format));
   const lines = titleLines(slide.title);
   // Title-only layouts keep their body in the document but never draw it.
@@ -74,7 +78,9 @@ export function Slide({
   const pictures = usesImages(slide)
     ? (slide.images ?? []).slice(0, imageCapacity(slide)).map(painted)
     : [];
-  const diagram = visual === "diagram" && slide.diagram ? sanitizeSvg(slide.diagram) : "";
+  const cleanDiagram = visual === "diagram" && slide.diagram ? sanitizeSvg(slide.diagram) : "";
+  const drawn = Boolean(cleanDiagram) && slide.diagramStyle === "drawn";
+  const diagram = drawn ? drawnSvg(cleanDiagram, `${slide.id}${mountId}`) : cleanDiagram;
   const isLast = index === config.slides.length - 1;
   const showArrow = config.arrow !== false && !isLast;
 
@@ -126,6 +132,7 @@ export function Slide({
     slide.showHeader !== false ? "has-header" : "",
     pictures.length ? `has-pictures pictures-${pictures.length} photos-${photoArrangement(pictures.length)}` : "",
     diagram ? "has-diagram" : "",
+    drawn ? "diagram-drawn" : "",
     exportMode ? "export-slide" : "",
   ].filter(Boolean).join(" ");
 

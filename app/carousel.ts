@@ -7,6 +7,8 @@ export { MAX_SLIDES } from "./carousel-validation.ts";
 /** Four authoring layouts; older documents are mapped without dropping their content. */
 export type SlideLayout = "cover" | "content" | "note" | "closing";
 export type SlideVisual = "photos" | "diagram";
+/** How a diagram is drawn: as written, or redrawn as pen and pencil work. */
+export type DiagramStyle = "clean" | "drawn";
 /** Where the text block sits in the frame, independent of colour. */
 export type SlidePosition = "top" | "middle" | "bottom";
 export type SlideAlign = "left" | "center";
@@ -75,6 +77,8 @@ export type CarouselSlide = {
    * currentColor so the diagram takes the slide's ink on any ground.
    */
   diagram?: string;
+  /** Absent means clean. "drawn" redraws the same SVG by hand; see drawn-diagram.ts. */
+  diagramStyle?: DiagramStyle;
   /**
    * How strongly the background photograph is veiled under the copy, 0 to 1.
    * Absent means the default. 0 shows the photograph untouched.
@@ -90,7 +94,14 @@ export type CarouselSlide = {
   tone?: EditorialTone;
 };
 
-/** Body 2 is the only layout that paints an inline visual. */
+/** Body 2 holds any visual. A cover can also carry a diagram as its artwork. */
+export function slideVisual(slide: Pick<CarouselSlide, "layout" | "visual">): SlideVisual | undefined {
+  const resolved = normalizeSlideLayout(slide);
+  if (resolved.layout === "note") return resolved.visual;
+  return resolved.layout === "cover" && resolved.visual === "diagram" ? "diagram" : undefined;
+}
+
+/** Body 2 is the only layout that paints pictures. */
 export function usesImages(slide: Pick<CarouselSlide, "layout" | "visual">) {
   const resolved = normalizeSlideLayout(slide);
   return resolved.layout === "note" && resolved.visual === "photos";
@@ -134,8 +145,7 @@ export function normalizeSlideLayout<T extends Pick<CarouselSlide, "layout" | "v
 
 /** Text slides share a centred block; visual slides place their caption below. */
 export function slidePosition(slide: CarouselSlide, theme?: CarouselTheme, format?: CarouselFormat): SlidePosition {
-  const resolved = normalizeSlideLayout(slide);
-  if (resolved.layout === "note" && resolved.visual) {
+  if (slideVisual(slide)) {
     // Older visual slides can store "middle". Keep that value in the document,
     // but give the caption a real position above its figure.
     return slide.position === "top" || slide.position === "middle" ? "top" : "bottom";
@@ -286,6 +296,7 @@ export function parseCarouselConfig(input: string): CarouselConfig {
       ...(video ? { video } : {}),
       ...(images.length ? { images } : {}),
       ...(diagram ? { diagram } : {}),
+      ...(slide.diagramStyle === "drawn" ? { diagramStyle: "drawn" as const } : {}),
       ...(veil !== undefined ? { veil } : {}),
       ...(slide.showHeader === false ? { showHeader: false } : {}),
       ...(slide.showFooter === false ? { showFooter: false } : {}),
@@ -670,6 +681,8 @@ Rules:
 - Body 1 is a title in the selected typeface followed by short paragraphs, separated by space. Use it for most teaching slides. No introduction or agenda slide: begin delivering the cover's promise on slide two.
 - Body 2 holds one short statement or a visual example with its title as the caption. It draws the title only; omit body. Use it when the idea benefits, not to meet a layout quota.
 - For pictures on Body 2, set "visual": "photos" and add image references to "images". For an SVG, set "visual": "diagram" and put the drawing in "diagram". Images and diagrams are optional.
+- A cover may also set "visual": "diagram" to use a drawing as cover art; keep its body to one short line.
+- "diagramStyle": "drawn" redraws a diagram as pen and pencil work with hand lettering. Omit it for clean lines. In a drawn diagram, mark one or two key shapes with class="hatch" or class="crosshatch" to shade them; keep labels short so they read in hand lettering.
 - SVG rules: viewBox="0 0 800 500", no width or height attributes, stroke="currentColor" and fill="none" for shapes, fill="currentColor" for text, stroke-width 2, rx 8 on boxes, font-family="inherit", labels and notes 48px, one text size, nothing smaller, at most six boxes, arrows drawn with a line plus a small polygon head, generous space, no colour, no gradients, no scripts.
 - Omit "tone" for a dark ground. Optional solid grounds: "paper", "sage", "black". The author chooses photos or video in the editor.
 - "mark" is the series label at the top of every slide. Keep it short and in sentence case.
@@ -687,7 +700,8 @@ ${JSON.stringify(
       slides: [
         {
           layout: "cover | content | note | closing",
-          visual: "photos | diagram (optional, Body 2 only)",
+          visual: "photos | diagram (optional; Body 2, or diagram on a cover)",
+          diagramStyle: "drawn (optional, diagram slides only)",
           typeface: slideTypeface(config.slides[0] ?? {}, config.theme),
           label: "Optional short tag",
           tone: "paper | sage | black (optional)",
