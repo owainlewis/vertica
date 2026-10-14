@@ -1,5 +1,5 @@
 import { Button } from "./components/ui/button";
-import { ArrowUpRight, Copy, Download, Film, Images, Layers, LoaderCircle, Search, Trash2, X } from "lucide-react";
+import { ArrowUpRight, ChevronDown, Copy, Download, Film, Images, Layers, LoaderCircle, Search, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   deleteCarousel,
@@ -62,6 +62,9 @@ function CardPreview({
       body: parsed.body ?? "",
       ...(parsed.background ? { background: resolve(parsed.background) } : {}),
       ...(parsed.images ? { images: parsed.images.map((ref) => resolve(ref) ?? ref) } : {}),
+      // A large cover drawing is trimmed from the stored summary. Draw a text cover
+      // rather than an empty frame where the art would be.
+      ...(parsed.visual === "diagram" && !parsed.diagram ? { visual: undefined } : {}),
     }, "cover");
     // The footer counter reads off the deck length, so the card needs the real count.
     return {
@@ -208,18 +211,19 @@ export default function Dashboard({
   return (
     <main className="dashboard">
       <section className="dashboard-body">
+        {/* One row: the title, then the tools for the library, then the primary action. */}
         <div className="dashboard-heading">
           <h1>Your carousels</h1>
-          <div className="new-carousel-actions">
-            <Button className="export-button" type="button" onClick={() => onCreate("image")}><Images size={16} /> New image carousel</Button>
-            <Button variant="outline" className="secondary-button" type="button" onClick={() => onCreate("video")}><Film size={16} /> New video carousel</Button>
-          </div>
-        </div>
-
-        <div className="library-toolbar">
           <div className="library-filters">
             <label className="library-search"><Search size={16} aria-hidden="true" /><input type="search" aria-label="Search carousels" placeholder="Search carousels…" value={query} onChange={(event) => { setQuery(event.target.value); setVisibleCount(24); }} />{query && <button type="button" aria-label="Clear search" onClick={() => setQuery("")}><X size={14} /></button>}</label>
-            <select aria-label="Sort carousels" value={sort} onChange={(event) => { setSort(event.target.value); setVisibleCount(24); }}><option value="updated">Last edited</option><option value="title">Name A–Z</option></select>
+            <div className="select-wrap library-sort">
+              <select aria-label="Sort carousels" value={sort} onChange={(event) => { setSort(event.target.value); setVisibleCount(24); }}><option value="updated">Last edited</option><option value="title">Name A–Z</option></select>
+              <ChevronDown size={14} aria-hidden="true" />
+            </div>
+            <div className="new-carousel-actions">
+              <Button className="export-button" type="button" onClick={() => onCreate("image")}><Images size={16} /> New image carousel</Button>
+              <Button variant="outline" className="secondary-button" type="button" onClick={() => onCreate("video")}><Film size={16} /> New video carousel</Button>
+            </div>
           </div>
         </div>
 

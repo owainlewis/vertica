@@ -30,6 +30,16 @@
   src: local("Signifier Regular Italic"), local("Signifier-RegularItalic");
 }
 
+/* Architect's lettering for hand-drawn diagram labels. OFL, served locally like Geist
+   so exports never fetch a font. */
+@font-face {
+  font-family: "Architects Daughter";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/architects-daughter/ArchitectsDaughter-Regular.ttf") format("truetype");
+}
+
 /* ---------------------------------------------------------------------------
    The studio chrome. A left sidebar and restrained sans-serif headings frame the work.
    Cobalt identifies primary actions; the artwork keeps its own palette.
@@ -100,11 +110,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 /* Libraries use a generous introduction and a compact utility row. */
 .dashboard { min-width: 0; min-height: 100%; background: var(--bg); }
 .dashboard-body { max-width: var(--page-width); margin: 0 auto; padding: 40px var(--page-gutter) 64px; }
-.dashboard-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: var(--control-size); margin-bottom: 32px; }
+.dashboard-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 24px; min-height: var(--control-size); padding-bottom: 24px; margin-bottom: 32px; border-bottom: 1px solid var(--line); }
 .dashboard-heading h1 { margin: 0; font-family: var(--font-sans); font-size: clamp(28px, 3vw, 36px); font-weight: 600; line-height: 1.08; letter-spacing: -.035em; text-wrap: balance; }
-.dashboard-heading > .export-button { width: 160px; flex: 0 0 auto; }
-.library-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: 20px; padding: 0 0 18px; margin-bottom: 28px; border-bottom: 1px solid var(--line); }
-.library-filters { display: flex; gap: 12px; }
+.library-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.library-filters > .new-carousel-actions { flex: 0 0 auto; margin-left: 6px; }
 .library-search { display: flex; align-items: center; gap: 9px; width: 240px; height: var(--control-size); padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--muted); }
 .library-search:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 .library-search input { width: 100%; min-width: 0; padding: 10px 0; border: 0; background: transparent; font-size: 12px; outline: none; }
@@ -112,7 +121,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .library-search input::-webkit-search-cancel-button { display: none; }
 .library-search button { display: grid; place-items: center; flex-shrink: 0; width: 28px; height: 32px; border: 0; border-radius: 4px; background: transparent; cursor: pointer; }
 .library-search button:hover { background: var(--panel-2); }
-.library-filters select { height: var(--control-size); padding: 8px 28px 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 12px; cursor: pointer; }
+.library-sort select { height: var(--control-size); padding: 0 32px 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }
+.library-sort select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .library-loading { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 260px; color: var(--muted); font-size: 14px; }
 .dashboard-error { margin: 0 0 18px; padding: 12px 16px; border: 1px solid #dcb6ae; border-radius: var(--radius); background: var(--danger-soft); color: var(--danger); font-size: 13px; }
 .empty-state { display: grid; justify-items: center; gap: 14px; padding: 72px 24px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); text-align: center; }
@@ -145,6 +155,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .card-actions:has(.confirm-delete) > button { visibility: hidden; }
 
 /* Media library */
+/* Housekeeping, not instruction: it reads below the dropzone, never above it. */
+.media-note { margin: -12px 0 20px; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .media-dropzone { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; padding: 18px 20px; border: 1px dashed var(--line-strong); border-radius: 14px; background: rgb(251 250 247 / .7); color: var(--muted); transition: border-color .14s ease, background .14s ease; }
 .media-dropzone.dragging { border-color: var(--accent); background: var(--accent-soft); }
 .media-dropzone > span { display: grid; gap: 3px; min-width: 0; }
@@ -214,8 +226,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 
 .canvas-area { min-width: 0; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: safe center; overflow: auto; scrollbar-gutter: stable; padding: 24px; isolation: isolate; background: var(--bg); background-image: radial-gradient(rgb(26 26 23 / .045) 1px, transparent 1px); background-size: 22px 22px; }
 .canvas-area > * { flex-shrink: 0; }
-.canvas-toolbar { width: min(52vh, 520px, 100%); min-height: 44px; flex-wrap: wrap; line-height: 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 12px; color: var(--muted); font: 10.5px/1 var(--font-mono); text-transform: uppercase; letter-spacing: .04em; }
-.preview-frame { position: relative; flex: 0 0 auto; width: min(52vh, 520px, 100%); min-height: 0; aspect-ratio: 4/5; overflow: hidden; box-shadow: var(--shadow-lift); }
+/* The preview is the work, so it takes the height the canvas has: the viewport less
+   the top bar, canvas padding, the toolbar above it and the actions below it. */
+.canvas-area { --preview-width: min(calc((100dvh - 236px) * .8), 600px, 100%); }
+.canvas-toolbar { width: var(--preview-width); min-height: 44px; flex-wrap: wrap; line-height: 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 12px; color: var(--muted); font: 10.5px/1 var(--font-mono); text-transform: uppercase; letter-spacing: .04em; }
+.preview-frame { position: relative; flex: 0 0 auto; width: var(--preview-width); min-height: 0; aspect-ratio: 4/5; overflow: hidden; box-shadow: var(--shadow-lift); }
 .preview-frame > .carousel-slide { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; }
 .crop-guide { position: absolute; inset: 0 3.125%; z-index: 2; border-left: 1px dashed rgb(246 241 231 / .8); border-right: 1px dashed rgb(246 241 231 / .8); box-shadow: 0 0 0 100px rgb(9 9 7 / .3); pointer-events: none; }
 .crop-guide::after { content: "Profile crop · 3:4"; position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%); padding: 2px 6px; border-radius: 4px; background: rgb(9 9 7 / .55); color: rgb(246 241 231 / .8); font: 500 9px/1.4 var(--font-sans); letter-spacing: .08em; text-transform: uppercase; }
@@ -238,12 +253,19 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   --paper: #efeeea;
   --rule: rgb(26 26 23 / .05);
   --margin: 9.5%;
+  /* The vertical frame, in slide widths (the slide is 100cqw by 125cqw). */
+  --edge: 9.5cqw;
+  --safe: calc(var(--edge) + var(--metadata-size, 2.7cqw) + 8cqw);
+  --figure-gap: 6cqw;
   container-type: inline-size;
   contain: paint;
   position: relative; width: 100%; height: 100%; overflow: hidden; isolation: isolate;
   display: flex; flex-direction: column;
   color: var(--ink); background: var(--paper);
   font-family: Signifier, Georgia, serif;
+  /* A slide sets its own alignment. Gallery cards host it inside a <button>, which
+     would otherwise centre left-aligned supporting copy. */
+  text-align: left;
 }
 .carousel-slide.tone-sage {
   --ink: #f4f2ea;
@@ -278,17 +300,21 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 
 /* Furniture: series label top-left, page number top-right, identity bottom-left,
    swipe arrow bottom-right. Sentence case and a light weight, so it holds the frame
-   without competing with the headline. */
+   without competing with the headline. Header and footer sit the same distance from
+   their edges as the copy sits from the sides, so the frame is even all round. */
 .slide-head, .slide-meta { position: absolute; z-index: 2; left: var(--margin); right: var(--margin); display: flex; align-items: center; justify-content: space-between; gap: 6%; color: var(--ink); font-family: var(--font-sans); font-size: var(--metadata-size); font-weight: 500; line-height: 1; letter-spacing: 0; }
-.slide-head { top: 8.2%; }
-.slide-meta { bottom: 7.4%; }
+.slide-head { top: var(--edge); }
+.slide-meta { bottom: var(--edge); }
 .slide-head span, .slide-meta span { min-width: 0; }
 .slide-mark, .meta-author { overflow-wrap: anywhere; }
 .slide-counter { font-variant-numeric: tabular-nums; }
-.slide-arrow { font-family: var(--font-sans); font-size: 4.8cqw; font-weight: 300; line-height: 1; }
+/* The arrow is drawn larger than the footer text, so it is centred on the text, not on its own box. */
+.slide-arrow { font-family: var(--font-sans); font-size: 4.8cqw; font-weight: 300; line-height: var(--metadata-size); }
 
-/* The copy. Vertical rhythm is in em against each element's own size. */
-.slide-content { position: relative; z-index: 1; min-height: 0; display: flex; flex: 1; flex-direction: column; align-items: flex-start; justify-content: flex-start; padding: 19% var(--margin) 15%; }
+/* The copy. Vertical rhythm is in em against each element's own size.
+   Everything in flow stays inside the safe area: clear of the header and footer by
+   the same measure on every layout, so no headline ever crowds the furniture. */
+.slide-content { position: relative; z-index: 1; min-height: 0; display: flex; flex: 1; flex-direction: column; align-items: flex-start; justify-content: flex-start; padding: var(--safe) var(--margin); }
 .slide-content > * { flex-shrink: 0; }
 .slide-content h2 { max-width: 100%; margin: 0; font-size: var(--title-size); font-weight: 400; line-height: 1.12; letter-spacing: -.02em; word-spacing: 0; font-kerning: normal; font-variant-ligatures: common-ligatures contextual; overflow-wrap: anywhere; }
 .title-line { display: block; text-wrap: balance; }
@@ -303,45 +329,61 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .mark-italic { font-style: italic; }
 .mark-accent { font-weight: 700; }
 
-/* Position and alignment are independent of colour and layout. */
-/* Top still clears the series label by a full measure of air, so the headline reads as
-   the first thing on the page rather than a second line of furniture. */
-.pos-top .slide-content { justify-content: flex-start; padding-top: 26%; }
-/* Equal padding top and bottom, so "middle" is the optical centre of the frame. */
-.pos-middle .slide-content { justify-content: center; padding-top: 18%; padding-bottom: 18%; }
-/* Bottom clears the footer by the same measure Top clears the label. */
-.pos-bottom .slide-content { justify-content: flex-end; padding-bottom: 23%; }
+/* Position and alignment are independent of colour and layout. Top and Bottom sit a
+   little further in than the safe line, so a headline never reads as furniture. */
+.pos-top .slide-content { justify-content: flex-start; padding-top: calc(var(--safe) + 4cqw); }
+.pos-middle .slide-content { justify-content: center; }
+.pos-bottom .slide-content { justify-content: flex-end; padding-bottom: calc(var(--safe) + 3cqw); }
 .align-center .slide-content { align-items: center; text-align: center; }
 
 /* The cover keeps its broad display composition. Supporting copy stays in flow,
-   so a second paragraph cannot overlap the first. */
+   so a second paragraph cannot overlap the first. Tight display leading keeps the
+   lines together; the extra space below keeps the descenders inside the block. */
 .layout-cover .slide-content { padding-inline: 6%; }
 .layout-cover.align-left .slide-content { padding-inline: var(--margin); }
-.layout-cover .slide-content h2 { line-height: .92; }
-.layout-cover .slide-content p { max-width: 90%; }
+.layout-cover .slide-content h2 { line-height: .94; padding-bottom: .06em; }
+.layout-cover .slide-content p { max-width: 90%; margin-top: .9em; }
 .layout-content .slide-content h2 { font-family: var(--font-sans); font-weight: 600; line-height: 1.4; letter-spacing: -.01em; }
 .layout-note:not(.has-visual) .slide-content h2 { font-family: var(--font-sans); font-weight: 400; line-height: 1.3; letter-spacing: -.01em; }
-.has-visual .slide-content h2 { line-height: 1.4; letter-spacing: -.01em; }
+.has-visual:not(.layout-cover) .slide-content h2 { line-height: 1.35; letter-spacing: -.01em; }
 
-/* Visuals use the same gutters and caption spacing, with copy above or below.
-   Text stays in flow, so multiple paragraphs never stack on a pinned subtitle. */
-.has-visual .slide-content { flex: 0 0 auto; padding: 18% var(--margin) 0; }
-.has-visual.pos-bottom .slide-content { order: 2; padding: 0 var(--margin) 18%; }
-.slide-pictures, .slide-diagram { position: relative; z-index: 1; flex: 1; min-height: 0; margin: 6% var(--margin) 18%; }
-.has-visual.pos-bottom .slide-pictures, .has-visual.pos-bottom .slide-diagram { margin-top: 18%; margin-bottom: 6%; }
-.slide-pictures { display: grid; grid-template-columns: 1fr; gap: 3cqw; }
+/* Visuals: the caption and its figure are one unit, centred in the safe area with a
+   fixed gap between them, so a caption always reads as belonging to its figure.
+   The figure gives way first when a long caption or cover headline needs the room. */
+/* Percent, not var(--safe): cqw on the slide itself would resolve against an outer
+   container, not the slide. Percent padding is a share of the slide's own width. */
+.carousel-slide.has-visual { justify-content: center; padding-block: calc(var(--margin) + 10.7%); }
+.has-visual .slide-content, .has-visual.pos-top .slide-content, .has-visual.pos-bottom .slide-content { flex: 0 0 auto; padding: 0 var(--margin); }
+.has-visual.layout-cover .slide-content { padding-inline: 6%; }
+.has-visual.layout-cover.align-left .slide-content { padding-inline: var(--margin); }
+.slide-pictures, .slide-diagram { position: relative; z-index: 1; flex: 0 1 auto; min-height: 0; margin: var(--figure-gap) var(--margin) 0; }
+.has-visual.pos-bottom .slide-pictures, .has-visual.pos-bottom .slide-diagram { order: 1; margin: 0 var(--margin) var(--figure-gap); }
+.has-visual.pos-bottom .slide-content { order: 2; }
+.slide-pictures { height: 62cqw; display: grid; grid-template-columns: 1fr; gap: 3cqw; }
 .photos-grid .slide-pictures { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); }
 .photos-grid.pictures-5 .slide-pictures, .photos-grid.pictures-6 .slide-pictures,
 .photos-grid.pictures-7 .slide-pictures, .photos-grid.pictures-8 .slide-pictures,
 .photos-grid.pictures-9 .slide-pictures { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .slide-picture { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; object-fit: contain; }
+/* A single picture sits against its caption rather than floating in its box. */
+.photos-figure.pos-bottom .slide-picture { object-position: 50% 100%; }
+.photos-figure.pos-top .slide-picture { object-position: 50% 0; }
 .slide-picture.is-missing { background: repeating-linear-gradient(135deg, rgb(26 26 23 / .06) 0 6px, transparent 6px 14px); }
-.slide-diagram { display: flex; align-items: center; justify-content: center; color: var(--ink); }
-.slide-diagram-svg { width: 100%; max-height: 100%; aspect-ratio: 16 / 10; font-family: var(--font-sans); }
+.slide-diagram { height: 51cqw; display: flex; align-items: center; justify-content: center; color: var(--ink); }
+.slide-diagram-svg { width: auto; max-width: 100%; height: 100%; aspect-ratio: 16 / 10; font-family: var(--font-sans); }
 .slide-diagram-svg svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .slide-diagram-empty { display: grid; place-items: center; width: 100%; aspect-ratio: 16 / 10; border: 1px dashed rgb(26 26 23 / .25); color: rgb(26 26 23 / .5); font-family: var(--font-sans); font-size: 2cqw; }
 .tone-sage .slide-diagram-empty, .tone-black .slide-diagram-empty { border-color: rgb(244 242 234 / .3); color: rgb(244 242 234 / .6); }
 .export-slide .slide-diagram-empty { display: none; }
+
+/* Hand-drawn diagrams. The line work is redrawn in drawn-diagram.ts; here the
+   labels take an architect's hand so the drawing reads as one piece. */
+/* Set on the wrapper and the <svg>, not only on <text>: html-to-image embeds only fonts
+   it finds on HTML elements and copies no styles onto SVG children, so exported labels
+   inherit from the <svg>. */
+.carousel-slide.diagram-drawn .slide-diagram-svg,
+.carousel-slide.diagram-drawn .slide-diagram-svg svg,
+.carousel-slide.diagram-drawn .slide-diagram-svg svg text { font-family: "Architects Daughter", var(--font-sans); }
 
 .slide-overflow-warning { max-width: 520px; margin: 12px 0 0; color: var(--danger); font-size: 13px; line-height: 1.5; }
 
@@ -370,7 +412,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .template-cinematic.has-background .slide-head, .template-cinematic.has-background .slide-meta { text-shadow: 0 1px 3px rgb(0 0 0 / .7); }
 .new-carousel-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
-.font-warning { width: min(52vh, 520px, 100%); margin: 0 0 12px; padding: 9px 12px; border: 1px solid #ddc9a2; border-radius: var(--radius); background: #fbf5e8; color: #6d5a2c; font-size: 11px; line-height: 1.5; }
+.font-warning { width: var(--preview-width); margin: 0 0 12px; padding: 9px 12px; border: 1px solid #ddc9a2; border-radius: var(--radius); background: #fbf5e8; color: #6d5a2c; font-size: 11px; line-height: 1.5; }
 .picture-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }
 .picture-list li { position: relative; aspect-ratio: 1; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel-2) center / cover no-repeat; }
 .picture-list li.is-missing { background: repeating-linear-gradient(135deg, #e6e3da 0 5px, #f1f0eb 5px 12px); }

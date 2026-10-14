@@ -128,7 +128,7 @@ export default function MediaGallery() {
 
         {media === null && !error && <div className="library-loading" role="status"><LoaderCircle className="spin" size={20} /> Loading images…</div>}
 
-        <p>Removing an image hides it from the library. Its file is retained to protect saved carousels.</p>
+        <p className="media-note">Removing an image hides it from the library. Its file is retained to protect saved carousels.</p>
         <ul className="media-grid">
           {(media ?? []).map((asset) => (
             <li className="media-card" key={asset.key}>

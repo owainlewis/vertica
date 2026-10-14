@@ -72,6 +72,12 @@ ink, `fill="none"` on shapes, 2-unit strokes, and 8-unit corner radii. Use
 notes; inspect actual phone-size rendering and reduce complexity if labels crowd.
 Arrows use lines and polygon heads. No scripts or external references.
 
+A cover may carry a diagram as its artwork: set `visual: "diagram"` on the cover.
+Set `diagramStyle: "drawn"` to redraw any diagram as pen and pencil work with
+architect's hand lettering. Write the SVG the same way. Shade one or two key shapes
+with `class="hatch"` or `class="crosshatch"`; a tinted fill is hatched too, while
+`fill="currentColor"` stays solid ink for arrowheads. Labels stay clear of hatching.
+
 ## Output and verification
 
 Return the requested format. For app-ready JSON, include `version: 1`, `title`,
