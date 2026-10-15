@@ -413,7 +413,10 @@ test("visual captions offer two real positions while retaining legacy settings",
       const slide = { layout: "note", visual, position };
       assert.equal(slidePosition(slide), expected);
       assert.equal(slide.position, position);
-      assert.equal(slidePosition({ ...slide, layout: "content" }), position ?? "middle", "retained visuals do not move text layouts");
+      // Body 1 explains with a diagram, copy first by default; it never draws pictures.
+      const body = slidePosition({ ...slide, layout: "content" });
+      assert.equal(body, visual === "diagram" ? (position === "bottom" ? "bottom" : "top") : position ?? "middle");
+      assert.equal(slidePosition({ ...slide, layout: "closing" }), position ?? "middle", "retained visuals do not move text-only layouts");
     }
   }
 });

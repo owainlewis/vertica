@@ -91,8 +91,11 @@ test("diagram style survives a JSON round trip and covers can carry a diagram", 
   assert.equal(note.diagramStyle, undefined, "unknown styles fall back to clean");
   assert.equal(slideVisual(cover), "diagram");
   assert.equal(slideVisual(note), "diagram");
-  assert.equal(slideVisual(content), undefined, "Body 1 keeps text only");
-  assert.equal(slidePosition(cover), "bottom");
+  assert.equal(slideVisual(content), "diagram", "Body 1 can explain its point with a diagram");
+  assert.equal(slideVisual({ layout: "content", visual: "photos" }), undefined, "Body 1 takes diagrams, not pictures");
+  assert.equal(slidePosition(cover), "bottom", "cover art sits above the headline");
+  assert.equal(slidePosition(content), "top", "Body 1 leads with its point, then the figure");
+  assert.equal(slidePosition({ ...content, position: "bottom" }), "bottom", "an explicit position wins");
   assert.equal(slideVisual({ layout: "cover", visual: "photos" }), undefined, "covers take diagrams, not pictures");
 });
 
@@ -115,4 +118,15 @@ test("slides draw a hand-drawn diagram on covers and Body 2, and the clean SVG o
     assert.ok(!dom.window.document.querySelector("article").classList.contains("diagram-drawn"));
     assert.equal(dom.window.document.querySelectorAll(".drawn-pencil").length, 0);
   } finally { dom.window.close(); }
+});
+
+test("a quiet drawing keeps the pencil and ink but drops construction lines and shadows", () => {
+  const quiet = DIAGRAM.replace('<svg viewBox="0 0 800 500"', '<svg viewBox="0 0 800 500" class="quiet"');
+  const { document, close } = parse(drawnSvg(sanitizeSvg(quiet), "q"));
+  try {
+    assert.equal(document.querySelectorAll(".drawn-construction").length, 0);
+    assert.equal(document.querySelectorAll(".drawn-shadow").length, 0);
+    assert.equal(document.querySelectorAll("rect.drawn-pencil").length, 2);
+    assert.ok(document.querySelectorAll(".drawn-hatch").length > 0);
+  } finally { close(); }
 });

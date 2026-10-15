@@ -307,7 +307,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .slide-meta { bottom: var(--edge); }
 .slide-head span, .slide-meta span { min-width: 0; }
 .slide-mark, .meta-author { overflow-wrap: anywhere; }
-.slide-counter { font-variant-numeric: tabular-nums; }
+/* The page number stays top right, with or without a series label beside it. */
+.slide-counter { margin-left: auto; font-variant-numeric: tabular-nums; }
 /* The arrow is drawn larger than the footer text, so it is centred on the text, not on its own box. */
 .slide-arrow { font-family: var(--font-sans); font-size: 4.8cqw; font-weight: 300; line-height: var(--metadata-size); }
 
@@ -383,14 +384,16 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
    inherit from the <svg>. */
 .carousel-slide.diagram-drawn .slide-diagram-svg,
 .carousel-slide.diagram-drawn .slide-diagram-svg svg,
-.carousel-slide.diagram-drawn .slide-diagram-svg svg text { font-family: "Architects Daughter", var(--font-sans); }
+/* A label that names its own font, such as code in monospace, keeps it. */
+.carousel-slide.diagram-drawn .slide-diagram-svg svg text:not([font-family]) { font-family: "Architects Daughter", var(--font-sans); }
 
 .slide-overflow-warning { max-width: 520px; margin: 12px 0 0; color: var(--danger); font-size: 13px; line-height: 1.5; }
 
 /* Cinematic artwork follows the supplied photo and b-roll references. The app
    chrome retains its existing design; every preview and export shares this CSS. */
+/* Signifier headlines with Helvetica copy: the brand pair. */
 .carousel-slide.template-cinematic {
-  --font-sans: "Geist", "Helvetica Neue", Arial, sans-serif;
+  --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --ink: #ffffff;
   --paper: #121715;
   --margin: 11%;

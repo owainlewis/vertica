@@ -204,6 +204,9 @@ export function drawnSvg(svg: string, key = "diagram"): string {
   let random = seed;
   const next = () => ((random = (Math.imul(random, 1103515245) + 12345) >>> 0) / 4294967296);
 
+  // A quiet drawing keeps the pen and pencil but leaves out construction lines and
+  // shadows, for explanatory sketches that sit next to copy.
+  const quiet = classes(root).includes("quiet");
   const labels: Label[] = [];
   const hatches: Element[] = [];
 
@@ -229,7 +232,7 @@ export function drawnSvg(svg: string, key = "diagram"): string {
 
       // A dashed outline marks an empty slot: it gets no construction lines or shadow.
       const dashed = !isNone(get(child, "stroke-dasharray"));
-      if (child.name === "rect" && stroked && !dashed) {
+      if (child.name === "rect" && stroked && !dashed && !quiet) {
         const x = number(get(child, "x")), y = number(get(child, "y"));
         const w = number(get(child, "width")), h = number(get(child, "height"));
         const reach = () => (14 + next() * 30) * scale;

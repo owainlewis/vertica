@@ -94,11 +94,14 @@ export type CarouselSlide = {
   tone?: EditorialTone;
 };
 
-/** Body 2 holds any visual. A cover can also carry a diagram as its artwork. */
+/**
+ * Body 2 holds any visual. A cover can carry a diagram as its artwork, and Body 1
+ * can explain its point with one beneath the copy.
+ */
 export function slideVisual(slide: Pick<CarouselSlide, "layout" | "visual">): SlideVisual | undefined {
   const resolved = normalizeSlideLayout(slide);
   if (resolved.layout === "note") return resolved.visual;
-  return resolved.layout === "cover" && resolved.visual === "diagram" ? "diagram" : undefined;
+  return (resolved.layout === "cover" || resolved.layout === "content") && resolved.visual === "diagram" ? "diagram" : undefined;
 }
 
 /** Body 2 is the only layout that paints pictures. */
@@ -148,7 +151,10 @@ export function slidePosition(slide: CarouselSlide, theme?: CarouselTheme, forma
   if (slideVisual(slide)) {
     // Older visual slides can store "middle". Keep that value in the document,
     // but give the caption a real position above its figure.
-    return slide.position === "top" || slide.position === "middle" ? "top" : "bottom";
+    if (slide.position === "top" || slide.position === "middle") return "top";
+    if (slide.position === "bottom") return "bottom";
+    // Body 1 leads with its point and illustrates it below; other figures sit above their copy.
+    return normalizeLayout(slide.layout, "content") === "content" ? "top" : "bottom";
   }
   return slide.position ?? (theme === "cinematic" && format !== "video" ? "top" : "middle");
 }
@@ -665,6 +671,12 @@ export const SERIF_TYPE_SCALE = {
   heading: (Math.round(BODY_SIZE * GOLDEN_RATIO ** 2) / 390) * 100,
 } as const;
 
+/**
+ * The largest headline on a Body 1 slide that also carries a figure: half a golden step
+ * below the serif display, so a two-line point, its copy and the drawing all fit.
+ */
+export const FIGURE_HEADING = (Math.round(BODY_SIZE * GOLDEN_RATIO ** 1.5) / 390) * 100;
+
 export function aiPrompt(config: CarouselConfig) {
   return `Create a minimal social carousel from the source text below. Return JSON only, with no markdown fences.
 
@@ -681,7 +693,7 @@ Rules:
 - Body 1 is a title in the selected typeface followed by short paragraphs, separated by space. Use it for most teaching slides. No introduction or agenda slide: begin delivering the cover's promise on slide two.
 - Body 2 holds one short statement or a visual example with its title as the caption. It draws the title only; omit body. Use it when the idea benefits, not to meet a layout quota.
 - For pictures on Body 2, set "visual": "photos" and add image references to "images". For an SVG, set "visual": "diagram" and put the drawing in "diagram". Images and diagrams are optional.
-- A cover may also set "visual": "diagram" to use a drawing as cover art; keep its body to one short line.
+- A cover may also set "visual": "diagram" to use a drawing as cover art; keep its body to one short line. Body 1 may set "visual": "diagram" to show a drawing below its copy; keep that body to one or two short sentences.
 - "diagramStyle": "drawn" redraws a diagram as pen and pencil work with hand lettering. Omit it for clean lines. In a drawn diagram, mark one or two key shapes with class="hatch" or class="crosshatch" to shade them; keep labels short so they read in hand lettering.
 - SVG rules: viewBox="0 0 800 500", no width or height attributes, stroke="currentColor" and fill="none" for shapes, fill="currentColor" for text, stroke-width 2, rx 8 on boxes, font-family="inherit", labels and notes 48px, one text size, nothing smaller, at most six boxes, arrows drawn with a line plus a small polygon head, generous space, no colour, no gradients, no scripts.
 - Omit "tone" for a dark ground. Optional solid grounds: "paper", "sage", "black". The author chooses photos or video in the editor.
@@ -700,7 +712,7 @@ ${JSON.stringify(
       slides: [
         {
           layout: "cover | content | note | closing",
-          visual: "photos | diagram (optional; Body 2, or diagram on a cover)",
+          visual: "photos | diagram (optional; Body 2, or diagram on a cover or Body 1)",
           diagramStyle: "drawn (optional, diagram slides only)",
           typeface: slideTypeface(config.slides[0] ?? {}, config.theme),
           label: "Optional short tag",
