@@ -408,9 +408,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .template-cinematic .slide-label { align-self: flex-start; max-width: 100%; margin-bottom: 1.4em; color: var(--ink); font-size: 2.8cqw; font-weight: 500; line-height: 1.3; letter-spacing: .04em; text-transform: uppercase; overflow-wrap: anywhere; }
 .template-cinematic.align-center .slide-label { align-self: center; }
 .template-cinematic .mark-accent { color: inherit; font-weight: 750; }
-/* *word* in a sans headline turns to Signifier italic: one word of contrast, the way
-   cinematic titles pair a heavy sans with a serif. Slightly larger to match the sans's height. */
-.carousel-slide.template-cinematic.type-sans .slide-content h2 .mark-italic { font-family: Signifier, Georgia, serif; font-style: italic; font-weight: 400; font-size: 1.08em; letter-spacing: -.01em; line-height: 0; }
+/* The house style: *word* in a sans headline turns to Signifier italic, one word of
+   contrast against the bold sans, in every theme. Slightly larger to match the sans's height. */
+.carousel-slide.type-sans .slide-content h2 .mark-italic { font-family: Signifier, Georgia, serif; font-style: italic; font-weight: 400; font-size: 1.08em; letter-spacing: -.01em; line-height: 0; }
 
 /* Film grade on footage and photographs. The colour matches ffmpeg's in film-grade.ts. */
 .grade-film .slide-image { filter: var(--film-grade); }

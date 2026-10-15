@@ -263,7 +263,7 @@ export default function Editor({
     const slide: CarouselSlide = {
       id: newSlideId(),
       layout: "content",
-      typeface: slideTypeface(selectedSlide, config.theme),
+      typeface: "sans",
       title: "Add a clear headline",
       body: "Use one thought per slide. Keep the supporting copy short.",
     };
@@ -435,7 +435,8 @@ export default function Editor({
         </aside>
 
         <section className="canvas-area" aria-label="Slide preview">
-          {signifierMissing && slideTypeface(selectedSlide, config.theme) === "serif" && (
+          {/* Signifier draws serif headlines and the italic accent word in sans headlines. */}
+          {signifierMissing && (slideTypeface(selectedSlide, config.theme) === "serif" || /(^|[^*])\*[^*]+\*/.test(selectedSlide.title)) && (
             <p className="font-warning" role="status">
               Signifier is not installed on this machine, so slides are showing Georgia. Exports from here will ship Georgia too. Install Signifier or export from a machine that has it.
             </p>

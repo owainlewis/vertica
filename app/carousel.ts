@@ -692,10 +692,10 @@ Rules:
 - Titles: 10 words or fewer. Plain, concrete language. Sentence case, never capitals. No colons, no hype.
 - Let headlines wrap naturally. Use "|" only when a deliberate break improves the meaning.
 - Bodies: 30 words or fewer. Separate paragraphs with a blank line. The cover body is its subtitle: one short line.
-- Emphasis is optional: *italic* or **bold** on a short phrase. Do not add emphasis or decoration to meet a quota.
+- Typography is fixed: Helvetica bold headlines and Helvetica body copy. In a headline, *italic* sets one word or a two-word phrase in Signifier italic for emphasis, as in "Claude Code *mods* explained". Use it on at most one phrase per headline, only where it adds meaning. **bold** is for body copy only.
 - Four layouts: "cover" (Cover), "content" (Body 1), "note" (Body 2), "closing" (CTA). Start with a cover and finish with one useful action.
-- Use per-slide "typeface": "sans" or "serif". The rounded golden-ratio scale is 16px body, 26px Geist sans titles and 42px Signifier serif titles at a 390px phone width. Body copy always uses Geist. Cover, content, note and closing slides use the same title size within each typeface. Do not shrink text to fit.
-- Body 1 is a title in the selected typeface followed by short paragraphs, separated by space. Use it for most teaching slides. No introduction or agenda slide: begin delivering the cover's promise on slide two.
+- Set "typeface": "sans" on every slide. The rounded golden-ratio scale is 16px body and 33px titles at a 390px phone width, the same on cover, content, note and closing slides. Do not shrink text to fit.
+- Body 1 is a title followed by short paragraphs, separated by space. Use it for most teaching slides. No introduction or agenda slide: begin delivering the cover's promise on slide two.
 - Body 2 holds one short statement or a visual example with its title as the caption. It draws the title only; omit body. Use it when the idea benefits, not to meet a layout quota.
 - For pictures on Body 2, set "visual": "photos" and add image references to "images". For an SVG, set "visual": "diagram" and put the drawing in "diagram". Images and diagrams are optional.
 - A cover may also set "visual": "diagram" to use a drawing as cover art; keep its body to one short line. Body 1 may set "visual": "diagram" to show a drawing below its copy; keep that body to one or two short sentences.
@@ -719,7 +719,7 @@ ${JSON.stringify(
           layout: "cover | content | note | closing",
           visual: "photos | diagram (optional; Body 2, or diagram on a cover or Body 1)",
           diagramStyle: "drawn (optional, diagram slides only)",
-          typeface: slideTypeface(config.slides[0] ?? {}, config.theme),
+          typeface: "sans",
           label: "Optional short tag",
           tone: "paper | sage | black (optional)",
           title: "Slide headline",
