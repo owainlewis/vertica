@@ -307,7 +307,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .slide-meta { bottom: var(--edge); }
 .slide-head span, .slide-meta span { min-width: 0; }
 .slide-mark, .meta-author { overflow-wrap: anywhere; }
-.slide-counter { font-variant-numeric: tabular-nums; }
+/* The page number stays top right, with or without a series label beside it. */
+.slide-counter { margin-left: auto; font-variant-numeric: tabular-nums; }
 /* The arrow is drawn larger than the footer text, so it is centred on the text, not on its own box. */
 .slide-arrow { font-family: var(--font-sans); font-size: 4.8cqw; font-weight: 300; line-height: var(--metadata-size); }
 
