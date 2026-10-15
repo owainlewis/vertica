@@ -13,6 +13,7 @@ import {
   parseInlineMarks,
   photoArrangement,
   showsBody,
+  FIGURE_HEADING,
   sanitizeSvg,
   slideVisual,
   slideAlign,
@@ -85,7 +86,7 @@ export function Slide({
   const showArrow = config.arrow !== false && !isLast;
 
   const style = {
-    "--title-size": `${scale.heading}cqw`,
+    "--title-size": `${slide.layout === "content" && visual ? Math.min(scale.heading, FIGURE_HEADING) : scale.heading}cqw`,
     "--reading-size": `${scale.reading}cqw`,
     "--metadata-size": `${TYPE_SCALE.metadata}cqw`,
     "--video-top": `${HORIZONTAL_VIDEO_FRAME.y / HORIZONTAL_VIDEO_FRAME.canvasHeight * 100}%`,

@@ -30,7 +30,7 @@ export const layoutNames: Record<SlideLayout, string> = {
 
 const layoutHints: Record<SlideLayout, string> = {
   cover: "A clear promise in the selected typeface, with one short supporting line. A diagram can sit below as cover art.",
-  content: "A clear lead and short, readable paragraphs. One idea per slide.",
+  content: "A clear lead and short, readable paragraphs. One idea per slide. A diagram can sit below to show the point.",
   note: "A short statement or visual example. Add pictures or a diagram under Content.",
   closing: "One useful next action, with a short supporting line.",
 };
@@ -166,9 +166,9 @@ function ContentPanel({ config, slide, updateSlide, onAddPicture, onChooseImage,
           </div>
         </>
       )}
-      {slide.layout === "cover" && (
+      {(slide.layout === "cover" || slide.layout === "content") && (
         <>
-          <label className="field-label" htmlFor="slide-visual">Cover art</label>
+          <label className="field-label" htmlFor="slide-visual">{slide.layout === "cover" ? "Cover art" : "Visual example"}</label>
           <div className="select-wrap">
             <select id="slide-visual" value={slide.visual === "diagram" ? "diagram" : ""} onChange={(event) => updateSlide({ visual: event.target.value ? "diagram" : undefined })}>
               <option value="">Text only</option>
