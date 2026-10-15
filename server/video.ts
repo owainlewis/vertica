@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { Hono } from "hono";
 import { MAX_SLIDES } from "../app/carousel-validation.ts";
+import { filmGradeFfmpeg } from "../app/film-grade.ts";
 import type { Bucket, ObjectMeta } from "./bucket.ts";
 import { PreconditionError } from "./bucket.ts";
 import { mediaInUse } from "./store.ts";
@@ -292,7 +293,8 @@ export function videoRoutes(bucket: Bucket) {
     if (png.length > MAX_OVERLAY_BYTES || png.length < 33 || png.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a" || png.toString("ascii", 12, 16) !== "IHDR" || png.readUInt32BE(16) !== 1080 || png.readUInt32BE(20) !== 1350) {
       throw new VideoError("The text overlay must be a 1080 × 1350 PNG under 8 MB.");
     }
-    return { clip, png };
+    if (input.grade !== undefined && input.grade !== "film") throw new VideoError("Unknown grade.");
+    return { clip, png, graded: input.grade === "film" };
   }
 
   async function validateSource(clip: ReturnType<typeof parseVideoBackground>) {
@@ -301,7 +303,7 @@ export function videoRoutes(bucket: Bucket) {
     if (clip.start + clip.duration > Number(meta.custom.duration) + 0.01) throw new VideoError("The clip ends after the video. Reduce its start or duration.");
   }
 
-  async function renderSlide({ clip, png }: ReturnType<typeof parseExport>, dir: string, name = "slide.mp4") {
+  async function renderSlide({ clip, png, graded }: ReturnType<typeof parseExport>, dir: string, name = "slide.mp4") {
     const object = await exportSource(clip.key);
     const source = join(dir, "source.mp4");
     const overlay = join(dir, "overlay.png");
@@ -314,7 +316,8 @@ export function videoRoutes(bucket: Bucket) {
     const landscape = `[0:v]scale=w='max(2,round(min(${frame.width},${frame.height}*dar)*${zoom}/2)*2)':h='max(2,round(min(${frame.height},${frame.width}/dar)*${zoom}/2)*2)':flags=lanczos,setsar=1,pad=w='max(iw,${frame.width})':h='max(ih,${frame.height})':x=(ow-iw)/2:y=(oh-ih)/2:color=black,crop=${frame.width}:${frame.height},pad=${frame.canvasWidth}:${frame.canvasHeight}:${frame.x}:${frame.y}:black[bg]`;
     const fill = "[0:v]scale=w='ceil(max(1080,1350*dar)/2)*2':h='ceil(max(1350,1080/dar)/2)*2':flags=lanczos,crop=1080:1350,setsar=1[bg]";
     await command("ffmpeg", ["-v", "error", "-nostdin", "-y", "-threads", "2", "-protocol_whitelist", "file,pipe", "-f", "mov", "-ss", String(clip.start), "-i", source, "-i", overlay,
-      "-filter_complex_threads", "1", "-filter_complex", `${clip.framing === "horizontal" ? landscape : fill};[bg][1:v]overlay=0:0:format=auto,format=yuv420p,sidedata=mode=delete:type=DISPLAYMATRIX[out]`,
+      // The film grade sits between the framed clip and the artwork, matching the CSS preview.
+      "-filter_complex_threads", "1", "-filter_complex", `${clip.framing === "horizontal" ? landscape : fill};${graded ? `[bg]${filmGradeFfmpeg()}[bg];` : ""}[bg][1:v]overlay=0:0:format=auto,format=yuv420p,sidedata=mode=delete:type=DISPLAYMATRIX[out]`,
       "-map", "[out]", "-an", "-t", String(clip.duration), "-r", "30", "-c:v", "libx264", "-threads", "2", "-preset", "medium", "-crf", "16", "-movflags", "+faststart", output]);
     return output;
   }

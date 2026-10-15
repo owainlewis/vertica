@@ -89,6 +89,11 @@ async function rasteriseStage(expectedPages: number) {
   return pages;
 }
 
+/** The rendered slide is the source of truth for whether its footage is graded. */
+function isGraded(expectedPages: number, index: number) {
+  return Boolean(stageNodes(expectedPages)[index]?.classList.contains("grade-film"));
+}
+
 /** Capture the existing artwork with alpha, then composite it onto the clip. */
 async function renderStageOverlay(expectedPages: number, index: number) {
   const node = stageNodes(expectedPages)[index];
@@ -99,7 +104,8 @@ async function renderStageOverlay(expectedPages: number, index: number) {
   const overlay = await withTimeout(toPng(node, {
     width: SLIDE_WIDTH, height: SLIDE_HEIGHT, pixelRatio: 1,
     style: { background: "transparent" },
-    filter: (element) => !(element instanceof Element && element.classList.contains("slide-image")),
+    // The footage and the still grain are left out: ffmpeg grades the clip and adds moving grain.
+    filter: (element) => !(element instanceof Element && (element.classList.contains("slide-image") || element.classList.contains("slide-grain"))),
   }), "The text overlay timed out. Keep this tab in front and try again.");
   return overlay;
 }
@@ -108,7 +114,7 @@ async function renderStageVideo(expectedPages: number, index: number, video: Vid
   const overlay = await renderStageOverlay(expectedPages, index);
   const response = await videoRequest("/video-exports", {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ video, overlay }),
+    body: JSON.stringify({ video, overlay, ...(isGraded(expectedPages, index) ? { grade: "film" } : {}) }),
   });
   return response.blob();
 }
@@ -134,7 +140,7 @@ export async function exportStageToReel(fileName: string, config: CarouselConfig
     const overlay = await renderStageOverlay(clips.length, index);
     overlayBytes += overlay.length;
     if (overlayBytes > 32 * 1024 * 1024) throw new Error("The reel artwork is too large. Split it into shorter carousels.");
-    slides.push({ video: clips[index], overlay });
+    slides.push({ video: clips[index], overlay, ...(isGraded(clips.length, index) ? { grade: "film" } : {}) });
   }
   onProgress("Rendering and joining slides into one MP4…");
   const response = await videoRequest("/reel-exports", {

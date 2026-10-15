@@ -29,7 +29,7 @@ export const layoutNames: Record<SlideLayout, string> = {
 };
 
 const layoutHints: Record<SlideLayout, string> = {
-  cover: "A clear promise in the selected typeface, with one short supporting line. A diagram can sit below as cover art.",
+  cover: "A clear promise in a bold headline, with one short supporting line. A diagram can sit below as cover art.",
   content: "A clear lead and short, readable paragraphs. One idea per slide. A diagram can sit below to show the point.",
   note: "A short statement or visual example. Add pictures or a diagram under Content.",
   closing: "One useful next action, with a short supporting line.",
@@ -99,9 +99,14 @@ function LayoutPanel({ config, slide, theme, updateSlide, commit }: PanelProps) 
 
   return (
     <div className="inspector-panel">
-      <span className="field-label">Typography</span>
-      <Segmented options={["sans", "serif"] as const} value={slideTypeface(slide, config.theme)} onChange={(typeface) => updateSlide({ typeface })} label={(value) => value === "sans" ? "Sans · Geist" : "Serif · Signifier"} />
-      <button type="button" className="text-button subtle" onClick={() => commit({ ...config, slides: config.slides.map((each) => ({ ...each, typeface: slideTypeface(slide, config.theme) })) })}>Apply typography to all slides</button>
+      {/* One house style: Helvetica headlines, with *a word* in Signifier italic for emphasis.
+          Older serif slides keep rendering as saved and can move over in one step. */}
+      {slideTypeface(slide, config.theme) === "serif" && (
+        <>
+          <p className="field-hint">This slide uses the older serif headline. The house style is a Helvetica headline, with <em>*one word*</em> in Signifier italic for emphasis.</p>
+          <button type="button" className="text-button subtle" onClick={() => commit({ ...config, slides: config.slides.map((each) => ({ ...each, typeface: "sans" })) })}>Use the house style on every slide</button>
+        </>
+      )}
       <label className="field-label" htmlFor="slide-layout">Slide type</label>
       <div className="select-wrap">
         <select id="slide-layout" value={slide.layout} onChange={(event) => updateSlide({ layout: event.target.value as SlideLayout })}>
@@ -308,12 +313,14 @@ function DesignPanel({ config, slide, theme, updateSlide, commit, onChooseImage,
         <ChevronDown size={14} />
       </div>
       <p className="field-hint">{config.format === "video" ? "One MP4 per slide, with your text over b-roll. Add a video to every slide before exporting." : "Numbered still images, ready to upload in order."}</p>
-      <p className="field-hint">Cinematic. Choose Sans or Serif typography under Layout. Use photos, video or a quiet solid background.</p>
+      <p className="field-hint">Cinematic. Helvetica headlines with <em>*one word*</em> in Signifier italic for emphasis. Use photos, video or a quiet solid background.</p>
       <label className="field-label" htmlFor="mark">Series label</label>
       <input id="mark" maxLength={30} value={config.mark ?? ""} placeholder="AI Engineer" onChange={(event) => commit({ ...config, mark: event.target.value }, "mark")} />
       <label className="field-label" htmlFor="author">Footer name</label>
       <input id="author" maxLength={40} value={config.author} onChange={(event) => commit({ ...config, author: event.target.value }, "author")} />
       <label className="check-row"><input type="checkbox" checked={config.arrow !== false} onChange={(event) => commit({ ...config, arrow: event.target.checked ? undefined : false })} /> Swipe arrow on every slide but the last</label>
+      <label className="check-row"><input type="checkbox" checked={config.grade === "film"} onChange={(event) => commit({ ...config, grade: event.target.checked ? "film" : undefined })} /> Film grade</label>
+      <p className="field-hint">Warm, slightly faded colour with grain and a soft vignette on photo and video backgrounds. Previews, images and MP4s all match.</p>
       <details className="config-tools">
         <summary>Project data</summary>
         <button type="button" onClick={onEditJson}><Layers3 size={15} /> Edit JSON config</button>

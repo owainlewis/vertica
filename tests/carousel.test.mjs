@@ -66,8 +66,10 @@ test("legacy generation stays compatible while the AI prompt uses Cinematic", ()
   for (const theme of ["editorial", "ai-engineer"]) {
     const instructions = aiPrompt({ ...deck, theme });
     assert.match(instructions, /Four layouts/);
-    assert.match(instructions, /16px body, 26px Geist sans titles and 42px Signifier serif titles at a 390px phone width/);
-    assert.match(instructions, /closing slides use the same title size/);
+    // One house style: Helvetica headlines with one italic Signifier word for emphasis.
+    assert.match(instructions, /16px body and 33px titles at a 390px phone width, the same on cover, content, note and closing slides/);
+    assert.match(instructions, /\*italic\* sets one word or a two-word phrase in Signifier italic/);
+    assert.doesNotMatch(instructions, /"serif"|Geist/);
     assert.doesNotMatch(instructions, /share one reading size/);
     assert.match(instructions, /Bodies: 30 words or fewer/);
     assert.match(instructions, /labels and notes 48px, one text size/);
