@@ -61,7 +61,7 @@ test("Each typeface keeps its golden-ratio size across themes, formats and layou
       const dom = new JSDOM(renderToStaticMarkup(createElement(Slide, { config: themed, slide: source, index: 0 })));
       const style = dom.window.document.querySelector("article").style;
       const phonePixels = (property) => parseFloat(style.getPropertyValue(property)) * 390 / 100;
-      assert.ok(Math.abs(phonePixels("--title-size") - (typeface === "serif" ? 42 : 26)) < 0.001);
+      assert.ok(Math.abs(phonePixels("--title-size") - (typeface === "serif" ? 42 : 33)) < 0.001);
       assert.ok(Math.abs(phonePixels("--reading-size") - 16) < 0.001);
       dom.window.close();
     }
@@ -89,7 +89,7 @@ test("Legacy layouts inherit the new scale without changing saved typography def
       const slide = dom.window.document.querySelector("article");
       assert.ok(Math.abs(parseFloat(slide.style.getPropertyValue("--reading-size")) * 390 / 100 - 16) < 0.001);
       const title = parseFloat(slide.style.getPropertyValue("--title-size"));
-      assert.ok(Math.abs(title * 390 / 100 - (theme === "editorial" ? 42 : 26)) < 0.001);
+      assert.ok(Math.abs(title * 390 / 100 - (theme === "editorial" ? 42 : 33)) < 0.001);
       assert.equal(slide.querySelector(".slide-rules"), null);
       dom.window.close();
     }

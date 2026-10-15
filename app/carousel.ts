@@ -665,7 +665,8 @@ export function bodyParagraphs(body: string) {
 const GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2;
 const BODY_SIZE = 16;
 export const TYPE_SCALE = {
-  heading: (Math.round(BODY_SIZE * GOLDEN_RATIO) / 390) * 100,
+  // Sans headlines sit half a golden step above the lead, so a cinematic title holds its own over footage.
+  heading: (Math.round(BODY_SIZE * GOLDEN_RATIO ** 1.5) / 390) * 100,
   reading: (BODY_SIZE / 390) * 100,
   metadata: (Math.round(BODY_SIZE / GOLDEN_RATIO) / 390) * 100,
 } as const;
