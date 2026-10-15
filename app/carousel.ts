@@ -1,6 +1,7 @@
 import { validateCarouselSlides } from "./carousel-validation.ts";
 import { isImageKey, isSupportedImageDataUrl } from "./image-formats.ts";
 import { parseVideoBackground, type VideoBackground } from "./video-formats.ts";
+import type { CarouselGrade } from "./film-grade.ts";
 
 export { MAX_SLIDES } from "./carousel-validation.ts";
 
@@ -173,6 +174,8 @@ export type CarouselConfig = {
   author: string;
   /** Omitted on older decks, which keep the Editorial theme. */
   theme?: CarouselTheme;
+  /** A film look on photo and video backgrounds, in previews and every export. Omitted means none. */
+  grade?: CarouselGrade;
   /** Output intent; changing it keeps all existing media and copy. */
   format?: CarouselFormat;
   /**
@@ -331,6 +334,7 @@ export function parseCarouselConfig(input: string): CarouselConfig {
     ...(record.theme !== undefined ? { theme: carouselTheme(record.theme) } : {}),
     ...(record.format !== undefined ? { format: carouselFormat(record.format) } : {}),
     ...(record.arrow === false ? { arrow: false } : {}),
+    ...(record.grade === "film" ? { grade: "film" as const } : {}),
     slides,
   };
 }

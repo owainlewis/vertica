@@ -1,5 +1,6 @@
 import { useId, type CSSProperties } from "react";
 import { drawnSvg } from "./drawn-diagram";
+import { filmGradeCss } from "./film-grade";
 import VideoBackground from "./video-background";
 import { HORIZONTAL_VIDEO_FRAME, videoUrl } from "./video-formats";
 import {
@@ -82,6 +83,8 @@ export function Slide({
   const cleanDiagram = visual === "diagram" && slide.diagram ? sanitizeSvg(slide.diagram) : "";
   const drawn = Boolean(cleanDiagram) && slide.diagramStyle === "drawn";
   const diagram = drawn ? drawnSvg(cleanDiagram, `${slide.id}${mountId}`) : cleanDiagram;
+  // The film grade only touches footage and photographs; plain grounds stay as drawn.
+  const graded = config.grade === "film" && Boolean(background || slide.video);
   const isLast = index === config.slides.length - 1;
   const showArrow = config.arrow !== false && !isLast;
 
@@ -93,6 +96,7 @@ export function Slide({
     "--video-height": `${HORIZONTAL_VIDEO_FRAME.height / HORIZONTAL_VIDEO_FRAME.canvasHeight * 100}%`,
     "--video-zoom": String(slide.video?.zoom ?? 1),
     "--veil": String(slide.veil ?? DEFAULT_VEIL),
+    "--film-grade": filmGradeCss(),
   } as CSSProperties;
 
   // A headline opening on a quote mark sits visibly indented against the copy below
@@ -129,6 +133,7 @@ export function Slide({
     `align-${slideAlign(slide, theme)}`,
     `tone-${slideTone(slide, theme)}`,
     background || slide.video ? "has-background" : "",
+    graded ? "grade-film" : "",
     config.mark ? "has-mark" : "",
     slide.showHeader !== false ? "has-header" : "",
     pictures.length ? `has-pictures pictures-${pictures.length} photos-${photoArrangement(pictures.length)}` : "",
@@ -147,6 +152,10 @@ export function Slide({
           : <img key={`${slide.video.key}:${slide.video.start}`} className="slide-image" src={videoUrl(slide.video.key, "/poster")} data-video-key={slide.video.key} data-video-start={slide.video.start} alt="" />
         : background && <img className="slide-image" src={background} alt="" />}</div>
       <div className="slide-overlay" />
+      {/* The vignette is part of the artwork, so MP4 export burns it in with the text.
+          The grain is a still texture here; MP4 export adds moving grain instead. */}
+      {graded && <div className="slide-vignette" />}
+      {graded && <div className="slide-grain" />}
       {slide.showHeader !== false && (
         <header className="slide-head">
           {config.mark && <span className="slide-mark">{config.mark}</span>}

@@ -314,6 +314,8 @@ function DesignPanel({ config, slide, theme, updateSlide, commit, onChooseImage,
       <label className="field-label" htmlFor="author">Footer name</label>
       <input id="author" maxLength={40} value={config.author} onChange={(event) => commit({ ...config, author: event.target.value }, "author")} />
       <label className="check-row"><input type="checkbox" checked={config.arrow !== false} onChange={(event) => commit({ ...config, arrow: event.target.checked ? undefined : false })} /> Swipe arrow on every slide but the last</label>
+      <label className="check-row"><input type="checkbox" checked={config.grade === "film"} onChange={(event) => commit({ ...config, grade: event.target.checked ? "film" : undefined })} /> Film grade</label>
+      <p className="field-hint">Warm, slightly faded colour with grain and a soft vignette on photo and video backgrounds. Previews, images and MP4s all match.</p>
       <details className="config-tools">
         <summary>Project data</summary>
         <button type="button" onClick={onEditJson}><Layers3 size={15} /> Edit JSON config</button>
